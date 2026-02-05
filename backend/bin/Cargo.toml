@@ -1,0 +1,22 @@
+[package]
+name = "bin"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix-web = "4"
+actix-files = "0.6"
+actix-cors = "0.7"
+auth = { path = "../auth" }
+chrono = { version = "0.4", features = ["serde"] }
+domain = { path = "../domain" }
+env_logger = "0.11"
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+storage = { path = "../storage" }
+strava-client = { path = "../strava-client" }
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4"] }
+webauthn-rs = "0.5"
+webauthn-rs-proto = "0.5"

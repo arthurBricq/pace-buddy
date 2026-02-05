@@ -1,0 +1,13 @@
+use std::sync::Arc;
+
+use auth::{JwtService, WebAuthnService};
+use storage::SqliteStorage;
+use strava_client::StravaClient;
+
+pub struct AppState {
+    pub storage: Arc<SqliteStorage>,
+    pub strava_client: Arc<StravaClient>,
+    pub webauthn: Arc<WebAuthnService>,
+    pub jwt: Arc<JwtService>,
+    pub frontend_url: String,
+}
