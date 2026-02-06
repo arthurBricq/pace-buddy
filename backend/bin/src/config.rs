@@ -21,9 +21,9 @@ impl Config {
             jwt_secret: env::var("JWT_SECRET")
                 .unwrap_or_else(|_| "dev-secret-change-in-production".to_string()),
             webauthn_rp_id: env::var("WEBAUTHN_RP_ID")
-                .unwrap_or_else(|_| "localhost".to_string()),
+                .unwrap_or_else(|_| "running.tool".to_string()),
             webauthn_rp_origin: env::var("WEBAUTHN_RP_ORIGIN")
-                .unwrap_or_else(|_| "http://localhost:5173".to_string()),
+                .unwrap_or_else(|_| "https://running.tool:5173".to_string()),
             strava_client_id: env::var("STRAVA_CLIENT_ID")
                 .unwrap_or_default(),
             strava_client_secret: env::var("STRAVA_CLIENT_SECRET")

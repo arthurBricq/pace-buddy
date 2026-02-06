@@ -18,7 +18,7 @@ export default function LoginPage() {
 
     try {
       const { user_id, options } = await loginStart(username);
-      const credential = await startAuthentication({ optionsJSON: options as any });
+      const credential = await startAuthentication({ optionsJSON: (options as any).publicKey });
       await loginFinish(user_id, credential);
       await refresh();
       navigate('/activities');

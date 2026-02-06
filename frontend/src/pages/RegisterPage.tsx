@@ -19,7 +19,7 @@ export default function RegisterPage() {
 
     try {
       const { user_id, options } = await registerStart(username, displayName);
-      const credential = await startRegistration({ optionsJSON: options as any });
+      const credential = await startRegistration({ optionsJSON: (options as any).publicKey });
       await registerFinish(user_id, credential);
       await refresh();
       navigate('/activities');
