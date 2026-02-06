@@ -1,0 +1,16 @@
+[package]
+name = "cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "rt-cli"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+domain = { path = "../domain" }
+storage = { path = "../storage" }
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4"] }

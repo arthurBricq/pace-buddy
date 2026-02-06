@@ -194,6 +194,15 @@ impl Storage for SqliteStorage {
         row_to_user(&row)
     }
 
+    async fn list_users(&self) -> Result<Vec<User>, DomainError> {
+        let rows = sqlx::query("SELECT id, username, display_name, created_at FROM users ORDER BY created_at")
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to list users: {e}")))?;
+
+        rows.iter().map(row_to_user).collect()
+    }
+
     async fn get_user_by_username(&self, username: &str) -> Result<User, DomainError> {
         let row = sqlx::query(
             "SELECT id, username, display_name, created_at FROM users WHERE username = ?",
