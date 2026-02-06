@@ -1,4 +1,4 @@
-import { Activity } from '../types';
+import type { Activity } from '../types';
 
 interface StatProps {
   label: string;

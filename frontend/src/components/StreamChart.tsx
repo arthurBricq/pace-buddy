@@ -7,7 +7,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { ActivityStream } from '../types';
+import type { ActivityStream } from '../types';
 
 const STREAM_COLORS: Record<string, string> = {
   heartrate: '#ef4444',

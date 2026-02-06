@@ -1,4 +1,4 @@
-import { ActivityTag } from '../types';
+import type { ActivityTag } from '../types';
 
 const TAGS: ActivityTag[] = ['normal', 'intervals', 'race'];
 

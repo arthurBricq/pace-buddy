@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User } from '../types';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import type { User } from '../types';
 import { getMe, logout as apiLogout } from '../api/auth';
 
 interface AuthCtx {

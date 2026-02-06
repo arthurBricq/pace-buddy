@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listActivities, syncActivities, updateActivityTag } from '../api/activities';
-import { Activity, ActivityTag } from '../types';
+import type { Activity, ActivityTag } from '../types';
 import TagBadge from '../components/TagBadge';
 import TagSelector from '../components/TagSelector';
 import Navbar from '../components/Navbar';

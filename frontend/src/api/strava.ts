@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import { StravaStatus } from '../types';
+import type { StravaStatus } from '../types';
 
 export async function getStravaLink() {
   return apiFetch<{ url: string }>('/strava/link');

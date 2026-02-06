@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getActivity, updateActivityTag } from '../api/activities';
-import { ActivityDetail, ActivityTag } from '../types';
+import type { ActivityDetail, ActivityTag } from '../types';
 import Navbar from '../components/Navbar';
 import ActivityStats from '../components/ActivityStats';
 import ActivityMap from '../components/ActivityMap';

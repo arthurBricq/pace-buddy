@@ -1,4 +1,4 @@
-import { ActivityTag } from '../types';
+import type { ActivityTag } from '../types';
 
 const TAG_STYLES: Record<ActivityTag, string> = {
   normal: 'bg-gray-100 text-gray-700',

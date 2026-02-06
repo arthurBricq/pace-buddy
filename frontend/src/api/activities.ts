@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import { Activity, ActivityDetail } from '../types';
+import type { Activity, ActivityDetail } from '../types';
 
 export async function syncActivities(after?: number, before?: number) {
   return apiFetch<{ synced: number }>('/activities/sync', {

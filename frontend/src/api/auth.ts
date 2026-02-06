@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import { User } from '../types';
+import type { User } from '../types';
 
 export async function registerStart(username: string, displayName: string) {
   return apiFetch<{ user_id: string; options: PublicKeyCredentialCreationOptions }>(

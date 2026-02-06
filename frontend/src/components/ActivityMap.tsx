@@ -1,5 +1,5 @@
 import { MapContainer, TileLayer, Polyline } from 'react-leaflet';
-import { LatLngExpression } from 'leaflet';
+import type { LatLngExpression } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
 function decodePolyline(encoded: string): LatLngExpression[] {

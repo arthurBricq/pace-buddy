@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getStravaStatus, getStravaLink } from '../api/strava';
-import { StravaStatus } from '../types';
+import type { StravaStatus } from '../types';
 import Navbar from '../components/Navbar';
 
 export default function LinkStravaPage() {
