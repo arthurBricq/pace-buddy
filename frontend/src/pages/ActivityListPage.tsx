@@ -30,6 +30,7 @@ export default function ActivityListPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [editingTag, setEditingTag] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
@@ -55,9 +56,10 @@ export default function ActivityListPage() {
   const handleSync = async () => {
     setSyncing(true);
     setError('');
+    setSyncResult(null);
     try {
       const result = await syncActivities();
-      alert(`Synced ${result.synced} activities`);
+      setSyncResult(`Synced ${result.synced} activities from Strava.`);
       load();
     } catch (err: any) {
       setError(err.message);
@@ -87,11 +89,33 @@ export default function ActivityListPage() {
           <button
             onClick={handleSync}
             disabled={syncing}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm"
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center gap-2"
           >
+            {syncing && (
+              <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            )}
             {syncing ? 'Syncing...' : 'Sync from Strava'}
           </button>
         </div>
+
+        {syncing && (
+          <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-md mb-4 flex items-center gap-2 text-sm">
+            <svg className="animate-spin h-4 w-4 text-blue-600" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Fetching activities from Strava... This may take a moment.
+          </div>
+        )}
+
+        {syncResult && !syncing && (
+          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md mb-4 text-sm">
+            {syncResult}
+          </div>
+        )}
 
         {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
 

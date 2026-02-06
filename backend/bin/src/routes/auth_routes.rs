@@ -20,6 +20,8 @@ pub async fn register_start(
     state: web::Data<AppState>,
     body: web::Json<RegisterStartRequest>,
 ) -> Result<HttpResponse, AppError> {
+    log::info!("POST /auth/register/start username={}", body.username);
+
     if body.username.is_empty() {
         return Err(DomainError::BadRequest("Username required".into()).into());
     }
@@ -41,6 +43,8 @@ pub async fn register_start(
 
     let ccr = state.webauthn.start_registration(user_id, &body.username).await?;
 
+    log::info!("Registration challenge created for user {user_id}");
+
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "user_id": user_id,
         "options": ccr,
@@ -51,6 +55,8 @@ pub async fn register_finish(
     state: web::Data<AppState>,
     body: web::Json<RegisterFinishRequest>,
 ) -> Result<HttpResponse, AppError> {
+    log::info!("POST /auth/register/finish user_id={}", body.user_id);
+
     let passkey = state
         .webauthn
         .finish_registration(body.user_id, &body.credential)
@@ -63,6 +69,8 @@ pub async fn register_finish(
 
     let token = state.jwt.create_token(body.user_id)?;
     let cookie = build_session_cookie(&token);
+
+    log::info!("User {} registered successfully", body.user_id);
 
     Ok(HttpResponse::Ok().cookie(cookie).json(serde_json::json!({
         "status": "ok",
@@ -84,6 +92,8 @@ pub async fn login_start(
     state: web::Data<AppState>,
     body: web::Json<LoginStartRequest>,
 ) -> Result<HttpResponse, AppError> {
+    log::info!("POST /auth/login/start username={}", body.username);
+
     let user = state
         .storage
         .get_user_by_username(&body.username)
@@ -109,6 +119,8 @@ pub async fn login_start(
         .start_authentication(user.id, &passkeys)
         .await?;
 
+    log::info!("Auth challenge created for user {}", user.id);
+
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "user_id": user.id,
         "options": rcr,
@@ -125,6 +137,8 @@ pub async fn login_finish(
     state: web::Data<AppState>,
     body: web::Json<LoginFinishRequest>,
 ) -> Result<HttpResponse, AppError> {
+    log::info!("POST /auth/login/finish user_id={}", body.user_id);
+
     let _auth_result = state
         .webauthn
         .finish_authentication(body.user_id, &body.credential)
@@ -133,12 +147,16 @@ pub async fn login_finish(
     let token = state.jwt.create_token(body.user_id)?;
     let cookie = build_session_cookie(&token);
 
+    log::info!("User {} logged in successfully", body.user_id);
+
     Ok(HttpResponse::Ok().cookie(cookie).json(serde_json::json!({
         "status": "ok",
     })))
 }
 
 pub async fn logout(_req: HttpRequest) -> Result<HttpResponse, AppError> {
+    log::info!("POST /auth/logout");
+
     let cookie = Cookie::build("session", "")
         .path("/")
         .http_only(true)
@@ -155,6 +173,7 @@ pub async fn me(
     state: web::Data<AppState>,
     user: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
+    log::debug!("GET /auth/me user_id={}", user.user_id);
     let u = state.storage.get_user_by_id(user.user_id).await?;
     Ok(HttpResponse::Ok().json(u))
 }

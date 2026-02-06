@@ -21,6 +21,21 @@ pub async fn sync_activities(
     user: AuthenticatedUser,
     body: web::Json<SyncRequest>,
 ) -> Result<HttpResponse, AppError> {
+    // If no explicit `after` provided, default to latest stored activity start_date
+    // so we only fetch new activities (incremental sync).
+    let after = match body.after {
+        Some(ts) => Some(ts),
+        None => {
+            let latest = state.storage.get_latest_activity_start(user.user_id).await?;
+            latest.map(|dt| dt.timestamp())
+        }
+    };
+
+    log::info!(
+        "POST /activities/sync user={} after={:?} before={:?}",
+        user.user_id, after, body.before
+    );
+
     let access_token =
         get_valid_access_token(&state.storage, &state.strava_client, user.user_id).await?;
 
@@ -29,12 +44,15 @@ pub async fn sync_activities(
     let per_page = 200u32;
 
     loop {
+        log::info!("Fetching Strava activities page {page}...");
         let strava_activities = state
             .strava_client
-            .get_activities(&access_token, page, per_page, body.after, body.before)
+            .get_activities(&access_token, page, per_page, after, body.before)
             .await?;
 
         let count = strava_activities.len();
+        log::info!("Got {count} activities from Strava (page {page})");
+
         let domain_activities: Vec<_> = strava_activities
             .iter()
             .map(|sa| strava_activity_to_domain(sa, user.user_id))
@@ -49,7 +67,10 @@ pub async fn sync_activities(
     }
 
     let total = all_activities.len();
+    log::info!("Upserting {total} activities into storage");
     state.storage.upsert_activities(&all_activities).await?;
+
+    log::info!("Sync complete: {total} activities for user {}", user.user_id);
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "synced": total,
@@ -70,10 +91,14 @@ pub async fn list_activities(
     let limit = query.limit.unwrap_or(50).min(200);
     let offset = query.offset.unwrap_or(0);
 
+    log::debug!("GET /activities user={} limit={limit} offset={offset}", user.user_id);
+
     let activities = state
         .storage
         .get_activities(user.user_id, limit, offset)
         .await?;
+
+    log::debug!("Returning {} activities", activities.len());
 
     Ok(HttpResponse::Ok().json(activities))
 }
@@ -84,6 +109,8 @@ pub async fn get_activity(
     path: web::Path<Uuid>,
 ) -> Result<HttpResponse, AppError> {
     let activity_id = path.into_inner();
+    log::info!("GET /activities/{activity_id} user={}", user.user_id);
+
     let activity = state
         .storage
         .get_activity(activity_id, user.user_id)
@@ -91,10 +118,14 @@ pub async fn get_activity(
 
     // Lazy-load streams if not yet loaded
     let streams = if !activity.streams_loaded {
+        log::info!("Lazy-loading streams for activity {activity_id} (strava_id={})", activity.strava_id);
         match load_and_store_streams(&state, &activity).await {
-            Ok(s) => s,
+            Ok(s) => {
+                log::info!("Loaded {} streams for activity {activity_id}", s.len());
+                s
+            }
             Err(e) => {
-                log::warn!("Failed to load streams for activity {}: {}", activity_id, e);
+                log::warn!("Failed to load streams for activity {activity_id}: {e}");
                 vec![]
             }
         }
@@ -146,6 +177,8 @@ pub async fn update_tag(
     body: web::Json<TagUpdateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let activity_id = path.into_inner();
+    log::info!("PATCH /activities/{activity_id}/tag user={} tag={}", user.user_id, body.tag);
+
     let tag: ActivityTag = body
         .tag
         .parse()

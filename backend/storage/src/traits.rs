@@ -26,6 +26,10 @@ pub trait Storage: Send + Sync {
         offset: i64,
     ) -> Result<Vec<Activity>, DomainError>;
     async fn get_activity(&self, id: Uuid, user_id: Uuid) -> Result<Activity, DomainError>;
+    async fn get_latest_activity_start(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<chrono::DateTime<chrono::Utc>>, DomainError>;
     async fn update_activity_tag(
         &self,
         id: Uuid,

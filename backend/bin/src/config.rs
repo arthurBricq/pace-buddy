@@ -46,7 +46,7 @@ impl Config {
                 .parse()
                 .unwrap_or(8080),
             frontend_url: env::var("FRONTEND_URL")
-                .unwrap_or_else(|_| "http://localhost:5173".to_string()),
+                .unwrap_or_else(|_| "https://running.tool:5173".to_string()),
         }
     }
 }

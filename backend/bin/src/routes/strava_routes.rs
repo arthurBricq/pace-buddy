@@ -13,7 +13,10 @@ pub async fn link(
     state: web::Data<AppState>,
     user: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
+    log::info!("GET /strava/link user={}", user.user_id);
+
     if !state.strava_client.is_configured() {
+        log::warn!("Strava not configured, rejecting link request");
         return Err(DomainError::BadRequest(
             "Strava is not configured. Set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET.".into(),
         )
@@ -22,6 +25,7 @@ pub async fn link(
     let url = state
         .strava_client
         .authorize_url(&user.user_id.to_string());
+    log::info!("Generated Strava authorize URL for user {}", user.user_id);
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "url": url,
     })))
@@ -41,6 +45,7 @@ pub async fn callback(
     app: web::Data<AppState>,
     query: web::Query<CallbackQuery>,
 ) -> HttpResponse {
+    log::info!("GET /strava/callback code=<redacted> state={:?}", query.state);
     let frontend = &app.frontend_url;
 
     let user_id = match query
@@ -50,18 +55,22 @@ pub async fn callback(
     {
         Some(id) => id,
         None => {
+            log::warn!("Strava callback: missing or invalid state parameter");
             return redirect_with_error(frontend, "Missing or invalid state parameter");
         }
     };
 
+    log::info!("Exchanging Strava OAuth code for user {user_id}");
     let token_resp = match app.strava_client.exchange_code(&query.code).await {
         Ok(t) => t,
         Err(e) => {
+            log::error!("Strava token exchange failed for user {user_id}: {e}");
             return redirect_with_error(frontend, &format!("Token exchange failed: {e}"));
         }
     };
 
     let athlete_id = token_resp.athlete.as_ref().map(|a| a.id).unwrap_or(0);
+    log::info!("Strava token exchange succeeded: athlete_id={athlete_id} user={user_id}");
 
     let strava_token = StravaToken {
         user_id,
@@ -73,9 +82,11 @@ pub async fn callback(
     };
 
     if let Err(e) = app.storage.upsert_strava_token(&strava_token).await {
+        log::error!("Failed to save Strava token for user {user_id}: {e}");
         return redirect_with_error(frontend, &format!("Failed to save token: {e}"));
     }
 
+    log::info!("Strava linked successfully for user {user_id}, redirecting to frontend");
     HttpResponse::Found()
         .append_header(("Location", format!("{frontend}/strava")))
         .finish()
@@ -92,13 +103,20 @@ pub async fn status(
     state: web::Data<AppState>,
     user: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
+    log::debug!("GET /strava/status user={}", user.user_id);
     match state.storage.get_strava_token(user.user_id).await {
-        Ok(token) => Ok(HttpResponse::Ok().json(serde_json::json!({
-            "linked": true,
-            "athlete_id": token.strava_athlete_id,
-        }))),
-        Err(_) => Ok(HttpResponse::Ok().json(serde_json::json!({
-            "linked": false,
-        }))),
+        Ok(token) => {
+            log::debug!("Strava linked for user {}, athlete_id={}", user.user_id, token.strava_athlete_id);
+            Ok(HttpResponse::Ok().json(serde_json::json!({
+                "linked": true,
+                "athlete_id": token.strava_athlete_id,
+            })))
+        }
+        Err(_) => {
+            log::debug!("Strava not linked for user {}", user.user_id);
+            Ok(HttpResponse::Ok().json(serde_json::json!({
+                "linked": false,
+            })))
+        }
     }
 }

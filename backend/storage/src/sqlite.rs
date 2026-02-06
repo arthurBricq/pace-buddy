@@ -390,6 +390,24 @@ impl Storage for SqliteStorage {
         row_to_activity(&row)
     }
 
+    async fn get_latest_activity_start(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<chrono::DateTime<chrono::Utc>>, DomainError> {
+        let row: Option<(String,)> = sqlx::query_as(
+            "SELECT start_date FROM activities WHERE user_id = ? ORDER BY start_date DESC LIMIT 1",
+        )
+        .bind(user_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get latest activity: {e}")))?;
+
+        match row {
+            Some((date_str,)) => Ok(Some(parse_datetime(&date_str)?)),
+            None => Ok(None),
+        }
+    }
+
     async fn update_activity_tag(
         &self,
         id: Uuid,
