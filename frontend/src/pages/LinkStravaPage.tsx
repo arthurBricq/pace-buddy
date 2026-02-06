@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { getStravaStatus, getStravaLink } from '../api/strava';
 import type { StravaStatus } from '../types';
 import Navbar from '../components/Navbar';
 
 export default function LinkStravaPage() {
+  const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<StravaStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(searchParams.get('error') || '');
 
   useEffect(() => {
     getStravaStatus()

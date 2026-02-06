@@ -25,6 +25,10 @@ struct Cli {
     /// When omitted, only the API is served.
     #[arg(long)]
     static_serving: Option<String>,
+
+    /// Delete the database file before starting, giving a clean slate.
+    #[arg(long)]
+    fresh_start: bool,
 }
 
 #[actix_web::main]
@@ -33,6 +37,27 @@ async fn main() -> std::io::Result<()> {
 
     let cli = Cli::parse();
     let cfg = Config::from_env();
+
+    log::info!("Loaded config: {:?}", cfg);
+
+    if cli.fresh_start {
+        // Extract file path from "sqlite:path?..." URL
+        let db_path = cfg
+            .database_url
+            .strip_prefix("sqlite:")
+            .unwrap_or(&cfg.database_url)
+            .split('?')
+            .next()
+            .unwrap_or("data.db");
+        for suffix in ["", "-journal", "-wal", "-shm"] {
+            let path = format!("{db_path}{suffix}");
+            if std::path::Path::new(&path).exists() {
+                std::fs::remove_file(&path).ok();
+                log::info!("Removed {path}");
+            }
+        }
+        log::info!("Fresh start: database cleared");
+    }
 
     let storage = SqliteStorage::new(&cfg.database_url)
         .await

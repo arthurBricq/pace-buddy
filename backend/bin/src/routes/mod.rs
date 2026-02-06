@@ -19,7 +19,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .service(
                 web::scope("/strava")
                     .route("/link", web::get().to(strava_routes::link))
-                    .route("/callback", web::get().to(strava_routes::callback_with_cookie))
+                    .route("/callback", web::get().to(strava_routes::callback))
                     .route("/status", web::get().to(strava_routes::status)),
             )
             .service(

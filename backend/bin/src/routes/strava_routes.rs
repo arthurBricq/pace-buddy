@@ -2,6 +2,7 @@ use actix_web::{web, HttpResponse};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use storage::Storage;
+use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::middleware::AuthenticatedUser;
@@ -10,7 +11,7 @@ use domain::{DomainError, StravaToken};
 
 pub async fn link(
     state: web::Data<AppState>,
-    _user: AuthenticatedUser,
+    user: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
     if !state.strava_client.is_configured() {
         return Err(DomainError::BadRequest(
@@ -18,7 +19,9 @@ pub async fn link(
         )
         .into());
     }
-    let url = state.strava_client.authorize_url();
+    let url = state
+        .strava_client
+        .authorize_url(&user.user_id.to_string());
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "url": url,
     })))
@@ -27,23 +30,41 @@ pub async fn link(
 #[derive(Deserialize)]
 pub struct CallbackQuery {
     pub code: String,
+    pub state: Option<String>,
 }
 
-pub async fn callback_with_cookie(
-    state: web::Data<AppState>,
+/// Strava redirects here after OAuth approval.
+/// This is a direct browser navigation (not a fetch), so on error
+/// we redirect to the frontend with an error query param instead of
+/// returning JSON that would show as a raw page.
+pub async fn callback(
+    app: web::Data<AppState>,
     query: web::Query<CallbackQuery>,
-    user: AuthenticatedUser,
-) -> Result<HttpResponse, AppError> {
-    let token_resp = state.strava_client.exchange_code(&query.code).await?;
+) -> HttpResponse {
+    let frontend = &app.frontend_url;
 
-    let athlete_id = token_resp
-        .athlete
-        .as_ref()
-        .map(|a| a.id)
-        .unwrap_or(0);
+    let user_id = match query
+        .state
+        .as_deref()
+        .and_then(|s| Uuid::parse_str(s).ok())
+    {
+        Some(id) => id,
+        None => {
+            return redirect_with_error(frontend, "Missing or invalid state parameter");
+        }
+    };
+
+    let token_resp = match app.strava_client.exchange_code(&query.code).await {
+        Ok(t) => t,
+        Err(e) => {
+            return redirect_with_error(frontend, &format!("Token exchange failed: {e}"));
+        }
+    };
+
+    let athlete_id = token_resp.athlete.as_ref().map(|a| a.id).unwrap_or(0);
 
     let strava_token = StravaToken {
-        user_id: user.user_id,
+        user_id,
         strava_athlete_id: athlete_id,
         access_token: token_resp.access_token,
         refresh_token: token_resp.refresh_token,
@@ -51,13 +72,20 @@ pub async fn callback_with_cookie(
             .unwrap_or_else(Utc::now),
     };
 
-    state.storage.upsert_strava_token(&strava_token).await?;
+    if let Err(e) = app.storage.upsert_strava_token(&strava_token).await {
+        return redirect_with_error(frontend, &format!("Failed to save token: {e}"));
+    }
 
-    // Redirect to frontend
-    let redirect_url = format!("{}/activities", state.frontend_url);
-    Ok(HttpResponse::Found()
-        .append_header(("Location", redirect_url))
-        .finish())
+    HttpResponse::Found()
+        .append_header(("Location", format!("{frontend}/strava")))
+        .finish()
+}
+
+fn redirect_with_error(frontend_url: &str, message: &str) -> HttpResponse {
+    let encoded = urlencoding::encode(message);
+    HttpResponse::Found()
+        .append_header(("Location", format!("{frontend_url}/strava?error={encoded}")))
+        .finish()
 }
 
 pub async fn status(

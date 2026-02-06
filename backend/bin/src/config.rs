@@ -1,6 +1,7 @@
 use std::env;
 use std::fs;
 
+#[derive(Debug)]
 pub struct Config {
     pub database_url: String,
     pub jwt_secret: String,
@@ -25,16 +26,18 @@ impl Config {
                 .unwrap_or_else(|_| "running.tool".to_string()),
             webauthn_rp_origin: env::var("WEBAUTHN_RP_ORIGIN")
                 .unwrap_or_else(|_| "https://running.tool:5173".to_string()),
-            strava_client_id: env::var("STRAVA_CLIENT_ID")
-                .unwrap_or_else(|_| fs::read_to_string("strava_client_id")
+            strava_client_id: env::var("STRAVA_CLIENT_ID").unwrap_or_else(|_| {
+                fs::read_to_string("strava_client_id")
                     .unwrap_or_default()
                     .trim()
-                    .to_string()),
-            strava_client_secret: env::var("STRAVA_CLIENT_SECRET")
-                .unwrap_or_else(|_| fs::read_to_string("strava_client_secret")
+                    .to_string()
+            }),
+            strava_client_secret: env::var("STRAVA_CLIENT_SECRET").unwrap_or_else(|_| {
+                fs::read_to_string("strava_client_secret")
                     .unwrap_or_default()
                     .trim()
-                    .to_string()),
+                    .to_string()
+            }),
             strava_redirect_uri: env::var("STRAVA_REDIRECT_URI")
                 .unwrap_or_else(|_| "http://localhost:8080/api/strava/callback".to_string()),
             host: env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),

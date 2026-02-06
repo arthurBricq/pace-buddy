@@ -8,6 +8,7 @@ actix-web = "4"
 actix-files = "0.6"
 actix-cors = "0.7"
 clap = { version = "4", features = ["derive"] }
+urlencoding = "2"
 auth = { path = "../auth" }
 chrono = { version = "0.4", features = ["serde"] }
 domain = { path = "../domain" }
