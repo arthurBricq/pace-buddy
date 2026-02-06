@@ -20,6 +20,10 @@ impl StravaClient {
         }
     }
 
+    pub fn is_configured(&self) -> bool {
+        !self.client_id.is_empty() && !self.client_secret.is_empty()
+    }
+
     pub fn authorize_url(&self) -> String {
         format!(
             "https://www.strava.com/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&scope=read,activity:read_all&approval_prompt=auto",

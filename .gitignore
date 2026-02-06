@@ -16,3 +16,7 @@ frontend/dist/
 
 # Environment
 .env
+
+# Secrets
+strava_client_id
+strava_client_secret

@@ -6,12 +6,18 @@ use storage::Storage;
 use crate::errors::AppError;
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
-use domain::StravaToken;
+use domain::{DomainError, StravaToken};
 
 pub async fn link(
     state: web::Data<AppState>,
     _user: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
+    if !state.strava_client.is_configured() {
+        return Err(DomainError::BadRequest(
+            "Strava is not configured. Set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET.".into(),
+        )
+        .into());
+    }
     let url = state.strava_client.authorize_url();
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "url": url,
