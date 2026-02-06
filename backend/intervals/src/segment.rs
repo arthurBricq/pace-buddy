@@ -1,0 +1,357 @@
+use crate::preprocess::PreprocessedData;
+use crate::stats;
+use crate::types::{IntervalConfig, Segment, SegmentKind};
+
+/// Result of the segmentation phase.
+#[derive(Debug, Clone)]
+pub struct SegmentationResult {
+    pub segments: Vec<Segment>,
+    pub threshold_speed_mps: f64,
+    pub cluster_low_mps: f64,
+    pub cluster_high_mps: f64,
+}
+
+/// Label assigned to each sample before converting to segments.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Label {
+    Work,
+    Recovery,
+    Pause,
+}
+
+/// Segment the preprocessed data into work/recovery/pause regions.
+pub fn segment(data: &PreprocessedData, config: &IntervalConfig) -> SegmentationResult {
+    let n = data.time.len();
+
+    // Collect non-pause speed samples for clustering
+    let active_speeds: Vec<f64> = (0..n)
+        .filter(|&i| !data.pause_mask[i])
+        .map(|i| data.speed_smooth[i])
+        .collect();
+
+    if active_speeds.len() < 2 {
+        return SegmentationResult {
+            segments: vec![],
+            threshold_speed_mps: 0.0,
+            cluster_low_mps: 0.0,
+            cluster_high_mps: 0.0,
+        };
+    }
+
+    // K-means k=2 to find work/recovery threshold
+    let (cluster_low, cluster_high, boundary) = stats::kmeans_k2(&active_speeds, 50);
+
+    // Hysteresis labeling
+    let labels = hysteresis_label(data, boundary, config);
+
+    // Convert labels to segments
+    let mut segments = labels_to_segments(&labels, data);
+
+    // Cleanup short segments
+    cleanup_segments(&mut segments, config);
+
+    SegmentationResult {
+        segments,
+        threshold_speed_mps: boundary,
+        cluster_low_mps: cluster_low,
+        cluster_high_mps: cluster_high,
+    }
+}
+
+/// Apply hysteresis labeling: enter WORK above boundary+delta, exit below boundary-delta.
+fn hysteresis_label(data: &PreprocessedData, boundary: f64, config: &IntervalConfig) -> Vec<Label> {
+    let n = data.time.len();
+    let v_enter = boundary + config.hysteresis_delta_mps;
+    let v_exit = boundary - config.hysteresis_delta_mps;
+    let mut labels = vec![Label::Recovery; n];
+    let mut in_work = false;
+
+    for i in 0..n {
+        if data.pause_mask[i] {
+            labels[i] = Label::Pause;
+            in_work = false;
+            continue;
+        }
+
+        let speed = data.speed_smooth[i];
+        if in_work {
+            if speed <= v_exit {
+                in_work = false;
+                labels[i] = Label::Recovery;
+            } else {
+                labels[i] = Label::Work;
+            }
+        } else if speed >= v_enter {
+            in_work = true;
+            labels[i] = Label::Work;
+        } else {
+            labels[i] = Label::Recovery;
+        }
+    }
+
+    labels
+}
+
+/// Convert per-sample labels into contiguous Segment objects.
+fn labels_to_segments(labels: &[Label], data: &PreprocessedData) -> Vec<Segment> {
+    if labels.is_empty() {
+        return vec![];
+    }
+
+    let mut segments = Vec::new();
+    let mut current_label = labels[0];
+    let mut start_idx = 0;
+
+    for i in 1..labels.len() {
+        if labels[i] != current_label {
+            segments.push(build_segment(current_label, start_idx, i - 1, data));
+            current_label = labels[i];
+            start_idx = i;
+        }
+    }
+    // Last segment
+    segments.push(build_segment(current_label, start_idx, labels.len() - 1, data));
+
+    segments
+}
+
+/// Build a Segment from a range of sample indices.
+fn build_segment(
+    label: Label,
+    start_idx: usize,
+    end_idx: usize,
+    data: &PreprocessedData,
+) -> Segment {
+    let kind = match label {
+        Label::Work => SegmentKind::Work,
+        Label::Recovery => SegmentKind::Recovery,
+        Label::Pause => SegmentKind::Pause,
+    };
+
+    let start_t = data.time[start_idx];
+    let end_t = data.time[end_idx];
+    let duration_s = end_t - start_t;
+    let distance_m = data.distance[end_idx] - data.distance[start_idx];
+
+    let speeds: Vec<f64> = (start_idx..=end_idx)
+        .map(|i| data.speed_smooth[i])
+        .collect();
+    let avg_speed_mps = stats::mean(&speeds);
+    let speed_std_mps = stats::std_dev(&speeds);
+    let max_speed_mps = speeds.iter().cloned().fold(0.0_f64, f64::max);
+
+    let avg_hr = data.heartrate.as_ref().map(|hr| {
+        let slice: Vec<f64> = (start_idx..=end_idx).map(|i| hr[i]).collect();
+        stats::mean(&slice)
+    });
+
+    let avg_cadence = data.cadence.as_ref().map(|cad| {
+        let slice: Vec<f64> = (start_idx..=end_idx).map(|i| cad[i]).collect();
+        stats::mean(&slice)
+    });
+
+    Segment {
+        kind,
+        start_t,
+        end_t,
+        duration_s,
+        distance_m,
+        avg_speed_mps,
+        speed_std_mps,
+        max_speed_mps,
+        avg_hr,
+        avg_cadence,
+    }
+}
+
+/// Remove work segments that are too short (unless distance is sufficient),
+/// and merge recovery segments that are too short with their neighbors.
+fn cleanup_segments(segments: &mut Vec<Segment>, config: &IntervalConfig) {
+    // Pass 1: Remove too-short work segments by converting to Recovery
+    for seg in segments.iter_mut() {
+        if seg.kind == SegmentKind::Work
+            && seg.duration_s < config.min_work_duration_s
+            && seg.distance_m < config.min_work_distance_m
+        {
+            seg.kind = SegmentKind::Recovery;
+        }
+    }
+
+    // Pass 2: Remove too-short recovery segments by converting to neighbor kind
+    for seg in segments.iter_mut() {
+        if seg.kind == SegmentKind::Recovery && seg.duration_s < config.min_recovery_duration_s {
+            // Will be merged with neighbors; mark as Work temporarily
+            seg.kind = SegmentKind::Work;
+        }
+    }
+
+    // Pass 3: Merge consecutive segments of the same kind
+    merge_consecutive(segments);
+}
+
+/// Merge consecutive segments that share the same kind.
+fn merge_consecutive(segments: &mut Vec<Segment>) {
+    if segments.len() < 2 {
+        return;
+    }
+
+    let mut merged: Vec<Segment> = Vec::with_capacity(segments.len());
+    merged.push(segments[0].clone());
+
+    for i in 1..segments.len() {
+        let last = merged.last_mut().unwrap();
+        if last.kind == segments[i].kind {
+            // Merge: extend the last segment
+            last.end_t = segments[i].end_t;
+            last.duration_s = last.end_t - last.start_t;
+            last.distance_m += segments[i].distance_m;
+            // Recompute speed as weighted average by duration
+            let total_dur = last.duration_s;
+            if total_dur > 0.0 {
+                last.avg_speed_mps = last.distance_m / total_dur;
+            }
+            if segments[i].max_speed_mps > last.max_speed_mps {
+                last.max_speed_mps = segments[i].max_speed_mps;
+            }
+            // HR and cadence: simple average (imprecise but sufficient)
+            last.avg_hr = match (last.avg_hr, segments[i].avg_hr) {
+                (Some(a), Some(b)) => Some((a + b) / 2.0),
+                (a, b) => a.or(b),
+            };
+            last.avg_cadence = match (last.avg_cadence, segments[i].avg_cadence) {
+                (Some(a), Some(b)) => Some((a + b) / 2.0),
+                (a, b) => a.or(b),
+            };
+        } else {
+            merged.push(segments[i].clone());
+        }
+    }
+
+    *segments = merged;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::preprocess::PreprocessedData;
+
+    fn make_preprocessed(
+        time: Vec<f64>,
+        speed: Vec<f64>,
+        distance: Vec<f64>,
+        pause_mask: Vec<bool>,
+    ) -> PreprocessedData {
+        PreprocessedData {
+            time,
+            distance,
+            speed_smooth: speed,
+            pause_mask,
+            heartrate: None,
+            cadence: None,
+        }
+    }
+
+    #[test]
+    fn test_segment_bimodal() {
+        // 10 samples of slow (2 m/s) then 10 samples of fast (5 m/s) then 10 slow
+        let n = 30;
+        let time: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        let speed: Vec<f64> = (0..n)
+            .map(|i| if (10..20).contains(&i) { 5.0 } else { 2.0 })
+            .collect();
+        let distance: Vec<f64> = {
+            let mut d = vec![0.0];
+            for i in 1..n {
+                d.push(d[i - 1] + speed[i]);
+            }
+            d
+        };
+        let pause_mask = vec![false; n];
+
+        let data = make_preprocessed(time, speed, distance, pause_mask);
+        let config = IntervalConfig {
+            min_work_duration_s: 5.0,
+            min_recovery_duration_s: 3.0,
+            ..IntervalConfig::default()
+        };
+        let result = segment(&data, &config);
+
+        // Should have recovery-work-recovery pattern
+        let kinds: Vec<SegmentKind> = result.segments.iter().map(|s| s.kind).collect();
+        assert!(kinds.contains(&SegmentKind::Work), "Expected work segment, got: {kinds:?}");
+        assert!(kinds.contains(&SegmentKind::Recovery), "Expected recovery segment, got: {kinds:?}");
+    }
+
+    #[test]
+    fn test_segment_with_pauses() {
+        let n = 20;
+        let time: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        let speed: Vec<f64> = (0..n)
+            .map(|i| if (5..8).contains(&i) { 0.0 } else { 3.0 })
+            .collect();
+        let distance: Vec<f64> = {
+            let mut d = vec![0.0];
+            for i in 1..n {
+                d.push(d[i - 1] + speed[i]);
+            }
+            d
+        };
+        let mut pause_mask = vec![false; n];
+        for i in 5..8 {
+            pause_mask[i] = true;
+        }
+
+        let data = make_preprocessed(time, speed, distance, pause_mask);
+        let config = IntervalConfig {
+            min_work_duration_s: 2.0,
+            min_recovery_duration_s: 1.0,
+            ..IntervalConfig::default()
+        };
+        let result = segment(&data, &config);
+
+        let has_pause = result.segments.iter().any(|s| s.kind == SegmentKind::Pause);
+        assert!(has_pause, "Expected pause segment");
+    }
+
+    #[test]
+    fn test_cleanup_short_work() {
+        // A work segment of 8s (below min_work_duration_s=12) should be cleaned up
+        let n = 50;
+        let time: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        let speed: Vec<f64> = (0..n)
+            .map(|i| {
+                if (20..28).contains(&i) {
+                    5.0 // 8s of fast — shorter than default min_work_duration_s=12
+                } else {
+                    2.0
+                }
+            })
+            .collect();
+        let distance: Vec<f64> = {
+            let mut d = vec![0.0];
+            for i in 1..n {
+                d.push(d[i - 1] + speed[i]);
+            }
+            d
+        };
+        let pause_mask = vec![false; n];
+
+        let data = make_preprocessed(time, speed, distance, pause_mask);
+        let config = IntervalConfig {
+            smooth_window: 1, // no smoothing, so the spike is preserved
+            min_work_duration_s: 12.0,
+            min_work_distance_m: 50.0,
+            min_recovery_duration_s: 3.0,
+            ..IntervalConfig::default()
+        };
+
+        let result = segment(&data, &config);
+        // 8s work segment at 5 m/s = 40m distance, below both 12s and 50m thresholds
+        let work_segs: Vec<&Segment> = result
+            .segments
+            .iter()
+            .filter(|s| s.kind == SegmentKind::Work)
+            .collect();
+        assert!(work_segs.is_empty(), "Short work segments should be cleaned up, got: {work_segs:?}");
+    }
+}

@@ -2,6 +2,7 @@
 name = "bin"
 version = "0.1.0"
 edition = "2021"
+default-run = "bin"
 
 [dependencies]
 actix-web = "4"
