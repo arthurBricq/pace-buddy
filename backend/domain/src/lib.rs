@@ -7,5 +7,5 @@ pub mod user;
 pub use activity::{Activity, ActivityTag};
 pub use error::DomainError;
 pub use strava_token::StravaToken;
-pub use stream::ActivityStream;
+pub use stream::{ActivityStream, StreamType};
 pub use user::User;

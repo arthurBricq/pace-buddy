@@ -47,10 +47,12 @@ pub fn strava_streams_to_domain(
 ) -> Vec<ActivityStream> {
     streams
         .into_iter()
-        .map(|s| ActivityStream {
-            activity_id,
-            stream_type: s.stream_type,
-            data_json: s.data.to_string(),
+        .filter_map(|s| {
+            s.parsed_type().map(|st| ActivityStream {
+                activity_id,
+                stream_type: st,
+                data_json: s.data.to_string(),
+            })
         })
         .collect()
 }

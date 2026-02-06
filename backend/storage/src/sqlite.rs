@@ -142,6 +142,12 @@ fn row_to_activity(row: &SqliteRow) -> Result<Activity, DomainError> {
     })
 }
 
+fn parse_stream_type(value: &str) -> Result<domain::StreamType, DomainError> {
+    value
+        .parse::<domain::StreamType>()
+        .map_err(|e| DomainError::Storage(format!("Invalid stream type: {e}")))
+}
+
 fn row_to_activity_stream(row: &SqliteRow) -> Result<ActivityStream, DomainError> {
     let activity_id: String = row.get("activity_id");
     let stream_type: String = row.get("stream_type");
@@ -149,7 +155,7 @@ fn row_to_activity_stream(row: &SqliteRow) -> Result<ActivityStream, DomainError
 
     Ok(ActivityStream {
         activity_id: parse_uuid(&activity_id)?,
-        stream_type,
+        stream_type: parse_stream_type(&stream_type)?,
         data_json,
     })
 }
@@ -466,7 +472,7 @@ impl Storage for SqliteStorage {
                      data_json = excluded.data_json",
             )
             .bind(stream.activity_id.to_string())
-            .bind(&stream.stream_type)
+            .bind(stream.stream_type.to_string())
             .bind(&stream.data_json)
             .execute(&mut *tx)
             .await

@@ -139,7 +139,7 @@ impl StravaClient {
         activity_id: i64,
     ) -> Result<Vec<StravaStream>, DomainError> {
         let url = format!(
-            "https://www.strava.com/api/v3/activities/{activity_id}/streams?keys=time,distance,latlng,altitude,heartrate,cadence,watts,velocity_smooth&key_by_type=false"
+            "https://www.strava.com/api/v3/activities/{activity_id}/streams?keys=time,distance,latlng,altitude,heartrate,cadence,watts,velocity_smooth,moving&key_by_type=false"
         );
 
         let resp = self

@@ -54,3 +54,11 @@ pub struct StravaStream {
     pub stream_type: String,
     pub data: serde_json::Value,
 }
+
+impl StravaStream {
+    /// Try to parse the stream_type string into a domain StreamType.
+    /// Returns None for unknown/unsupported stream types.
+    pub fn parsed_type(&self) -> Option<domain::StreamType> {
+        self.stream_type.parse().ok()
+    }
+}

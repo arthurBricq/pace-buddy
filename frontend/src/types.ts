@@ -32,9 +32,20 @@ export interface Activity {
   created_at: string;
 }
 
+export type StreamType =
+  | 'time'
+  | 'distance'
+  | 'latlng'
+  | 'altitude'
+  | 'heartrate'
+  | 'cadence'
+  | 'watts'
+  | 'velocity_smooth'
+  | 'moving';
+
 export interface ActivityStream {
   activity_id: string;
-  stream_type: string;
+  stream_type: StreamType;
   data_json: string;
 }
 
