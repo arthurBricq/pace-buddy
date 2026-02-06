@@ -41,16 +41,15 @@ pub struct StravaMap {
     pub summary_polyline: Option<String>,
 }
 
+/// A single stream entry inside the keyed response: `{"data": [...], ...}`
 #[derive(Debug, Deserialize)]
-pub struct StravaStreamSet {
-    // Each stream in the response array has type and data
+pub struct StravaStreamEntry {
+    pub data: serde_json::Value,
 }
 
-// Strava returns streams as an array of objects like:
-// [{"type": "time", "data": [0, 1, 2, ...]}, {"type": "heartrate", "data": [120, 121, ...]}]
-#[derive(Debug, Deserialize)]
+/// Parsed stream with its type name attached.
+#[derive(Debug)]
 pub struct StravaStream {
-    #[serde(rename = "type")]
     pub stream_type: String,
     pub data: serde_json::Value,
 }
@@ -61,4 +60,28 @@ impl StravaStream {
     pub fn parsed_type(&self) -> Option<domain::StreamType> {
         self.stream_type.parse().ok()
     }
+}
+
+/// Parse the Strava streams response body.
+///
+/// Strava returns a map keyed by stream type:
+/// `{"time": {"data": [0,1,2,...]}, "heartrate": {"data": [120,121,...]}, ...}`
+pub fn parse_streams_response(body: &str) -> Result<Vec<StravaStream>, String> {
+    let map: std::collections::HashMap<String, StravaStreamEntry> =
+        serde_json::from_str(body).map_err(|e| {
+            let preview = if body.len() > 500 {
+                format!("{}...", &body[..500])
+            } else {
+                body.to_string()
+            };
+            format!("Failed to parse streams response: {e}\nResponse preview: {preview}")
+        })?;
+
+    Ok(map
+        .into_iter()
+        .map(|(key, entry)| StravaStream {
+            stream_type: key,
+            data: entry.data,
+        })
+        .collect())
 }

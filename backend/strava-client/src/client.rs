@@ -139,7 +139,7 @@ impl StravaClient {
         activity_id: i64,
     ) -> Result<Vec<StravaStream>, DomainError> {
         let url = format!(
-            "https://www.strava.com/api/v3/activities/{activity_id}/streams?keys=time,distance,latlng,altitude,heartrate,cadence,watts,velocity_smooth,moving&key_by_type=false"
+            "https://www.strava.com/api/v3/activities/{activity_id}/streams?keys=time,distance,latlng,altitude,heartrate,cadence,watts,velocity_smooth,moving&key_by_type=true"
         );
 
         let resp = self
@@ -160,8 +160,11 @@ impl StravaClient {
             )));
         }
 
-        resp.json()
+        let text = resp
+            .text()
             .await
-            .map_err(|e| DomainError::StravaApi(e.to_string()))
+            .map_err(|e| DomainError::StravaApi(format!("Failed to read response body: {e}")))?;
+
+        parse_streams_response(&text).map_err(DomainError::StravaApi)
     }
 }
