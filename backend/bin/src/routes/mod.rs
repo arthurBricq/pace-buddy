@@ -14,7 +14,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route("/login/start", web::post().to(auth_routes::login_start))
                     .route("/login/finish", web::post().to(auth_routes::login_finish))
                     .route("/logout", web::post().to(auth_routes::logout))
-                    .route("/me", web::get().to(auth_routes::me)),
+                    .route("/me", web::get().to(auth_routes::me))
+                    .route("/users", web::get().to(auth_routes::list_all_users)),
             )
             .service(
                 web::scope("/strava")

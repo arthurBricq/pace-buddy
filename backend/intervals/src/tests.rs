@@ -391,20 +391,27 @@ fn test_short_reps_strides() {
 // Real data fixture test
 // ---------------------------------------------------------------------------
 
-#[test]
-fn test_real_12x400m() {
+/// Helper function to test real data fixtures with expected rep counts and distance ranges
+fn test_real_fixture(
+    fixture_file: &str,
+    expected_reps: usize,
+    min_distance: f64,
+    max_distance: f64,
+    mas_kmh: Option<f64>,
+) {
     let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../data/intervals/12x400m.json");
+        .join("../data/intervals")
+        .join(fixture_file);
     let json = std::fs::read_to_string(&fixture_path)
         .unwrap_or_else(|e| panic!("Failed to read fixture {}: {}", fixture_path.display(), e));
     let streams: Vec<domain::ActivityStream> = serde_json::from_str(&json)
         .unwrap_or_else(|e| panic!("Failed to parse fixture JSON: {}", e));
 
     let config = IntervalConfig::default();
-    let result = parse_intervals(&streams, &config, Some(18.0)).unwrap();
+    let result = parse_intervals(&streams, &config, mas_kmh).unwrap();
 
     // Print debug info for analysis
-    eprintln!("=== Real 12x400m fixture ===");
+    eprintln!("=== Real {} fixture ===", fixture_file);
     eprintln!("Segments: {}", result.segments.len());
     eprintln!("Reps: {}", result.reps.len());
     eprintln!("Is interval workout: {}", result.is_interval_workout);
@@ -426,21 +433,41 @@ fn test_real_12x400m() {
 
     assert!(
         result.is_interval_workout,
-        "12x400m should be detected as interval workout"
+        "{} should be detected as interval workout",
+        fixture_file
     );
     assert_eq!(
         result.reps.len(),
-        12,
-        "Expected 12 reps, got {}",
+        expected_reps,
+        "Expected {} reps, got {}",
+        expected_reps,
         result.reps.len()
     );
 
     for (i, rep) in result.reps.iter().enumerate() {
         assert!(
-            rep.distance_m > 300.0 && rep.distance_m < 550.0,
-            "Rep {} distance out of range: {:.0}m",
+            rep.distance_m > min_distance && rep.distance_m < max_distance,
+            "Rep {} distance out of range: {:.0}m (expected between {} and {})",
             i + 1,
-            rep.distance_m
+            rep.distance_m,
+            min_distance,
+            max_distance
         );
     }
+}
+
+#[test]
+fn test_real_12x400m() {
+    test_real_fixture("12x400m.json", 12, 300.0, 550.0, Some(18.0));
+}
+
+// Add more tests using the same helper function
+#[test]
+fn test_real_8x800m() {
+    test_real_fixture("3x2k@04:00.json", 3, 1800., 2200.0, Some(17.5));
+}
+
+#[test]
+fn test_real_5x1000m() {
+    test_real_fixture("4x2k@04:15.json", 4, 1800.0, 2200., None);
 }
