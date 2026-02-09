@@ -6,6 +6,8 @@ import RegisterPage from './pages/RegisterPage';
 import ActivityListPage from './pages/ActivityListPage';
 import ActivityDetailPage from './pages/ActivityDetailPage';
 import LinkStravaPage from './pages/LinkStravaPage';
+import TrainingsListPage from './pages/TrainingsListPage';
+import TrainingDetailPage from './pages/TrainingDetailPage';
 
 function App() {
   return (
@@ -35,6 +37,22 @@ function App() {
             element={
               <AuthGuard>
                 <LinkStravaPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/trainings"
+            element={
+              <AuthGuard>
+                <TrainingsListPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/trainings/:id"
+            element={
+              <AuthGuard>
+                <TrainingDetailPage />
               </AuthGuard>
             }
           />

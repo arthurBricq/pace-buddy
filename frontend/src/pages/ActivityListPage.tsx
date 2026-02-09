@@ -34,6 +34,7 @@ export default function ActivityListPage() {
   const [error, setError] = useState('');
   const [editingTag, setEditingTag] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
+  const [tagFilter, setTagFilter] = useState<ActivityTag | 'all'>('all');
   const limit = 50;
 
   const load = async (off = 0) => {
@@ -48,6 +49,11 @@ export default function ActivityListPage() {
       setLoading(false);
     }
   };
+
+  const filteredActivities =
+    tagFilter === 'all'
+      ? activities
+      : activities.filter((a) => a.tag === tagFilter);
 
   useEffect(() => {
     load();
@@ -85,7 +91,19 @@ export default function ActivityListPage() {
       <Navbar />
       <div className="max-w-6xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold">Activities</h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-xl font-bold">Activities</h1>
+            <select
+              value={tagFilter}
+              onChange={(e) => setTagFilter(e.target.value as ActivityTag | 'all')}
+              className="px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            >
+              <option value="all">All Activities</option>
+              <option value="intervals">Intervals</option>
+              <option value="race">Race</option>
+              <option value="normal">Normal</option>
+            </select>
+          </div>
           <button
             onClick={handleSync}
             disabled={syncing}
@@ -141,7 +159,7 @@ export default function ActivityListPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {activities.map((a) => (
+                  {filteredActivities.map((a) => (
                     <tr key={a.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-500">
                         {new Date(a.start_date).toLocaleDateString()}
@@ -189,6 +207,9 @@ export default function ActivityListPage() {
               >
                 Previous
               </button>
+              <span className="text-sm text-gray-500">
+                Showing {filteredActivities.length} of {activities.length}
+              </span>
               <button
                 onClick={() => load(offset + limit)}
                 disabled={activities.length < limit}

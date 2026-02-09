@@ -54,3 +54,22 @@ CREATE TABLE IF NOT EXISTS activity_streams (
     data_json TEXT NOT NULL,
     PRIMARY KEY (activity_id, stream_type)
 );
+
+CREATE TABLE IF NOT EXISTS trainings (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_trainings_user ON trainings(user_id);
+
+CREATE TABLE IF NOT EXISTS training_activities (
+    training_id TEXT NOT NULL REFERENCES trainings(id) ON DELETE CASCADE,
+    activity_id TEXT NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+    PRIMARY KEY (training_id, activity_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_training_activities_training ON training_activities(training_id);
+CREATE INDEX IF NOT EXISTS idx_training_activities_activity ON training_activities(activity_id);

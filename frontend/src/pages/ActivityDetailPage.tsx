@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getActivity, getIntervals, updateActivityTag } from '../api/activities';
-import type { ActivityDetail, ActivityTag, IntervalResult } from '../types';
+import {
+  getActivityTrainings,
+  listTrainings,
+  addActivityToTraining,
+  removeActivityFromTraining,
+} from '../api/trainings';
+import type { ActivityDetail, ActivityTag, IntervalResult, Training } from '../types';
 import Navbar from '../components/Navbar';
 import ActivityStats from '../components/ActivityStats';
 import ActivityMap from '../components/ActivityMap';
@@ -17,6 +23,10 @@ export default function ActivityDetailPage() {
   const [error, setError] = useState('');
   const [editingTag, setEditingTag] = useState(false);
   const [intervals, setIntervals] = useState<IntervalResult | null>(null);
+  const [activityTrainings, setActivityTrainings] = useState<Training[]>([]);
+  const [allTrainings, setAllTrainings] = useState<Training[]>([]);
+  const [showAddTraining, setShowAddTraining] = useState(false);
+  const [selectedTrainingId, setSelectedTrainingId] = useState('');
 
   useEffect(() => {
     if (!id) return;
@@ -34,6 +44,16 @@ export default function ActivityDetailPage() {
       .catch((e) => console.warn('Failed to load intervals:', e));
   }, [id, detail]);
 
+  useEffect(() => {
+    if (!id) return;
+    Promise.all([getActivityTrainings(id), listTrainings()])
+      .then(([at, all]) => {
+        setActivityTrainings(at);
+        setAllTrainings(all);
+      })
+      .catch((e) => console.warn('Failed to load trainings:', e));
+  }, [id]);
+
   const handleTagChange = async (tag: ActivityTag) => {
     if (!id || !detail) return;
     try {
@@ -43,6 +63,30 @@ export default function ActivityDetailPage() {
         activity: { ...detail.activity, tag },
       });
       setEditingTag(false);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleAddToTraining = async () => {
+    if (!id || !selectedTrainingId) return;
+    try {
+      await addActivityToTraining(selectedTrainingId, id);
+      const updated = await getActivityTrainings(id);
+      setActivityTrainings(updated);
+      setSelectedTrainingId('');
+      setShowAddTraining(false);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleRemoveFromTraining = async (trainingId: string) => {
+    if (!id || !confirm('Remove this activity from the training?')) return;
+    try {
+      await removeActivityFromTraining(trainingId, id);
+      const updated = await getActivityTrainings(id);
+      setActivityTrainings(updated);
     } catch (err: any) {
       setError(err.message);
     }
@@ -107,6 +151,87 @@ export default function ActivityDetailPage() {
             )}
           </div>
         </div>
+
+        {activity.tag === 'intervals' && (
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold">Trainings</h2>
+              {!showAddTraining && (
+                <button
+                  onClick={() => setShowAddTraining(true)}
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  Add to Training
+                </button>
+              )}
+            </div>
+
+            {showAddTraining && (
+              <div className="mb-3 p-3 bg-gray-50 rounded-md">
+                <select
+                  value={selectedTrainingId}
+                  onChange={(e) => setSelectedTrainingId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
+                >
+                  <option value="">Select a training...</option>
+                  {allTrainings
+                    .filter((t) => !activityTrainings.some((at) => at.id === t.id))
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                </select>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleAddToTraining}
+                    disabled={!selectedTrainingId}
+                    className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  >
+                    Add
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowAddTraining(false);
+                      setSelectedTrainingId('');
+                    }}
+                    className="bg-gray-200 text-gray-700 px-3 py-1 rounded-md hover:bg-gray-300 text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activityTrainings.length === 0 ? (
+              <p className="text-gray-500 text-sm">
+                This activity is not in any trainings yet.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {activityTrainings.map((t) => (
+                  <li
+                    key={t.id}
+                    className="flex items-center justify-between p-2 bg-gray-50 rounded-md"
+                  >
+                    <Link
+                      to={`/trainings/${t.id}`}
+                      className="text-blue-600 hover:underline"
+                    >
+                      {t.name}
+                    </Link>
+                    <button
+                      onClick={() => handleRemoveFromTraining(t.id)}
+                      className="text-red-600 hover:text-red-800 text-sm"
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         <ActivityStats activity={activity} />
 

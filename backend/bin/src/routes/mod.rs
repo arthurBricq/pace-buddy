@@ -1,6 +1,7 @@
 pub mod activity_routes;
 pub mod auth_routes;
 pub mod strava_routes;
+pub mod training_routes;
 
 use actix_web::web;
 
@@ -29,7 +30,19 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route("", web::get().to(activity_routes::list_activities))
                     .route("/{id}", web::get().to(activity_routes::get_activity))
                     .route("/{id}/tag", web::patch().to(activity_routes::update_tag))
-                    .route("/{id}/intervals", web::get().to(activity_routes::get_intervals)),
+                    .route("/{id}/intervals", web::get().to(activity_routes::get_intervals))
+                    .route("/{id}/trainings", web::get().to(training_routes::get_activity_trainings)),
+            )
+            .service(
+                web::scope("/trainings")
+                    .route("", web::post().to(training_routes::create_training))
+                    .route("", web::get().to(training_routes::list_trainings))
+                    .route("/{id}", web::get().to(training_routes::get_training))
+                    .route("/{id}", web::patch().to(training_routes::update_training))
+                    .route("/{id}", web::delete().to(training_routes::delete_training))
+                    .route("/{id}/activities", web::get().to(training_routes::get_training_activities))
+                    .route("/{id}/activities/{activity_id}", web::post().to(training_routes::add_activity_to_training))
+                    .route("/{id}/activities/{activity_id}", web::delete().to(training_routes::remove_activity_from_training)),
             ),
     );
 }

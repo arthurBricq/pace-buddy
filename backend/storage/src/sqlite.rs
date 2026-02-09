@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use domain::{Activity, ActivityStream, ActivityTag, DomainError, StravaToken, User};
+use domain::{Activity, ActivityStream, ActivityTag, DomainError, StravaToken, Training, User};
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow};
 use sqlx::Row;
 use uuid::Uuid;
@@ -146,6 +146,22 @@ fn parse_stream_type(value: &str) -> Result<domain::StreamType, DomainError> {
     value
         .parse::<domain::StreamType>()
         .map_err(|e| DomainError::Storage(format!("Invalid stream type: {e}")))
+}
+
+fn row_to_training(row: &SqliteRow) -> Result<Training, DomainError> {
+    let id: String = row.get("id");
+    let user_id: String = row.get("user_id");
+    let name: String = row.get("name");
+    let description: Option<String> = row.get("description");
+    let created_at: String = row.get("created_at");
+
+    Ok(Training {
+        id: parse_uuid(&id)?,
+        user_id: parse_uuid(&user_id)?,
+        name,
+        description,
+        created_at: parse_datetime(&created_at)?,
+    })
 }
 
 fn row_to_activity_stream(row: &SqliteRow) -> Result<ActivityStream, DomainError> {
@@ -507,5 +523,215 @@ impl Storage for SqliteStorage {
         .map_err(|e| DomainError::Storage(format!("Failed to get streams: {e}")))?;
 
         rows.iter().map(row_to_activity_stream).collect()
+    }
+
+    // -----------------------------------------------------------------------
+    // Trainings
+    // -----------------------------------------------------------------------
+    async fn create_training(&self, training: &Training) -> Result<(), DomainError> {
+        sqlx::query(
+            "INSERT INTO trainings (id, user_id, name, description, created_at)
+             VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(training.id.to_string())
+        .bind(training.user_id.to_string())
+        .bind(&training.name)
+        .bind(&training.description)
+        .bind(training.created_at.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create training: {e}")))?;
+
+        Ok(())
+    }
+
+    async fn get_training(&self, id: Uuid, user_id: Uuid) -> Result<Training, DomainError> {
+        let row = sqlx::query(
+            "SELECT id, user_id, name, description, created_at
+             FROM trainings
+             WHERE id = ? AND user_id = ?",
+        )
+        .bind(id.to_string())
+        .bind(user_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get training: {e}")))?
+        .ok_or_else(|| DomainError::NotFound(format!("Training {id} not found")))?;
+
+        row_to_training(&row)
+    }
+
+    async fn list_trainings(&self, user_id: Uuid) -> Result<Vec<Training>, DomainError> {
+        let rows = sqlx::query(
+            "SELECT id, user_id, name, description, created_at
+             FROM trainings
+             WHERE user_id = ?
+             ORDER BY created_at DESC",
+        )
+        .bind(user_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to list trainings: {e}")))?;
+
+        rows.iter().map(row_to_training).collect()
+    }
+
+    async fn update_training(
+        &self,
+        id: Uuid,
+        user_id: Uuid,
+        name: String,
+        description: Option<String>,
+    ) -> Result<(), DomainError> {
+        let result = sqlx::query(
+            "UPDATE trainings SET name = ?, description = ? WHERE id = ? AND user_id = ?",
+        )
+        .bind(&name)
+        .bind(&description)
+        .bind(id.to_string())
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to update training: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Err(DomainError::NotFound(format!("Training {id} not found")));
+        }
+
+        Ok(())
+    }
+
+    async fn delete_training(&self, id: Uuid, user_id: Uuid) -> Result<(), DomainError> {
+        let result = sqlx::query("DELETE FROM trainings WHERE id = ? AND user_id = ?")
+            .bind(id.to_string())
+            .bind(user_id.to_string())
+            .execute(&self.pool)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to delete training: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Err(DomainError::NotFound(format!("Training {id} not found")));
+        }
+
+        Ok(())
+    }
+
+    async fn add_activity_to_training(
+        &self,
+        training_id: Uuid,
+        activity_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<(), DomainError> {
+        // Verify training belongs to user
+        let _training = self.get_training(training_id, user_id).await?;
+
+        // Verify activity belongs to user and is tagged as intervals
+        let activity = self.get_activity(activity_id, user_id).await?;
+        if activity.tag != ActivityTag::Intervals {
+            return Err(DomainError::BadRequest(
+                "Only interval-tagged activities can be added to trainings".into(),
+            ));
+        }
+
+        sqlx::query(
+            "INSERT INTO training_activities (training_id, activity_id)
+             VALUES (?, ?)
+             ON CONFLICT(training_id, activity_id) DO NOTHING",
+        )
+        .bind(training_id.to_string())
+        .bind(activity_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to add activity to training: {e}"))
+        })?;
+
+        Ok(())
+    }
+
+    async fn remove_activity_from_training(
+        &self,
+        training_id: Uuid,
+        activity_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<(), DomainError> {
+        // Verify training belongs to user
+        let _training = self.get_training(training_id, user_id).await?;
+
+        let result = sqlx::query(
+            "DELETE FROM training_activities
+             WHERE training_id = ? AND activity_id = ?",
+        )
+        .bind(training_id.to_string())
+        .bind(activity_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to remove activity from training: {e}"))
+        })?;
+
+        if result.rows_affected() == 0 {
+            return Err(DomainError::NotFound(
+                "Activity not found in training".into(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    async fn get_training_activities(
+        &self,
+        training_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Vec<Activity>, DomainError> {
+        // Verify training belongs to user
+        let _training = self.get_training(training_id, user_id).await?;
+
+        let rows = sqlx::query(
+            "SELECT a.id, a.user_id, a.strava_id, a.name, a.sport_type, a.start_date,
+                    a.elapsed_time, a.moving_time, a.distance, a.total_elevation_gain,
+                    a.average_speed, a.max_speed, a.average_heartrate, a.max_heartrate,
+                    a.average_cadence, a.average_watts, a.calories, a.tag, a.summary_polyline,
+                    a.workout_type, a.streams_loaded, a.created_at
+             FROM activities a
+             INNER JOIN training_activities ta ON a.id = ta.activity_id
+             WHERE ta.training_id = ? AND a.user_id = ?
+             ORDER BY a.start_date DESC",
+        )
+        .bind(training_id.to_string())
+        .bind(user_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to get training activities: {e}"))
+        })?;
+
+        rows.iter().map(row_to_activity).collect()
+    }
+
+    async fn get_activity_trainings(
+        &self,
+        activity_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Vec<Training>, DomainError> {
+        // Verify activity belongs to user
+        let _activity = self.get_activity(activity_id, user_id).await?;
+
+        let rows = sqlx::query(
+            "SELECT t.id, t.user_id, t.name, t.description, t.created_at
+             FROM trainings t
+             INNER JOIN training_activities ta ON t.id = ta.training_id
+             WHERE ta.activity_id = ? AND t.user_id = ?
+             ORDER BY t.created_at DESC",
+        )
+        .bind(activity_id.to_string())
+        .bind(user_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to get activity trainings: {e}"))
+        })?;
+
+        rows.iter().map(row_to_training).collect()
     }
 }

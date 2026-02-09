@@ -102,3 +102,11 @@ export interface IntervalResult {
   cluster_low_mps: number;
   cluster_high_mps: number;
 }
+
+export interface Training {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+}
