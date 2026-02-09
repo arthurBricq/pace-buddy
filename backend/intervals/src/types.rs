@@ -13,7 +13,7 @@ pub struct IntervalConfig {
     pub hysteresis_delta_mps: f64,
     /// Minimum duration for a work segment to be kept (seconds)
     pub min_work_duration_s: f64,
-    /// Minimum distance for a work segment to be kept (meters), overrides duration
+    /// Minimum distance for a work segment to be kept (meters)
     pub min_work_distance_m: f64,
     /// Minimum recovery duration before merging with neighbors (seconds)
     pub min_recovery_duration_s: f64,
@@ -33,7 +33,7 @@ impl Default for IntervalConfig {
             pause_min_duration_s: 3.0,
             hysteresis_delta_mps: 0.15,
             min_work_duration_s: 12.0,
-            min_work_distance_m: 50.0,
+            min_work_distance_m: 100.0,
             min_recovery_duration_s: 8.0,
             warmup_min_s: 360.0,
             cooldown_min_s: 300.0,

@@ -50,6 +50,16 @@ pub fn segment(data: &PreprocessedData, config: &IntervalConfig) -> Segmentation
     // Cleanup short segments
     cleanup_segments(&mut segments, config);
 
+    // Filter work segments whose avg speed is barely above the boundary.
+    // Real interval work should be well into the high cluster, not just marginally above threshold.
+    let min_work_speed = boundary + (cluster_high - boundary) * 0.25;
+    for seg in segments.iter_mut() {
+        if seg.kind == SegmentKind::Work && seg.avg_speed_mps < min_work_speed {
+            seg.kind = SegmentKind::Recovery;
+        }
+    }
+    merge_consecutive(&mut segments);
+
     SegmentationResult {
         segments,
         threshold_speed_mps: boundary,
@@ -176,11 +186,13 @@ fn cleanup_segments(segments: &mut Vec<Segment>, config: &IntervalConfig) {
     absorb_short_pauses(segments, config);
     merge_consecutive(segments);
 
-    // Pass 2: Remove too-short work segments (GPS blips labeled as Work)
+    // Pass 2: Remove too-short work segments (GPS blips labeled as Work).
+    // Use OR: a work segment must meet BOTH duration and distance minimums to survive.
+    // This filters warmup speed spikes that are long enough in time but cover little distance.
     for seg in segments.iter_mut() {
         if seg.kind == SegmentKind::Work
-            && seg.duration_s < config.min_work_duration_s
-            && seg.distance_m < config.min_work_distance_m
+            && (seg.duration_s < config.min_work_duration_s
+                || seg.distance_m < config.min_work_distance_m)
         {
             seg.kind = SegmentKind::Recovery;
         }
@@ -330,6 +342,7 @@ mod tests {
         let data = make_preprocessed(time, speed, distance, pause_mask);
         let config = IntervalConfig {
             min_work_duration_s: 5.0,
+            min_work_distance_m: 30.0,
             min_recovery_duration_s: 3.0,
             ..IntervalConfig::default()
         };
@@ -440,7 +453,7 @@ mod tests {
         };
 
         let result = segment(&data, &config);
-        // 8s work segment at 5 m/s = 40m distance, below both 12s and 50m thresholds
+        // 8s work segment at 5 m/s = 40m distance, below 12s duration threshold
         let work_segs: Vec<&Segment> = result
             .segments
             .iter()
