@@ -21,5 +21,6 @@ storage = { path = "../storage" }
 strava-client = { path = "../strava-client" }
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["v4"] }
+intervals = { path = "../intervals" }
 webauthn-rs = "0.5"
 webauthn-rs-proto = "0.5"

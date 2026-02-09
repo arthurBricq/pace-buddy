@@ -386,3 +386,61 @@ fn test_short_reps_strides() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Real data fixture test
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_real_12x400m() {
+    let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../data/intervals/12x400m.json");
+    let json = std::fs::read_to_string(&fixture_path)
+        .unwrap_or_else(|e| panic!("Failed to read fixture {}: {}", fixture_path.display(), e));
+    let streams: Vec<domain::ActivityStream> = serde_json::from_str(&json)
+        .unwrap_or_else(|e| panic!("Failed to parse fixture JSON: {}", e));
+
+    let config = IntervalConfig::default();
+    let result = parse_intervals(&streams, &config, Some(18.0)).unwrap();
+
+    // Print debug info for analysis
+    eprintln!("=== Real 12x400m fixture ===");
+    eprintln!("Segments: {}", result.segments.len());
+    eprintln!("Reps: {}", result.reps.len());
+    eprintln!("Is interval workout: {}", result.is_interval_workout);
+    eprintln!("Score: {:.2}", result.interval_score);
+    eprintln!(
+        "Threshold: {:.2} m/s, clusters: {:.2} / {:.2}",
+        result.threshold_speed_mps, result.cluster_low_mps, result.cluster_high_mps
+    );
+    for (i, rep) in result.reps.iter().enumerate() {
+        eprintln!(
+            "  Rep {}: {:.0}m in {:.0}s, pace {:.0}s/km, recovery: {:?}",
+            i + 1,
+            rep.distance_m,
+            rep.duration_s,
+            rep.avg_pace_s_per_km,
+            rep.recovery_style
+        );
+    }
+
+    assert!(
+        result.is_interval_workout,
+        "12x400m should be detected as interval workout"
+    );
+    assert_eq!(
+        result.reps.len(),
+        12,
+        "Expected 12 reps, got {}",
+        result.reps.len()
+    );
+
+    for (i, rep) in result.reps.iter().enumerate() {
+        assert!(
+            rep.distance_m > 300.0 && rep.distance_m < 550.0,
+            "Rep {} distance out of range: {:.0}m",
+            i + 1,
+            rep.distance_m
+        );
+    }
+}

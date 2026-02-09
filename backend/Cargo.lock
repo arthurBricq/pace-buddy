@@ -452,6 +452,7 @@ dependencies = [
  "clap",
  "domain",
  "env_logger",
+ "intervals",
  "log",
  "serde",
  "serde_json",

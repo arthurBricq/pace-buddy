@@ -170,6 +170,36 @@ pub struct TagUpdateRequest {
     pub tag: String,
 }
 
+pub async fn get_intervals(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+    path: web::Path<Uuid>,
+) -> Result<HttpResponse, AppError> {
+    let activity_id = path.into_inner();
+    log::info!("GET /activities/{activity_id}/intervals user={}", user.user_id);
+
+    // Verify the user owns this activity
+    let _activity = state.storage.get_activity(activity_id, user.user_id).await?;
+
+    let streams = state.storage.get_streams(activity_id).await?;
+    let config = intervals::types::IntervalConfig::default();
+    match intervals::parse_intervals(&streams, &config, None) {
+        Ok(result) => Ok(HttpResponse::Ok().json(result)),
+        Err(e) => {
+            log::warn!("Interval parsing failed for {activity_id}: {e}");
+            Ok(HttpResponse::Ok().json(serde_json::json!({
+                "segments": [],
+                "reps": [],
+                "is_interval_workout": false,
+                "interval_score": 0.0,
+                "threshold_speed_mps": 0.0,
+                "cluster_low_mps": 0.0,
+                "cluster_high_mps": 0.0,
+            })))
+        }
+    }
+}
+
 pub async fn update_tag(
     state: web::Data<AppState>,
     user: AuthenticatedUser,

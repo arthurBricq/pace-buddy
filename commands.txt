@@ -1,0 +1,1 @@
+cargo run --bin rt-cli -- intervals ACTIVITY_ID --format debug

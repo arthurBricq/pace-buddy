@@ -58,3 +58,47 @@ export interface StravaStatus {
   linked: boolean;
   athlete_id?: number;
 }
+
+// Interval parsing types
+
+export type SegmentKind = 'Warmup' | 'Work' | 'Recovery' | 'Cooldown' | 'Pause' | 'Steady' | 'Unknown';
+export type RecoveryStyle = 'Jog' | 'Walk' | 'Stop' | 'Unknown';
+
+export interface Segment {
+  kind: SegmentKind;
+  start_t: number;
+  end_t: number;
+  duration_s: number;
+  distance_m: number;
+  avg_speed_mps: number;
+  speed_std_mps: number;
+  max_speed_mps: number;
+  avg_hr: number | null;
+  avg_cadence: number | null;
+}
+
+export interface Rep {
+  work: Segment;
+  recovery: Segment | null;
+  rep_index: number;
+  set_index: number | null;
+  distance_m: number;
+  duration_s: number;
+  avg_pace_s_per_km: number;
+  avg_speed_mps: number;
+  pace_std: number;
+  pct_mas: number | null;
+  steadiness: number;
+  fade: number;
+  recovery_style: RecoveryStyle | null;
+}
+
+export interface IntervalResult {
+  segments: Segment[];
+  reps: Rep[];
+  is_interval_workout: boolean;
+  interval_score: number;
+  threshold_speed_mps: number;
+  cluster_low_mps: number;
+  cluster_high_mps: number;
+}

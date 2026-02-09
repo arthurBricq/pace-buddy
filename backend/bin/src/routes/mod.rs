@@ -27,7 +27,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route("/sync", web::post().to(activity_routes::sync_activities))
                     .route("", web::get().to(activity_routes::list_activities))
                     .route("/{id}", web::get().to(activity_routes::get_activity))
-                    .route("/{id}/tag", web::patch().to(activity_routes::update_tag)),
+                    .route("/{id}/tag", web::patch().to(activity_routes::update_tag))
+                    .route("/{id}/intervals", web::get().to(activity_routes::get_intervals)),
             ),
     );
 }

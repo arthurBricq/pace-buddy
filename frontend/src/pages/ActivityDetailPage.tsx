@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getActivity, updateActivityTag } from '../api/activities';
-import type { ActivityDetail, ActivityTag } from '../types';
+import { getActivity, getIntervals, updateActivityTag } from '../api/activities';
+import type { ActivityDetail, ActivityTag, IntervalResult } from '../types';
 import Navbar from '../components/Navbar';
 import ActivityStats from '../components/ActivityStats';
 import ActivityMap from '../components/ActivityMap';
 import StreamChart from '../components/StreamChart';
 import TagSelector from '../components/TagSelector';
 import TagBadge from '../components/TagBadge';
+import IntervalRecap from '../components/IntervalRecap';
 
 export default function ActivityDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +16,7 @@ export default function ActivityDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editingTag, setEditingTag] = useState(false);
+  const [intervals, setIntervals] = useState<IntervalResult | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -24,6 +26,13 @@ export default function ActivityDetailPage() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!id || !detail) return;
+    getIntervals(id)
+      .then(setIntervals)
+      .catch((e) => console.warn('Failed to load intervals:', e));
+  }, [id, detail]);
 
   const handleTagChange = async (tag: ActivityTag) => {
     if (!id || !detail) return;
@@ -66,6 +75,7 @@ export default function ActivityDetailPage() {
 
   const { activity, streams } = detail;
   const distanceStream = streams.find((s) => s.stream_type === 'distance');
+  const timeStream = streams.find((s) => s.stream_type === 'time');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -104,8 +114,17 @@ export default function ActivityDetailPage() {
           <ActivityMap polyline={activity.summary_polyline} />
         )}
 
+        {intervals?.is_interval_workout && (
+          <IntervalRecap intervals={intervals} />
+        )}
+
         {streams.length > 0 && (
-          <StreamChart streams={streams} distanceStream={distanceStream} />
+          <StreamChart
+            streams={streams}
+            distanceStream={distanceStream}
+            timeStream={timeStream}
+            segments={intervals?.segments}
+          />
         )}
       </div>
     </div>

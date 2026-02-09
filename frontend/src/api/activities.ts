@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { Activity, ActivityDetail } from '../types';
+import type { Activity, ActivityDetail, IntervalResult } from '../types';
 
 export async function syncActivities(after?: number, before?: number) {
   return apiFetch<{ synced: number }>('/activities/sync', {
@@ -14,6 +14,10 @@ export async function listActivities(limit = 50, offset = 0) {
 
 export async function getActivity(id: string) {
   return apiFetch<ActivityDetail>(`/activities/${id}`);
+}
+
+export async function getIntervals(id: string) {
+  return apiFetch<IntervalResult>(`/activities/${id}/intervals`);
 }
 
 export async function updateActivityTag(id: string, tag: string) {

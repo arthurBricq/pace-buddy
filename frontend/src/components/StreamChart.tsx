@@ -6,8 +6,9 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  ReferenceArea,
 } from 'recharts';
-import type { ActivityStream } from '../types';
+import type { ActivityStream, Segment, SegmentKind } from '../types';
 
 const STREAM_COLORS: Record<string, string> = {
   heartrate: '#ef4444',
@@ -25,13 +26,53 @@ const STREAM_LABELS: Record<string, string> = {
   watts: 'Power (W)',
 };
 
+const SEGMENT_COLORS: Record<SegmentKind, string> = {
+  Work: '#3b82f6',
+  Recovery: '#9ca3af',
+  Warmup: '#22c55e',
+  Cooldown: '#22c55e',
+  Pause: '#f97316',
+  Steady: '#6b7280',
+  Unknown: '#6b7280',
+};
+
+interface SegmentArea {
+  x1: string;
+  x2: string;
+  fill: string;
+}
+
+function buildSegmentAreas(
+  segments: Segment[],
+  timeData: number[],
+  distanceData: number[],
+): SegmentArea[] {
+  if (timeData.length === 0 || distanceData.length === 0) return [];
+
+  return segments.map((seg) => {
+    // Find the distance values corresponding to segment time boundaries
+    let x1Km = 0;
+    let x2Km = 0;
+    for (let i = 0; i < timeData.length; i++) {
+      if (timeData[i] <= seg.start_t) x1Km = distanceData[i] / 1000;
+      if (timeData[i] <= seg.end_t) x2Km = distanceData[i] / 1000;
+    }
+    return {
+      x1: x1Km.toFixed(2),
+      x2: x2Km.toFixed(2),
+      fill: SEGMENT_COLORS[seg.kind] || '#6b7280',
+    };
+  });
+}
+
 interface Props {
   streams: ActivityStream[];
   timeStream?: ActivityStream;
   distanceStream?: ActivityStream;
+  segments?: Segment[];
 }
 
-export default function StreamChart({ streams, distanceStream }: Props) {
+export default function StreamChart({ streams, distanceStream, timeStream, segments }: Props) {
   const chartableStreams = streams.filter(
     (s) => !['time', 'distance', 'latlng'].includes(s.stream_type),
   );
@@ -40,6 +81,14 @@ export default function StreamChart({ streams, distanceStream }: Props) {
 
   const distanceData: number[] = distanceStream
     ? JSON.parse(distanceStream.data_json)
+    : [];
+
+  const timeData: number[] = timeStream
+    ? JSON.parse(timeStream.data_json)
+    : [];
+
+  const segmentAreas = segments && segments.length > 0
+    ? buildSegmentAreas(segments, timeData, distanceData)
     : [];
 
   return (
@@ -67,6 +116,16 @@ export default function StreamChart({ streams, distanceStream }: Props) {
                 />
                 <YAxis tick={{ fontSize: 10 }} />
                 <Tooltip />
+                {segmentAreas.map((area, i) => (
+                  <ReferenceArea
+                    key={i}
+                    x1={area.x1}
+                    x2={area.x2}
+                    fill={area.fill}
+                    fillOpacity={0.12}
+                    strokeOpacity={0}
+                  />
+                ))}
                 <Line
                   type="monotone"
                   dataKey="value"
