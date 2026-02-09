@@ -22,8 +22,8 @@ pub struct PreprocessedData {
 /// Apply smoothing and pause detection to hydrated streams.
 pub fn preprocess(streams: &HydratedStreams, config: &IntervalConfig) -> PreprocessedData {
     // Pause detection uses raw velocity (before smoothing) to avoid edge artifacts
-    let pause_mask = detect_pauses(streams, &streams.velocity, config);
-    let speed_smooth = rolling_median(&streams.velocity, config.smooth_window);
+    let pause_mask = detect_pauses(streams, &streams.velocity_smooth, config);
+    let speed_smooth = rolling_median(&streams.velocity_smooth, config.smooth_window);
 
     PreprocessedData {
         time: streams.time.clone(),
@@ -92,7 +92,7 @@ mod tests {
         HydratedStreams {
             time,
             distance,
-            velocity,
+            velocity_smooth: velocity,
             moving,
             heartrate: None,
             cadence: None,

@@ -10,7 +10,7 @@ pub struct HydratedStreams {
     /// Cumulative distance in meters (required)
     pub distance: Vec<f64>,
     /// Smoothed velocity in m/s (required)
-    pub velocity: Vec<f64>,
+    pub velocity_smooth: Vec<f64>,
     /// Whether the athlete is moving at each sample (optional)
     pub moving: Option<Vec<bool>>,
     /// Heart rate in bpm (optional)
@@ -127,7 +127,7 @@ pub fn hydrate(streams: &[ActivityStream]) -> Result<HydratedStreams, IntervalEr
     Ok(HydratedStreams {
         time,
         distance,
-        velocity,
+        velocity_smooth: velocity,
         moving,
         heartrate,
         cadence,
