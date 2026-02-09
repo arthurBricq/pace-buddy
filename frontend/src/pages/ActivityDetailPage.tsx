@@ -8,6 +8,7 @@ import {
   removeActivityFromTraining,
 } from '../api/trainings';
 import type { ActivityDetail, ActivityTag, IntervalResult, Training } from '../types';
+import { useAuth } from '../hooks/useAuth';
 import Navbar from '../components/Navbar';
 import ActivityStats from '../components/ActivityStats';
 import ActivityMap from '../components/ActivityMap';
@@ -18,6 +19,7 @@ import IntervalRecap from '../components/IntervalRecap';
 
 export default function ActivityDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
   const [detail, setDetail] = useState<ActivityDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -240,7 +242,7 @@ export default function ActivityDetailPage() {
         )}
 
         {intervals?.is_interval_workout && (
-          <IntervalRecap intervals={intervals} />
+          <IntervalRecap intervals={intervals} masCurrent={user?.mas_current ?? null} />
         )}
 
         {streams.length > 0 && (

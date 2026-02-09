@@ -19,20 +19,139 @@ impl SqliteStorage {
             .await
             .map_err(|e| DomainError::Storage(format!("Failed to connect to database: {e}")))?;
 
-        // Run migrations: execute each statement separately since SQLite
-        // does not support multiple statements in a single sqlx::query() call.
-        let migration_sql = include_str!("migrations/001_initial.sql");
-        for statement in migration_sql.split(';') {
-            let trimmed = statement.trim();
-            if !trimmed.is_empty() {
-                sqlx::query(trimmed)
-                    .execute(&pool)
-                    .await
-                    .map_err(|e| {
-                        DomainError::Storage(format!("Migration failed: {e}"))
-                    })?;
-            }
-        }
+        // Create tables directly (no migrations for now)
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY NOT NULL,
+                username TEXT UNIQUE NOT NULL,
+                display_name TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                mas_current REAL
+            )"
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create users table: {e}")))?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS passkeys (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL REFERENCES users(id),
+                passkey_json TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )"
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create passkeys table: {e}")))?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS strava_tokens (
+                user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id),
+                strava_athlete_id INTEGER NOT NULL,
+                access_token TEXT NOT NULL,
+                refresh_token TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            )"
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create strava_tokens table: {e}")))?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS activities (
+                id TEXT PRIMARY KEY NOT NULL,
+                user_id TEXT NOT NULL REFERENCES users(id),
+                strava_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                sport_type TEXT NOT NULL,
+                start_date TEXT NOT NULL,
+                elapsed_time INTEGER NOT NULL,
+                moving_time INTEGER NOT NULL,
+                distance REAL NOT NULL,
+                total_elevation_gain REAL NOT NULL,
+                average_speed REAL NOT NULL,
+                max_speed REAL NOT NULL,
+                average_heartrate REAL,
+                max_heartrate REAL,
+                average_cadence REAL,
+                average_watts REAL,
+                calories REAL,
+                tag TEXT NOT NULL DEFAULT 'normal',
+                summary_polyline TEXT,
+                workout_type INTEGER,
+                streams_loaded INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                UNIQUE(user_id, strava_id)
+            )"
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create activities table: {e}")))?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_activities_user_date ON activities(user_id, start_date DESC)"
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create activities index: {e}")))?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS activity_streams (
+                activity_id TEXT NOT NULL REFERENCES activities(id),
+                stream_type TEXT NOT NULL,
+                data_json TEXT NOT NULL,
+                PRIMARY KEY (activity_id, stream_type)
+            )"
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create activity_streams table: {e}")))?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS trainings (
+                id TEXT PRIMARY KEY NOT NULL,
+                user_id TEXT NOT NULL REFERENCES users(id),
+                name TEXT NOT NULL,
+                description TEXT,
+                created_at TEXT NOT NULL
+            )"
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create trainings table: {e}")))?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_trainings_user ON trainings(user_id)"
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create trainings index: {e}")))?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS training_activities (
+                training_id TEXT NOT NULL REFERENCES trainings(id) ON DELETE CASCADE,
+                activity_id TEXT NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+                PRIMARY KEY (training_id, activity_id)
+            )"
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create training_activities table: {e}")))?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_training_activities_training ON training_activities(training_id)"
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create training_activities index: {e}")))?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_training_activities_activity ON training_activities(activity_id)"
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create training_activities index: {e}")))?;
 
         Ok(Self { pool })
     }
@@ -203,7 +322,7 @@ impl Storage for SqliteStorage {
     }
 
     async fn get_user_by_id(&self, id: Uuid) -> Result<User, DomainError> {
-        let row = sqlx::query("SELECT id, username, display_name, created_at FROM users WHERE id = ?")
+        let row = sqlx::query("SELECT id, username, display_name, created_at, mas_current FROM users WHERE id = ?")
             .bind(id.to_string())
             .fetch_optional(&self.pool)
             .await
@@ -214,7 +333,7 @@ impl Storage for SqliteStorage {
     }
 
     async fn list_users(&self) -> Result<Vec<User>, DomainError> {
-        let rows = sqlx::query("SELECT id, username, display_name, created_at FROM users ORDER BY created_at")
+        let rows = sqlx::query("SELECT id, username, display_name, created_at, mas_current FROM users ORDER BY created_at")
             .fetch_all(&self.pool)
             .await
             .map_err(|e| DomainError::Storage(format!("Failed to list users: {e}")))?;
@@ -224,7 +343,7 @@ impl Storage for SqliteStorage {
 
     async fn get_user_by_username(&self, username: &str) -> Result<User, DomainError> {
         let row = sqlx::query(
-            "SELECT id, username, display_name, created_at FROM users WHERE username = ?",
+            "SELECT id, username, display_name, created_at, mas_current FROM users WHERE username = ?",
         )
         .bind(username)
         .fetch_optional(&self.pool)
