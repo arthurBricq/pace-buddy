@@ -1,5 +1,5 @@
 use crate::hydrate::HydratedStreams;
-use crate::stats::rolling_median;
+use crate::stats::{rolling_mean, rolling_median};
 use crate::types::IntervalConfig;
 
 /// Preprocessed data ready for segmentation.
@@ -23,7 +23,14 @@ pub struct PreprocessedData {
 pub fn preprocess(streams: &HydratedStreams, config: &IntervalConfig) -> PreprocessedData {
     // Pause detection uses raw velocity (before smoothing) to avoid edge artifacts
     let pause_mask = detect_pauses(streams, &streams.velocity_smooth, config);
-    let speed_smooth = rolling_median(&streams.velocity_smooth, config.smooth_window);
+
+    // Two-stage smoothing: median filter removes spikes, then rolling mean smooths jitter
+    let after_median = rolling_median(&streams.velocity_smooth, config.smooth_window);
+    let speed_smooth = if config.smooth_mean_window > 1 {
+        rolling_mean(&after_median, config.smooth_mean_window)
+    } else {
+        after_median
+    };
 
     PreprocessedData {
         time: streams.time.clone(),
@@ -35,41 +42,47 @@ pub fn preprocess(streams: &HydratedStreams, config: &IntervalConfig) -> Preproc
     }
 }
 
-/// Detect pauses using the `moving` stream if available, else by speed threshold + min duration.
+/// Detect pauses using the `moving` stream as a hint (if available), else by speed threshold.
+/// In both cases, apply the min-duration filter so brief Strava `moving=false` glitches
+/// don't produce pause segments that split work.
 fn detect_pauses(
     streams: &HydratedStreams,
     speed_smooth: &[f64],
     config: &IntervalConfig,
 ) -> Vec<bool> {
-    let n = streams.time.len();
-
-    if let Some(ref moving) = streams.moving {
-        // Use the Strava-provided moving flag
-        return moving.iter().map(|m| !m).collect();
-    }
-
-    // Fallback: speed below threshold for at least pause_min_duration_s
-    let raw_pause: Vec<bool> = speed_smooth
-        .iter()
-        .map(|&s| s < config.pause_speed_threshold)
-        .collect();
+    // Build raw candidate pause mask: use moving flag if available, else speed threshold
+    let raw_pause: Vec<bool> = if let Some(ref moving) = streams.moving {
+        // Treat !moving as a candidate, but still require min duration
+        moving.iter().map(|m| !m).collect()
+    } else {
+        speed_smooth
+            .iter()
+            .map(|&s| s < config.pause_speed_threshold)
+            .collect()
+    };
 
     // Only keep pause regions that last >= pause_min_duration_s
+    apply_min_duration_filter(&raw_pause, &streams.time, config.pause_min_duration_s)
+}
+
+/// Keep only contiguous true-regions whose duration >= min_duration_s.
+fn apply_min_duration_filter(mask: &[bool], time: &[f64], min_duration_s: f64) -> Vec<bool> {
+    let n = mask.len();
     let mut result = vec![false; n];
     let mut i = 0;
     while i < n {
-        if raw_pause[i] {
+        if mask[i] {
             let start = i;
-            while i < n && raw_pause[i] {
+            while i < n && mask[i] {
                 i += 1;
             }
             let end = i;
             let duration = if end > start && end <= n {
-                streams.time[end.min(n - 1)] - streams.time[start]
+                time[end.min(n - 1)] - time[start]
             } else {
                 0.0
             };
-            if duration >= config.pause_min_duration_s {
+            if duration >= min_duration_s {
                 for j in start..end {
                     result[j] = true;
                 }
@@ -78,7 +91,6 @@ fn detect_pauses(
             i += 1;
         }
     }
-
     result
 }
 
@@ -117,14 +129,32 @@ mod tests {
 
     #[test]
     fn test_pause_detection_from_moving() {
+        // Pause must last >= pause_min_duration_s (3s) even when using moving stream
         let streams = make_streams(
-            vec![0.0, 1.0, 2.0, 3.0, 4.0],
-            vec![3.0, 3.0, 0.0, 0.0, 3.0],
-            Some(vec![true, true, false, false, true]),
+            vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            vec![3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 3.0],
+            Some(vec![true, false, false, false, false, false, true]),
         );
         let config = IntervalConfig::default();
         let pp = preprocess(&streams, &config);
-        assert_eq!(pp.pause_mask, vec![false, false, true, true, false]);
+        assert_eq!(
+            pp.pause_mask,
+            vec![false, true, true, true, true, true, false]
+        );
+    }
+
+    #[test]
+    fn test_short_moving_glitch_not_pause() {
+        // A 1s !moving glitch should be filtered out by min-duration
+        let streams = make_streams(
+            vec![0.0, 1.0, 2.0, 3.0, 4.0],
+            vec![3.0, 3.0, 0.0, 3.0, 3.0],
+            Some(vec![true, true, false, true, true]),
+        );
+        let config = IntervalConfig::default();
+        let pp = preprocess(&streams, &config);
+        // Only 1s of !moving → too short → not a pause
+        assert_eq!(pp.pause_mask, vec![false, false, false, false, false]);
     }
 
     #[test]

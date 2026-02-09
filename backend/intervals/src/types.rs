@@ -5,18 +5,26 @@ use serde::{Deserialize, Serialize};
 pub struct IntervalConfig {
     /// Rolling median window size for smoothing
     pub smooth_window: usize,
+    /// Rolling mean window applied after median (0 = disabled)
+    pub smooth_mean_window: usize,
     /// Speed below which we consider the athlete paused (m/s)
     pub pause_speed_threshold: f64,
     /// Minimum duration to consider a low-speed region a pause (seconds)
     pub pause_min_duration_s: f64,
     /// Hysteresis delta applied above/below k-means boundary (m/s)
     pub hysteresis_delta_mps: f64,
+    /// Consecutive seconds speed must stay above v_enter before entering Work
+    pub enter_confirm_s: f64,
+    /// Consecutive seconds speed must stay below v_exit before exiting Work
+    pub exit_confirm_s: f64,
     /// Minimum duration for a work segment to be kept (seconds)
     pub min_work_duration_s: f64,
     /// Minimum distance for a work segment to be kept (meters)
     pub min_work_distance_m: f64,
     /// Minimum recovery duration before merging with neighbors (seconds)
     pub min_recovery_duration_s: f64,
+    /// Max gap (Recovery/Pause) between two Work segments that gets absorbed into Work (seconds)
+    pub max_gap_within_work_s: f64,
     /// Minimum duration before first work segment to label as warmup (seconds)
     pub warmup_min_s: f64,
     /// Minimum duration after last work segment to label as cooldown (seconds)
@@ -29,12 +37,16 @@ impl Default for IntervalConfig {
     fn default() -> Self {
         Self {
             smooth_window: 5,
+            smooth_mean_window: 11,
             pause_speed_threshold: 0.5,
             pause_min_duration_s: 3.0,
             hysteresis_delta_mps: 0.15,
+            enter_confirm_s: 2.0,
+            exit_confirm_s: 8.0,
             min_work_duration_s: 12.0,
             min_work_distance_m: 100.0,
             min_recovery_duration_s: 8.0,
+            max_gap_within_work_s: 20.0,
             warmup_min_s: 360.0,
             cooldown_min_s: 300.0,
             min_work_segments: 3,

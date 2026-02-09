@@ -82,6 +82,24 @@ pub fn rolling_median(data: &[f64], window: usize) -> Vec<f64> {
     result
 }
 
+/// Apply a rolling mean filter of given window size.
+/// Returns a vector of the same length, with edges handled by shrinking the window.
+pub fn rolling_mean(data: &[f64], window: usize) -> Vec<f64> {
+    if data.is_empty() || window <= 1 {
+        return data.to_vec();
+    }
+    let half = window / 2;
+    let n = data.len();
+    let mut result = Vec::with_capacity(n);
+    for i in 0..n {
+        let lo = if i >= half { i - half } else { 0 };
+        let hi = if i + half < n { i + half + 1 } else { n };
+        let sum: f64 = data[lo..hi].iter().sum();
+        result.push(sum / (hi - lo) as f64);
+    }
+    result
+}
+
 /// K-means clustering with k=2 on 1D data.
 /// Returns (centroid_low, centroid_high, boundary) where boundary is the midpoint.
 /// Runs at most `max_iter` iterations.

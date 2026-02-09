@@ -52,7 +52,7 @@ pub fn segment(data: &PreprocessedData, config: &IntervalConfig) -> Segmentation
 
     // Filter work segments whose avg speed is barely above the boundary.
     // Real interval work should be well into the high cluster, not just marginally above threshold.
-    let min_work_speed = boundary + (cluster_high - boundary) * 0.25;
+    let min_work_speed = boundary + (cluster_high - boundary) * 0.35;
     for seg in segments.iter_mut() {
         if seg.kind == SegmentKind::Work && seg.avg_speed_mps < min_work_speed {
             seg.kind = SegmentKind::Recovery;
@@ -68,34 +68,74 @@ pub fn segment(data: &PreprocessedData, config: &IntervalConfig) -> Segmentation
     }
 }
 
-/// Apply hysteresis labeling: enter WORK above boundary+delta, exit below boundary-delta.
+/// Debounced hysteresis labeling.
+///
+/// Enter WORK only after speed stays above v_enter for `enter_confirm_s` consecutive seconds.
+/// Exit WORK only after speed stays below v_exit for `exit_confirm_s` consecutive seconds.
+/// During the confirmation countdown, keep the previous state label (Work stays Work, etc.).
 fn hysteresis_label(data: &PreprocessedData, boundary: f64, config: &IntervalConfig) -> Vec<Label> {
     let n = data.time.len();
     let v_enter = boundary + config.hysteresis_delta_mps;
     let v_exit = boundary - config.hysteresis_delta_mps;
+
+    let enter_k = (config.enter_confirm_s.max(1.0)) as usize;
+    let exit_k = (config.exit_confirm_s.max(1.0)) as usize;
+
     let mut labels = vec![Label::Recovery; n];
     let mut in_work = false;
+    let mut above_enter = 0usize;
+    let mut below_exit = 0usize;
 
     for i in 0..n {
         if data.pause_mask[i] {
             labels[i] = Label::Pause;
             in_work = false;
+            above_enter = 0;
+            below_exit = 0;
             continue;
         }
 
         let speed = data.speed_smooth[i];
+
         if in_work {
             if speed <= v_exit {
-                in_work = false;
-                labels[i] = Label::Recovery;
+                below_exit += 1;
+                if below_exit >= exit_k {
+                    // Confirmed exit: relabel the dip samples as Recovery
+                    in_work = false;
+                    for j in (i + 1 - below_exit)..=i {
+                        if labels[j] != Label::Pause {
+                            labels[j] = Label::Recovery;
+                        }
+                    }
+                    below_exit = 0;
+                } else {
+                    // Still in confirmation period — keep as Work
+                    labels[i] = Label::Work;
+                }
             } else {
+                below_exit = 0;
                 labels[i] = Label::Work;
             }
-        } else if speed >= v_enter {
-            in_work = true;
-            labels[i] = Label::Work;
         } else {
-            labels[i] = Label::Recovery;
+            if speed >= v_enter {
+                above_enter += 1;
+                if above_enter >= enter_k {
+                    in_work = true;
+                    // Relabel the confirmation samples as Work
+                    for j in (i + 1 - above_enter)..=i {
+                        if labels[j] != Label::Pause {
+                            labels[j] = Label::Work;
+                        }
+                    }
+                    above_enter = 0;
+                } else {
+                    labels[i] = Label::Recovery;
+                }
+            } else {
+                above_enter = 0;
+                labels[i] = Label::Recovery;
+            }
         }
     }
 
@@ -199,10 +239,35 @@ fn cleanup_segments(segments: &mut Vec<Segment>, config: &IntervalConfig) {
     }
     merge_consecutive(segments);
 
-    // Pass 3: Remove too-short recovery segments by assigning them to the
+    // Pass 3: Absorb short gaps (Recovery/Pause) between two Work segments.
+    // This is a morphological "closing" that prevents long reps from being split
+    // by brief speed dips or GPS pause glitches.
+    absorb_gaps_within_work(segments, config);
+    merge_consecutive(segments);
+
+    // Pass 4: Remove too-short recovery segments by assigning them to the
     // dominant neighbor kind (look at what's before and after).
     absorb_short_recoveries(segments, config);
     merge_consecutive(segments);
+}
+
+/// Absorb short Recovery/Pause gaps between two Work segments into Work.
+/// This prevents long reps from being split by brief speed dips or GPS pauses.
+fn absorb_gaps_within_work(segments: &mut Vec<Segment>, config: &IntervalConfig) {
+    let n = segments.len();
+    for i in 0..n {
+        if segments[i].kind == SegmentKind::Work {
+            continue;
+        }
+        if segments[i].duration_s >= config.max_gap_within_work_s {
+            continue;
+        }
+        let prev_is_work = i > 0 && segments[i - 1].kind == SegmentKind::Work;
+        let next_is_work = i + 1 < n && segments[i + 1].kind == SegmentKind::Work;
+        if prev_is_work && next_is_work {
+            segments[i].kind = SegmentKind::Work;
+        }
+    }
 }
 
 /// Convert short Pause segments to the kind of their longest neighbor.

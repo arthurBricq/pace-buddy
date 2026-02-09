@@ -65,10 +65,15 @@ fn label_warmup_cooldown(segments: &mut Vec<Segment>, config: &IntervalConfig) {
         return;
     }
 
+    // For warmup/cooldown detection, require a more substantial work segment
+    // than the basic cleanup threshold. This prevents brief accelerations during
+    // warmup from being mistaken for the start of the interval block.
+    let substantial_dur = config.min_work_duration_s * 3.0; // 36s
+    let substantial_dist = config.min_work_distance_m * 3.0; // 300m
     let is_substantial_work = |s: &Segment| {
         s.kind == SegmentKind::Work
-            && (s.duration_s >= config.min_work_duration_s
-                || s.distance_m >= config.min_work_distance_m)
+            && s.duration_s >= substantial_dur
+            && s.distance_m >= substantial_dist
     };
 
     let first_work = segments.iter().position(|s| is_substantial_work(s));
