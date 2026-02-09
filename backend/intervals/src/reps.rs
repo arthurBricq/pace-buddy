@@ -57,21 +57,29 @@ pub fn build_reps(
 }
 
 /// Label the first segment(s) as Warmup and last as Cooldown if they meet duration thresholds.
+///
+/// "First work" means the first *substantial* work segment (meeting min duration/distance),
+/// not just any brief acceleration during warmup jogging.
 fn label_warmup_cooldown(segments: &mut Vec<Segment>, config: &IntervalConfig) {
     if segments.is_empty() {
         return;
     }
 
-    // Find first and last work segment indices
-    let first_work = segments.iter().position(|s| s.kind == SegmentKind::Work);
-    let last_work = segments.iter().rposition(|s| s.kind == SegmentKind::Work);
+    let is_substantial_work = |s: &Segment| {
+        s.kind == SegmentKind::Work
+            && (s.duration_s >= config.min_work_duration_s
+                || s.distance_m >= config.min_work_distance_m)
+    };
+
+    let first_work = segments.iter().position(|s| is_substantial_work(s));
+    let last_work = segments.iter().rposition(|s| is_substantial_work(s));
 
     if let Some(first) = first_work {
-        // Everything before first work: sum duration
+        // Everything before first substantial work
         let warmup_duration: f64 = segments[..first].iter().map(|s| s.duration_s).sum();
         if warmup_duration >= config.warmup_min_s {
             for seg in segments[..first].iter_mut() {
-                if seg.kind == SegmentKind::Recovery {
+                if seg.kind == SegmentKind::Recovery || seg.kind == SegmentKind::Work {
                     seg.kind = SegmentKind::Warmup;
                 }
             }
@@ -83,7 +91,7 @@ fn label_warmup_cooldown(segments: &mut Vec<Segment>, config: &IntervalConfig) {
             let cooldown_duration: f64 = segments[last + 1..].iter().map(|s| s.duration_s).sum();
             if cooldown_duration >= config.cooldown_min_s {
                 for seg in segments[last + 1..].iter_mut() {
-                    if seg.kind == SegmentKind::Recovery {
+                    if seg.kind == SegmentKind::Recovery || seg.kind == SegmentKind::Work {
                         seg.kind = SegmentKind::Cooldown;
                     }
                 }
@@ -120,12 +128,15 @@ fn pair_work_recovery(segments: &[Segment]) -> Vec<(Segment, Option<Segment>)> {
 }
 
 /// Classify recovery style based on speed and pauses.
+///
+/// After cleanup, Recovery segments may span time ranges that originally contained
+/// short Pause fragments (absorbed during cleanup). We check the per-sample pause_mask
+/// to detect this.
 fn classify_recovery(recovery: &Segment, data: &PreprocessedData) -> RecoveryStyle {
     if recovery.kind == SegmentKind::Pause {
         return RecoveryStyle::Stop;
     }
 
-    // Count pause samples within the recovery time range
     let n = data.time.len();
     let (start_idx, end_idx) = time_range_to_indices(&data.time, recovery.start_t, recovery.end_t);
     if start_idx >= n || end_idx <= start_idx {
@@ -137,13 +148,25 @@ fn classify_recovery(recovery: &Segment, data: &PreprocessedData) -> RecoverySty
         .iter()
         .filter(|&&p| p)
         .count() as f64;
+    let pause_ratio = if total > 0.0 { pause_count / total } else { 0.0 };
 
-    if total > 0.0 && pause_count / total > 0.5 {
+    // If significant pause presence, it's a stop (standing recovery with GPS drift)
+    if pause_ratio > 0.3 {
         return RecoveryStyle::Stop;
     }
 
-    // Walk if avg speed is very slow (< 1.5 m/s ≈ ~11 min/km)
-    if recovery.avg_speed_mps < 1.5 {
+    // Compute average speed of non-pause samples only (ignore GPS drift during pauses)
+    let active_speeds: Vec<f64> = (start_idx..end_idx)
+        .filter(|&i| !data.pause_mask[i])
+        .map(|i| data.speed_smooth[i])
+        .collect();
+    let active_avg = if active_speeds.is_empty() {
+        recovery.avg_speed_mps
+    } else {
+        crate::stats::mean(&active_speeds)
+    };
+
+    if active_avg < 1.5 {
         RecoveryStyle::Walk
     } else {
         RecoveryStyle::Jog

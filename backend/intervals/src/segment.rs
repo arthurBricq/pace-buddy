@@ -164,10 +164,19 @@ fn build_segment(
     }
 }
 
-/// Remove work segments that are too short (unless distance is sufficient),
-/// and merge recovery segments that are too short with their neighbors.
+/// Multi-pass cleanup to consolidate noisy segments.
+///
+/// GPS noise during standing recoveries creates alternating Pause/Recovery/Pause
+/// fragments. We must absorb these short pauses first, then clean up short
+/// work/recovery segments.
 fn cleanup_segments(segments: &mut Vec<Segment>, config: &IntervalConfig) {
-    // Pass 1: Remove too-short work segments by converting to Recovery
+    // Pass 1: Absorb short pauses into their neighbor's kind.
+    // A short pause (< pause_min_duration_s) during running is GPS noise.
+    // A short pause adjacent to Recovery is part of the recovery.
+    absorb_short_pauses(segments, config);
+    merge_consecutive(segments);
+
+    // Pass 2: Remove too-short work segments (GPS blips labeled as Work)
     for seg in segments.iter_mut() {
         if seg.kind == SegmentKind::Work
             && seg.duration_s < config.min_work_duration_s
@@ -176,17 +185,67 @@ fn cleanup_segments(segments: &mut Vec<Segment>, config: &IntervalConfig) {
             seg.kind = SegmentKind::Recovery;
         }
     }
-
-    // Pass 2: Remove too-short recovery segments by converting to neighbor kind
-    for seg in segments.iter_mut() {
-        if seg.kind == SegmentKind::Recovery && seg.duration_s < config.min_recovery_duration_s {
-            // Will be merged with neighbors; mark as Work temporarily
-            seg.kind = SegmentKind::Work;
-        }
-    }
-
-    // Pass 3: Merge consecutive segments of the same kind
     merge_consecutive(segments);
+
+    // Pass 3: Remove too-short recovery segments by assigning them to the
+    // dominant neighbor kind (look at what's before and after).
+    absorb_short_recoveries(segments, config);
+    merge_consecutive(segments);
+}
+
+/// Convert short Pause segments to the kind of their longest neighbor.
+/// This collapses `Recovery, Pause(2s), Recovery, Pause(1s), Recovery` into
+/// one contiguous Recovery.
+fn absorb_short_pauses(segments: &mut Vec<Segment>, config: &IntervalConfig) {
+    let n = segments.len();
+    for i in 0..n {
+        if segments[i].kind != SegmentKind::Pause {
+            continue;
+        }
+        // Keep real pauses (long stops) — only absorb short GPS-noise pauses
+        if segments[i].duration_s >= config.pause_min_duration_s * 2.0 {
+            continue;
+        }
+        // Look at neighbors to decide what kind to assign
+        let prev_kind = if i > 0 { Some(segments[i - 1].kind) } else { None };
+        let next_kind = if i + 1 < n { Some(segments[i + 1].kind) } else { None };
+
+        let new_kind = match (prev_kind, next_kind) {
+            // Both neighbors same kind → adopt it
+            (Some(a), Some(b)) if a == b => a,
+            // One neighbor is Work → keep as Recovery (don't extend Work across pauses)
+            (Some(SegmentKind::Work), _) | (_, Some(SegmentKind::Work)) => SegmentKind::Recovery,
+            // Otherwise adopt whatever neighbor exists
+            (Some(k), _) => k,
+            (_, Some(k)) => k,
+            (None, None) => SegmentKind::Recovery,
+        };
+        segments[i].kind = new_kind;
+    }
+}
+
+/// Convert short Recovery segments to the kind of their dominant neighbor.
+fn absorb_short_recoveries(segments: &mut Vec<Segment>, config: &IntervalConfig) {
+    let n = segments.len();
+    for i in 0..n {
+        if segments[i].kind != SegmentKind::Recovery {
+            continue;
+        }
+        if segments[i].duration_s >= config.min_recovery_duration_s {
+            continue;
+        }
+        // Look at neighbors
+        let prev_kind = if i > 0 { Some(segments[i - 1].kind) } else { None };
+        let next_kind = if i + 1 < n { Some(segments[i + 1].kind) } else { None };
+
+        let new_kind = match (prev_kind, next_kind) {
+            (Some(a), Some(b)) if a == b => a,
+            (Some(SegmentKind::Work), Some(SegmentKind::Work)) => SegmentKind::Work,
+            // Default: keep as Recovery (don't blindly extend Work)
+            _ => SegmentKind::Recovery,
+        };
+        segments[i].kind = new_kind;
+    }
 }
 
 /// Merge consecutive segments that share the same kind.
@@ -283,11 +342,44 @@ mod tests {
     }
 
     #[test]
-    fn test_segment_with_pauses() {
+    fn test_segment_with_long_pause() {
+        // A long pause (>= 2 * pause_min_duration_s) should survive cleanup
+        let n = 30;
+        let time: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        let speed: Vec<f64> = (0..n)
+            .map(|i| if (10..20).contains(&i) { 0.0 } else { 3.0 })
+            .collect();
+        let distance: Vec<f64> = {
+            let mut d = vec![0.0];
+            for i in 1..n {
+                d.push(d[i - 1] + speed[i]);
+            }
+            d
+        };
+        let mut pause_mask = vec![false; n];
+        for i in 10..20 {
+            pause_mask[i] = true;
+        }
+
+        let data = make_preprocessed(time, speed, distance, pause_mask);
+        let config = IntervalConfig {
+            min_work_duration_s: 2.0,
+            min_recovery_duration_s: 1.0,
+            ..IntervalConfig::default()
+        };
+        let result = segment(&data, &config);
+
+        let has_pause = result.segments.iter().any(|s| s.kind == SegmentKind::Pause);
+        assert!(has_pause, "Long pause should survive cleanup");
+    }
+
+    #[test]
+    fn test_short_pauses_absorbed() {
+        // Short pauses between recovery segments should be absorbed
         let n = 20;
         let time: Vec<f64> = (0..n).map(|i| i as f64).collect();
         let speed: Vec<f64> = (0..n)
-            .map(|i| if (5..8).contains(&i) { 0.0 } else { 3.0 })
+            .map(|i| if (5..8).contains(&i) { 0.0 } else { 2.0 })
             .collect();
         let distance: Vec<f64> = {
             let mut d = vec![0.0];
@@ -309,8 +401,10 @@ mod tests {
         };
         let result = segment(&data, &config);
 
+        // 3s pause (< 2 * 3.0 = 6s threshold) should be absorbed into Recovery
         let has_pause = result.segments.iter().any(|s| s.kind == SegmentKind::Pause);
-        assert!(has_pause, "Expected pause segment");
+        assert!(!has_pause, "Short pause should be absorbed, got: {:?}",
+            result.segments.iter().map(|s| (s.kind, s.duration_s)).collect::<Vec<_>>());
     }
 
     #[test]
