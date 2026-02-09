@@ -37,8 +37,8 @@ const SEGMENT_COLORS: Record<SegmentKind, string> = {
 };
 
 interface SegmentArea {
-  x1: string;
-  x2: string;
+  x1: number;
+  x2: number;
   fill: string;
 }
 
@@ -58,8 +58,8 @@ function buildSegmentAreas(
       if (timeData[i] <= seg.end_t) x2Km = distanceData[i] / 1000;
     }
     return {
-      x1: x1Km.toFixed(2),
-      x2: x2Km.toFixed(2),
+      x1: x1Km,
+      x2: x2Km,
       fill: SEGMENT_COLORS[seg.kind] || '#6b7280',
     };
   });
@@ -96,7 +96,7 @@ export default function StreamChart({ streams, distanceStream, timeStream, segme
       {chartableStreams.map((stream) => {
         const data: number[] = JSON.parse(stream.data_json);
         const chartData = data.map((value, i) => ({
-          distance: distanceData[i] ? (distanceData[i] / 1000).toFixed(2) : i,
+          distance: distanceData[i] != null ? distanceData[i] / 1000 : i,
           value,
         }));
 
@@ -111,6 +111,9 @@ export default function StreamChart({ streams, distanceStream, timeStream, segme
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="distance"
+                  type="number"
+                  domain={['dataMin', 'dataMax']}
+                  tickFormatter={(v: number) => v.toFixed(1)}
                   tick={{ fontSize: 10 }}
                   label={{ value: 'km', position: 'insideBottomRight', offset: -5, fontSize: 10 }}
                 />
