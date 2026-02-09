@@ -24,6 +24,9 @@ export default function Navbar() {
         <Link to="/trainings" className="text-sm text-gray-600 hover:text-gray-900">
           Trainings
         </Link>
+        <Link to="/races" className="text-sm text-gray-600 hover:text-gray-900">
+          Races (estimators)
+        </Link>
         <Link to="/strava" className="text-sm text-gray-600 hover:text-gray-900">
           Strava
         </Link>

@@ -8,6 +8,7 @@ import ActivityDetailPage from './pages/ActivityDetailPage';
 import LinkStravaPage from './pages/LinkStravaPage';
 import TrainingsListPage from './pages/TrainingsListPage';
 import TrainingDetailPage from './pages/TrainingDetailPage';
+import RacesPage from './pages/RacesPage';
 
 function App() {
   return (
@@ -53,6 +54,14 @@ function App() {
             element={
               <AuthGuard>
                 <TrainingDetailPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/races"
+            element={
+              <AuthGuard>
+                <RacesPage />
               </AuthGuard>
             }
           />

@@ -9,6 +9,7 @@ pub trait Storage: Send + Sync {
     async fn get_user_by_id(&self, id: Uuid) -> Result<User, DomainError>;
     async fn get_user_by_username(&self, username: &str) -> Result<User, DomainError>;
     async fn list_users(&self) -> Result<Vec<User>, DomainError>;
+    async fn update_user_mas(&self, user_id: Uuid, mas_mps: Option<f64>) -> Result<(), DomainError>;
 
     // Passkeys - store as JSON text
     async fn store_passkey(&self, user_id: Uuid, passkey_json: &str) -> Result<(), DomainError>;

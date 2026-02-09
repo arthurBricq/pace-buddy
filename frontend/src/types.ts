@@ -3,6 +3,7 @@ export interface User {
   username: string;
   display_name: string;
   created_at: string;
+  mas_current: number | null; // Current MAS estimate in m/s
 }
 
 export type ActivityTag = 'normal' | 'intervals' | 'race';
@@ -109,4 +110,14 @@ export interface Training {
   name: string;
   description: string | null;
   created_at: string;
+}
+
+export interface MASEstimate {
+  date: string;
+  mas_ms: number;
+  mas_kmh: number;
+  activity_id: string;
+  activity_name: string;
+  distance_m: number;
+  time_s: number;
 }

@@ -67,12 +67,14 @@ fn row_to_user(row: &SqliteRow) -> Result<User, DomainError> {
     let username: String = row.get("username");
     let display_name: String = row.get("display_name");
     let created_at: String = row.get("created_at");
+    let mas_current: Option<f64> = row.get("mas_current");
 
     Ok(User {
         id: parse_uuid(&id)?,
         username,
         display_name,
         created_at: parse_datetime(&created_at)?,
+        mas_current,
     })
 }
 
@@ -186,12 +188,13 @@ impl Storage for SqliteStorage {
     // -----------------------------------------------------------------------
     async fn create_user(&self, user: &User) -> Result<(), DomainError> {
         sqlx::query(
-            "INSERT INTO users (id, username, display_name, created_at) VALUES (?, ?, ?, ?)",
+            "INSERT INTO users (id, username, display_name, created_at, mas_current) VALUES (?, ?, ?, ?, ?)",
         )
         .bind(user.id.to_string())
         .bind(&user.username)
         .bind(&user.display_name)
         .bind(user.created_at.to_rfc3339())
+        .bind(user.mas_current)
         .execute(&self.pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create user: {e}")))?;
@@ -733,5 +736,19 @@ impl Storage for SqliteStorage {
         })?;
 
         rows.iter().map(row_to_training).collect()
+    }
+
+    // -----------------------------------------------------------------------
+    // User MAS
+    // -----------------------------------------------------------------------
+    async fn update_user_mas(&self, user_id: Uuid, mas_mps: Option<f64>) -> Result<(), DomainError> {
+        sqlx::query("UPDATE users SET mas_current = ? WHERE id = ?")
+            .bind(mas_mps)
+            .bind(user_id.to_string())
+            .execute(&self.pool)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to update user MAS: {e}")))?;
+
+        Ok(())
     }
 }

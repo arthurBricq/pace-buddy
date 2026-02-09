@@ -37,6 +37,7 @@ pub async fn register_start(
         username: body.username.clone(),
         display_name: body.display_name.clone(),
         created_at: chrono::Utc::now(),
+        mas_current: None,
     };
 
     state.storage.create_user(&user).await?;
@@ -185,6 +186,34 @@ pub async fn list_all_users(
     log::debug!("GET /auth/users");
     let users = state.storage.list_users().await?;
     Ok(HttpResponse::Ok().json(users))
+}
+
+pub async fn get_mas(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+) -> Result<HttpResponse, AppError> {
+    log::debug!("GET /auth/mas user_id={}", user.user_id);
+    let u = state.storage.get_user_by_id(user.user_id).await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "mas_mps": u.mas_current,
+    })))
+}
+
+#[derive(Deserialize)]
+pub struct UpdateMASRequest {
+    pub mas_mps: Option<f64>,
+}
+
+pub async fn update_mas(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+    body: web::Json<UpdateMASRequest>,
+) -> Result<HttpResponse, AppError> {
+    log::info!("PATCH /auth/mas user_id={} mas_mps={:?}", user.user_id, body.mas_mps);
+    state.storage.update_user_mas(user.user_id, body.mas_mps).await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "status": "ok",
+    })))
 }
 
 fn build_session_cookie(token: &str) -> Cookie<'static> {

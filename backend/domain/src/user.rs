@@ -8,4 +8,5 @@ pub struct User {
     pub username: String,
     pub display_name: String,
     pub created_at: DateTime<Utc>,
+    pub mas_current: Option<f64>, // Current MAS estimate in m/s
 }

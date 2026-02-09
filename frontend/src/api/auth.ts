@@ -42,3 +42,14 @@ export async function logout() {
 export async function getMe() {
   return apiFetch<User>('/auth/me');
 }
+
+export async function getMAS() {
+  return apiFetch<{ mas_mps: number | null }>('/auth/mas');
+}
+
+export async function updateMAS(mas_mps: number | null) {
+  return apiFetch<{ status: string }>('/auth/mas', {
+    method: 'PATCH',
+    body: JSON.stringify({ mas_mps }),
+  });
+}
