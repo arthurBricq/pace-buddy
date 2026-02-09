@@ -47,13 +47,18 @@ export default function MASChart({ estimates }: MASChartProps) {
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
   );
 
-  const chartData = sortedEstimates.map((est) => ({
-    date: est.date,
-    dateLabel: formatDate(est.date),
-    mas: est.mas_kmh,
-    activityName: est.activity_name,
-    distance: (est.distance_m / 1000).toFixed(2),
-  }));
+  // Convert dates to timestamps for linear x-axis
+  const chartData = sortedEstimates.map((est) => {
+    const date = new Date(est.date);
+    return {
+      date: est.date,
+      timestamp: date.getTime(), // Use timestamp for linear scale
+      dateLabel: formatDate(est.date),
+      mas: est.mas_kmh,
+      activityName: est.activity_name,
+      distance: (est.distance_m / 1000).toFixed(2),
+    };
+  });
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -62,12 +67,18 @@ export default function MASChart({ estimates }: MASChartProps) {
         <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis
-            dataKey="dateLabel"
+            dataKey="timestamp"
+            type="number"
+            domain={['dataMin', 'dataMax']}
             stroke="#6b7280"
             style={{ fontSize: '12px' }}
             angle={-45}
             textAnchor="end"
             height={80}
+            tickFormatter={(value) => {
+              const date = new Date(value);
+              return formatDate(date.toISOString());
+            }}
           />
           <YAxis
             label={{ value: 'MAS (km/h)', angle: -90, position: 'insideLeft' }}
