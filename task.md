@@ -33,6 +33,8 @@ called Chat Completion, which I think is what we need for the first proof of con
 one answer. However, feel free to modify this as you want. Note that this is hidden behind the trade so that we can swap
 the actual open router implementation with just a dummy implementation as to not use too many tokens.
 
+This template LLM client is defined in a new crate: here @backend/llm/src/lib.rs
+
 # Training improvement
 
 Our next task is going to improve the training feature of the database and also of the front-end. Essentially, a

@@ -14,7 +14,7 @@ auth = { path = "../auth" }
 chrono = { version = "0.4", features = ["serde"] }
 domain = { path = "../domain" }
 env_logger = "0.11"
-log = "0.4"
+log = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 storage = { path = "../storage" }

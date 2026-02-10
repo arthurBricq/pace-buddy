@@ -1,3 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["domain", "storage", "auth", "strava-client", "bin", "cli", "intervals"]
+members = ["domain", "storage", "auth", "strava-client", "bin", "cli", "intervals", "llm"]
+
+[workspace.dependencies]
+log = "0.4"
