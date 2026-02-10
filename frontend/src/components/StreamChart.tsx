@@ -21,10 +21,26 @@ const STREAM_COLORS: Record<string, string> = {
 const STREAM_LABELS: Record<string, string> = {
   heartrate: 'Heart Rate (bpm)',
   altitude: 'Elevation (m)',
-  velocity_smooth: 'Speed (m/s)',
+  velocity_smooth: 'Pace (min/km)',
   cadence: 'Cadence (spm)',
   watts: 'Power (W)',
 };
+
+// Convert speed in m/s to pace in min/km
+function speedToPace(speedMps: number): number {
+  if (speedMps <= 0 || !isFinite(speedMps)) return 10; // Return max pace for invalid values
+  const pace = 1000 / speedMps / 60; // Convert m/s to min/km
+  // Clamp pace between 0 and 10 min/km (reasonable running pace range)
+  return Math.max(0, Math.min(10, pace));
+}
+
+// Format pace as M:SS
+function formatPace(minPerKm: number): string {
+  if (minPerKm <= 0 || !isFinite(minPerKm)) return '-';
+  const minutes = Math.floor(minPerKm);
+  const seconds = Math.round((minPerKm - minutes) * 60);
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
 
 const SEGMENT_COLORS: Record<SegmentKind, string> = {
   Work: '#3b82f6',
@@ -73,11 +89,21 @@ interface Props {
 }
 
 export default function StreamChart({ streams, distanceStream, timeStream, segments }: Props) {
+  // Filter out non-chartable streams and exclude 'moving'
   const chartableStreams = streams.filter(
-    (s) => !['time', 'distance', 'latlng'].includes(s.stream_type),
+    (s) => !['time', 'distance', 'latlng', 'moving'].includes(s.stream_type),
   );
 
   if (chartableStreams.length === 0) return null;
+
+  // Order streams: pace (velocity_smooth) first, then heartrate, then others
+  const orderedStreams = [...chartableStreams].sort((a, b) => {
+    if (a.stream_type === 'velocity_smooth') return -1;
+    if (b.stream_type === 'velocity_smooth') return 1;
+    if (a.stream_type === 'heartrate') return -1;
+    if (b.stream_type === 'heartrate') return 1;
+    return 0;
+  });
 
   const distanceData: number[] = distanceStream
     ? JSON.parse(distanceStream.data_json)
@@ -93,12 +119,26 @@ export default function StreamChart({ streams, distanceStream, timeStream, segme
 
   return (
     <div className="space-y-6">
-      {chartableStreams.map((stream) => {
+      {orderedStreams.map((stream) => {
         const data: number[] = JSON.parse(stream.data_json);
-        const chartData = data.map((value, i) => ({
-          distance: distanceData[i] != null ? distanceData[i] / 1000 : i,
-          value,
-        }));
+        
+        // Convert velocity_smooth (m/s) to pace (min/km)
+        const isPace = stream.stream_type === 'velocity_smooth';
+        const chartData = data
+          .map((value, i) => {
+            const paceValue = isPace ? speedToPace(value) : value;
+            return {
+              distance: distanceData[i] != null ? distanceData[i] / 1000 : i,
+              value: paceValue,
+            };
+          })
+          .filter((point) => {
+            // Filter out invalid data points
+            if (isPace) {
+              return point.value >= 0 && point.value <= 10 && isFinite(point.value);
+            }
+            return isFinite(point.value);
+          });
 
         const color = STREAM_COLORS[stream.stream_type] || '#6b7280';
         const label = STREAM_LABELS[stream.stream_type] || stream.stream_type;
@@ -117,8 +157,21 @@ export default function StreamChart({ streams, distanceStream, timeStream, segme
                   tick={{ fontSize: 10 }}
                   label={{ value: 'km', position: 'insideBottomRight', offset: -5, fontSize: 10 }}
                 />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip />
+                <YAxis 
+                  tick={{ fontSize: 10 }}
+                  tickFormatter={isPace ? (v: number) => formatPace(v) : undefined}
+                  domain={isPace ? [10, 0] : undefined}
+                  allowDataOverflow={false}
+                  reversed={isPace}
+                />
+                <Tooltip
+                  formatter={(value: number) => {
+                    if (isPace) {
+                      return formatPace(value);
+                    }
+                    return value;
+                  }}
+                />
                 {segmentAreas.map((area, i) => (
                   <ReferenceArea
                     key={i}

@@ -13,7 +13,7 @@ I want to the following data to be displayed
 - last-year running distance, time and elevation, and average speed
 - total running distance, time and elevation, and average speed
 
-For the POC, I don't 
+For the POC, I don't really care about the storing 
 
 # The race page
 
