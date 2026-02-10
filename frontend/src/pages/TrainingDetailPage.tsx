@@ -5,9 +5,11 @@ import {
   getTrainingActivities,
   removeActivityFromTraining,
   addActivityToTraining,
+  getTrainingInsight,
 } from '../api/trainings';
 import { listActivities } from '../api/activities';
-import type { Training, Activity } from '../types';
+import type { Training, Activity, TrainingInsightResponse } from '../types';
+import ReactMarkdown from 'react-markdown';
 import Navbar from '../components/Navbar';
 import TagBadge from '../components/TagBadge';
 
@@ -42,6 +44,12 @@ export default function TrainingDetailPage() {
   const [loadingActivities, setLoadingActivities] = useState(false);
   const [selectedActivityId, setSelectedActivityId] = useState('');
 
+  // LLM Insight state
+  const [insightLoading, setInsightLoading] = useState(false);
+  const [insightResult, setInsightResult] = useState<TrainingInsightResponse | null>(null);
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [insightError, setInsightError] = useState('');
+
   useEffect(() => {
     if (!id) return;
     setLoading(true);
@@ -58,13 +66,10 @@ export default function TrainingDetailPage() {
     if (!id) return;
     setLoadingActivities(true);
     try {
-      // Fetch a reasonable number of activities to find interval-tagged ones
-      // We'll fetch multiple pages if needed
       const allActivities: Activity[] = [];
       let offset = 0;
       const limit = 100;
-      
-      // Fetch up to 500 activities (5 pages) to find interval activities
+
       for (let i = 0; i < 5; i++) {
         const page = await listActivities(limit, offset);
         if (page.length === 0) break;
@@ -73,13 +78,11 @@ export default function TrainingDetailPage() {
         if (page.length < limit) break;
       }
 
-      // Filter for interval-tagged activities that aren't already in the training
       const activityIds = new Set(currentActivities.map((a) => a.id));
       const intervalActivities = allActivities.filter(
         (a) => a.tag === 'intervals' && !activityIds.has(a.id),
       );
 
-      // Sort by date (most recent first)
       intervalActivities.sort(
         (a, b) =>
           new Date(b.start_date).getTime() - new Date(a.start_date).getTime(),
@@ -119,14 +122,28 @@ export default function TrainingDetailPage() {
 
     try {
       await addActivityToTraining(id, selectedActivityId);
-      // Reload activities
       const updated = await getTrainingActivities(id);
       setActivities(updated);
       setSelectedActivityId('');
-      // Reload available activities with updated list
       loadAvailableActivities(updated);
     } catch (err: any) {
       setError(err.message);
+    }
+  };
+
+  const handleInsight = async (promptType: 'overview' | 'suggestions') => {
+    if (!id) return;
+    setInsightLoading(true);
+    setInsightError('');
+    setInsightResult(null);
+    setShowPrompt(false);
+    try {
+      const result = await getTrainingInsight(id, promptType);
+      setInsightResult(result);
+    } catch (err: any) {
+      setInsightError(err.message || 'Failed to get insight');
+    } finally {
+      setInsightLoading(false);
     }
   };
 
@@ -180,6 +197,90 @@ export default function TrainingDetailPage() {
             <span>Created {new Date(training.created_at).toLocaleDateString()}</span>
           </div>
         </div>
+
+        {/* LLM Insights Section */}
+        <div className="bg-white rounded-lg shadow p-4">
+          <h2 className="text-lg font-semibold mb-3">AI Insights</h2>
+          <div className="flex gap-3">
+            <button
+              onClick={() => handleInsight('overview')}
+              disabled={insightLoading}
+              className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              {insightLoading ? 'Thinking...' : 'Critical Overview'}
+            </button>
+            <button
+              onClick={() => handleInsight('suggestions')}
+              disabled={insightLoading}
+              className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              {insightLoading ? 'Thinking...' : 'Interval Suggestions'}
+            </button>
+          </div>
+        </div>
+
+        {/* Insight Modal */}
+        {(insightResult || insightLoading || insightError) && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b">
+                <h3 className="text-lg font-semibold">AI Insight</h3>
+                <button
+                  onClick={() => {
+                    setInsightResult(null);
+                    setInsightError('');
+                  }}
+                  className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                >
+                  &times;
+                </button>
+              </div>
+              <div className="px-6 py-4 overflow-y-auto flex-1 space-y-4">
+                {insightLoading && (
+                  <div className="flex items-center gap-3 text-gray-500">
+                    <div className="animate-spin h-5 w-5 border-2 border-purple-600 border-t-transparent rounded-full" />
+                    <span>Generating insight...</span>
+                  </div>
+                )}
+
+                {insightError && (
+                  <div className="bg-red-50 text-red-700 p-3 rounded-md text-sm">
+                    {insightError}
+                  </div>
+                )}
+
+                {insightResult && (
+                  <>
+                    {/* User message */}
+                    <div className="flex justify-end">
+                      <div className="bg-purple-100 text-purple-900 rounded-lg px-4 py-2 max-w-[80%]">
+                        <p className="font-medium text-sm">{insightResult.display_label}</p>
+                        <button
+                          onClick={() => setShowPrompt(!showPrompt)}
+                          className="text-xs text-purple-600 hover:text-purple-800 mt-1"
+                        >
+                          {showPrompt ? 'Hide full prompt' : 'Show full prompt'}
+                        </button>
+                        {showPrompt && (
+                          <pre className="mt-2 text-xs bg-purple-50 p-3 rounded overflow-x-auto whitespace-pre-wrap max-h-60 overflow-y-auto">
+                            {insightResult.full_prompt}
+                          </pre>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Assistant message */}
+                    <div className="flex justify-start">
+                      <div className="bg-gray-100 text-gray-900 rounded-lg px-4 py-3 max-w-[90%] prose prose-sm max-w-none">
+                        <ReactMarkdown>{insightResult.response}</ReactMarkdown>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
 

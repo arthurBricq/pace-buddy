@@ -24,7 +24,7 @@ impl OpenRouterClient {
     }
 }
 
-/// Curated list of models for chess games
+/// Curated list of allowed models
 const ALLOWED_MODELS: &[&str] = &[
     "anthropic/claude-sonnet-4.5",
     "x-ai/grok-code-fast-1",
@@ -84,8 +84,8 @@ impl LlmClient for OpenRouterClient {
             .post(format!("{}/chat/completions", self.base_url))
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
-            .header("HTTP-Referer", "https://llm-chess-player.delta")
-            .header("X-Title", "LLM Chess Player")
+            .header("HTTP-Referer", "https://running-tool.app")
+            .header("X-Title", "Running Tool")
             .json(&request)
             .send()
             .await?;

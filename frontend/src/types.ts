@@ -133,6 +133,12 @@ export interface ProfileResponse {
   };
 }
 
+export interface TrainingInsightResponse {
+  display_label: string;
+  full_prompt: string;
+  response: string;
+}
+
 export interface MASEstimate {
   date: string;
   mas_ms: number;

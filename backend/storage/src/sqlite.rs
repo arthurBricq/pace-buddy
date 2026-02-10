@@ -875,6 +875,32 @@ impl Storage for SqliteStorage {
         rows.iter().map(row_to_training).collect()
     }
 
+    async fn get_activities_in_range(
+        &self,
+        user_id: Uuid,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<Activity>, DomainError> {
+        let rows = sqlx::query(
+            "SELECT id, user_id, strava_id, name, sport_type, start_date,
+                    elapsed_time, moving_time, distance, total_elevation_gain,
+                    average_speed, max_speed, average_heartrate, max_heartrate,
+                    average_cadence, average_watts, calories, tag,
+                    summary_polyline, workout_type, streams_loaded, created_at
+             FROM activities
+             WHERE user_id = ? AND start_date >= ? AND start_date < ?
+             ORDER BY start_date ASC",
+        )
+        .bind(user_id.to_string())
+        .bind(from.to_rfc3339())
+        .bind(to.to_rfc3339())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get activities in range: {e}")))?;
+
+        rows.iter().map(row_to_activity).collect()
+    }
+
     // -----------------------------------------------------------------------
     // User MAS
     // -----------------------------------------------------------------------

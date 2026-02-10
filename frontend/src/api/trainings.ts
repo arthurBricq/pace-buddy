@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { Training, Activity } from '../types';
+import type { Training, Activity, TrainingInsightResponse } from '../types';
 
 export async function createTraining(
   name: string,
@@ -77,4 +77,14 @@ export async function getTrainingActivities(trainingId: string) {
 
 export async function getActivityTrainings(activityId: string) {
   return apiFetch<Training[]>(`/activities/${activityId}/trainings`);
+}
+
+export async function getTrainingInsight(
+  trainingId: string,
+  promptType: 'overview' | 'suggestions',
+) {
+  return apiFetch<TrainingInsightResponse>(`/trainings/${trainingId}/insight`, {
+    method: 'POST',
+    body: JSON.stringify({ prompt_type: promptType }),
+  });
 }

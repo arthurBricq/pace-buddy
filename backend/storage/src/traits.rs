@@ -83,6 +83,13 @@ pub trait Storage: Send + Sync {
         user_id: Uuid,
     ) -> Result<Vec<Training>, DomainError>;
 
+    async fn get_activities_in_range(
+        &self,
+        user_id: Uuid,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<Activity>, DomainError>;
+
     // Stats
     async fn get_running_stats(
         &self,

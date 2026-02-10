@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use auth::{JwtService, WebAuthnService};
+use llm::open_router::OpenRouterClient;
 use storage::SqliteStorage;
 use strava_client::StravaClient;
 
@@ -10,4 +11,5 @@ pub struct AppState {
     pub webauthn: Arc<WebAuthnService>,
     pub jwt: Arc<JwtService>,
     pub frontend_url: String,
+    pub llm_client: Option<Arc<OpenRouterClient>>,
 }

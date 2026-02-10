@@ -38,8 +38,6 @@ async fn main() -> std::io::Result<()> {
     let cli = Cli::parse();
     let cfg = Config::from_env();
 
-    log::info!("Loaded config: {:?}", cfg);
-
     if cli.fresh_start {
         // Extract file path from "sqlite:path?..." URL
         let db_path = cfg
@@ -74,12 +72,18 @@ async fn main() -> std::io::Result<()> {
         cfg.strava_redirect_uri.clone(),
     );
 
+    let llm_client = cfg.openrouter_api_key.as_ref().map(|key| {
+        log::info!("OpenRouter API key configured, LLM insights enabled");
+        Arc::new(llm::open_router::OpenRouterClient::new(key.clone()))
+    });
+
     let app_state = web::Data::new(AppState {
         storage: Arc::new(storage),
         strava_client: Arc::new(strava_client),
         webauthn: Arc::new(webauthn),
         jwt: Arc::new(jwt),
         frontend_url: cfg.frontend_url.clone(),
+        llm_client,
     });
 
     let static_dir = cli.static_serving.clone();

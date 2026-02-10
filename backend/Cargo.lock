@@ -475,6 +475,7 @@ dependencies = [
  "domain",
  "env_logger",
  "intervals",
+ "llm",
  "log",
  "serde",
  "serde_json",

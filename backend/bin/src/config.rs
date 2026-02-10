@@ -1,7 +1,6 @@
 use std::env;
 use std::fs;
 
-#[derive(Debug)]
 pub struct Config {
     pub database_url: String,
     pub jwt_secret: String,
@@ -13,6 +12,7 @@ pub struct Config {
     pub host: String,
     pub port: u16,
     pub frontend_url: String,
+    pub openrouter_api_key: Option<String>,
 }
 
 impl Config {
@@ -47,6 +47,12 @@ impl Config {
                 .unwrap_or(8080),
             frontend_url: env::var("FRONTEND_URL")
                 .unwrap_or_else(|_| "https://running.tool:5173".to_string()),
+            openrouter_api_key: env::var("OPENROUTER_API_KEY").ok().or_else(|| {
+                fs::read_to_string("openrouter_key")
+                    .ok()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+            }),
         }
     }
 }
