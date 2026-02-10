@@ -12,6 +12,10 @@ export default function TrainingsListPage() {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
+  const [newStartDate, setNewStartDate] = useState('');
+  const [newEndDate, setNewEndDate] = useState('');
+  const [newRaceGoal, setNewRaceGoal] = useState('');
+  const [customGoal, setCustomGoal] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -39,9 +43,20 @@ export default function TrainingsListPage() {
     setCreating(true);
     setError('');
     try {
-      await createTraining(newName.trim(), newDescription.trim() || undefined);
+      const goalValue = newRaceGoal === 'Other' ? customGoal.trim() : newRaceGoal;
+      await createTraining(
+        newName.trim(),
+        newDescription.trim() || undefined,
+        newStartDate ? new Date(newStartDate).toISOString() : undefined,
+        newEndDate ? new Date(newEndDate).toISOString() : undefined,
+        goalValue || undefined,
+      );
       setNewName('');
       setNewDescription('');
+      setNewStartDate('');
+      setNewEndDate('');
+      setNewRaceGoal('');
+      setCustomGoal('');
       setShowCreateForm(false);
       load();
     } catch (err: any) {
@@ -106,6 +121,58 @@ export default function TrainingsListPage() {
                   rows={3}
                 />
               </div>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={newStartDate}
+                    onChange={(e) => setNewStartDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={newEndDate}
+                    onChange={(e) => setNewEndDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Race Goal
+                </label>
+                <select
+                  value={newRaceGoal}
+                  onChange={(e) => setNewRaceGoal(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">None</option>
+                  <option value="5K">5K</option>
+                  <option value="10K">10K</option>
+                  <option value="Half Marathon">Half Marathon</option>
+                  <option value="Marathon">Marathon</option>
+                  <option value="Trail">Trail</option>
+                  <option value="Ultra">Ultra</option>
+                  <option value="Other">Other</option>
+                </select>
+                {newRaceGoal === 'Other' && (
+                  <input
+                    type="text"
+                    value={customGoal}
+                    onChange={(e) => setCustomGoal(e.target.value)}
+                    className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter custom goal..."
+                  />
+                )}
+              </div>
               <div className="flex gap-2">
                 <button
                   type="submit"
@@ -120,6 +187,10 @@ export default function TrainingsListPage() {
                     setShowCreateForm(false);
                     setNewName('');
                     setNewDescription('');
+                    setNewStartDate('');
+                    setNewEndDate('');
+                    setNewRaceGoal('');
+                    setCustomGoal('');
                   }}
                   className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm"
                 >
@@ -145,7 +216,8 @@ export default function TrainingsListPage() {
                 <tr>
                   <th className="text-left px-4 py-3">Name</th>
                   <th className="text-left px-4 py-3">Description</th>
-                  <th className="text-left px-4 py-3">Created</th>
+                  <th className="text-left px-4 py-3">Goal</th>
+                  <th className="text-left px-4 py-3">Dates</th>
                   <th className="text-right px-4 py-3">Actions</th>
                 </tr>
               </thead>
@@ -164,7 +236,16 @@ export default function TrainingsListPage() {
                       {t.description || '-'}
                     </td>
                     <td className="px-4 py-3 text-gray-500">
-                      {new Date(t.created_at).toLocaleDateString()}
+                      {t.race_goal || '-'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-sm">
+                      {t.start_date || t.end_date ? (
+                        <>
+                          {t.start_date && new Date(t.start_date).toLocaleDateString()}
+                          {t.start_date && t.end_date && ' - '}
+                          {t.end_date && new Date(t.end_date).toLocaleDateString()}
+                        </>
+                      ) : '-'}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button

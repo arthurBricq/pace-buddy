@@ -109,6 +109,9 @@ export interface Training {
   user_id: string;
   name: string;
   description: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  race_goal: string | null;
   created_at: string;
 }
 

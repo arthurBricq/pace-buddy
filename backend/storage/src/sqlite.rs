@@ -114,6 +114,9 @@ impl SqliteStorage {
                 user_id TEXT NOT NULL REFERENCES users(id),
                 name TEXT NOT NULL,
                 description TEXT,
+                start_date TEXT,
+                end_date TEXT,
+                race_goal TEXT,
                 created_at TEXT NOT NULL
             )"
         )
@@ -274,6 +277,9 @@ fn row_to_training(row: &SqliteRow) -> Result<Training, DomainError> {
     let user_id: String = row.get("user_id");
     let name: String = row.get("name");
     let description: Option<String> = row.get("description");
+    let start_date: Option<String> = row.get("start_date");
+    let end_date: Option<String> = row.get("end_date");
+    let race_goal: Option<String> = row.get("race_goal");
     let created_at: String = row.get("created_at");
 
     Ok(Training {
@@ -281,6 +287,9 @@ fn row_to_training(row: &SqliteRow) -> Result<Training, DomainError> {
         user_id: parse_uuid(&user_id)?,
         name,
         description,
+        start_date: start_date.map(|s| parse_datetime(&s)).transpose()?,
+        end_date: end_date.map(|s| parse_datetime(&s)).transpose()?,
+        race_goal,
         created_at: parse_datetime(&created_at)?,
     })
 }
@@ -652,13 +661,16 @@ impl Storage for SqliteStorage {
     // -----------------------------------------------------------------------
     async fn create_training(&self, training: &Training) -> Result<(), DomainError> {
         sqlx::query(
-            "INSERT INTO trainings (id, user_id, name, description, created_at)
-             VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO trainings (id, user_id, name, description, start_date, end_date, race_goal, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(training.id.to_string())
         .bind(training.user_id.to_string())
         .bind(&training.name)
         .bind(&training.description)
+        .bind(training.start_date.map(|d| d.to_rfc3339()))
+        .bind(training.end_date.map(|d| d.to_rfc3339()))
+        .bind(&training.race_goal)
         .bind(training.created_at.to_rfc3339())
         .execute(&self.pool)
         .await
@@ -669,7 +681,7 @@ impl Storage for SqliteStorage {
 
     async fn get_training(&self, id: Uuid, user_id: Uuid) -> Result<Training, DomainError> {
         let row = sqlx::query(
-            "SELECT id, user_id, name, description, created_at
+            "SELECT id, user_id, name, description, start_date, end_date, race_goal, created_at
              FROM trainings
              WHERE id = ? AND user_id = ?",
         )
@@ -685,7 +697,7 @@ impl Storage for SqliteStorage {
 
     async fn list_trainings(&self, user_id: Uuid) -> Result<Vec<Training>, DomainError> {
         let rows = sqlx::query(
-            "SELECT id, user_id, name, description, created_at
+            "SELECT id, user_id, name, description, start_date, end_date, race_goal, created_at
              FROM trainings
              WHERE user_id = ?
              ORDER BY created_at DESC",
@@ -704,12 +716,18 @@ impl Storage for SqliteStorage {
         user_id: Uuid,
         name: String,
         description: Option<String>,
+        start_date: Option<DateTime<Utc>>,
+        end_date: Option<DateTime<Utc>>,
+        race_goal: Option<String>,
     ) -> Result<(), DomainError> {
         let result = sqlx::query(
-            "UPDATE trainings SET name = ?, description = ? WHERE id = ? AND user_id = ?",
+            "UPDATE trainings SET name = ?, description = ?, start_date = ?, end_date = ?, race_goal = ? WHERE id = ? AND user_id = ?",
         )
         .bind(&name)
         .bind(&description)
+        .bind(start_date.map(|d| d.to_rfc3339()))
+        .bind(end_date.map(|d| d.to_rfc3339()))
+        .bind(&race_goal)
         .bind(id.to_string())
         .bind(user_id.to_string())
         .execute(&self.pool)
@@ -840,7 +858,7 @@ impl Storage for SqliteStorage {
         let _activity = self.get_activity(activity_id, user_id).await?;
 
         let rows = sqlx::query(
-            "SELECT t.id, t.user_id, t.name, t.description, t.created_at
+            "SELECT t.id, t.user_id, t.name, t.description, t.start_date, t.end_date, t.race_goal, t.created_at
              FROM trainings t
              INNER JOIN training_activities ta ON t.id = ta.training_id
              WHERE ta.activity_id = ? AND t.user_id = ?

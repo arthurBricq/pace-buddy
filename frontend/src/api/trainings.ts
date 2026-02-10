@@ -1,10 +1,22 @@
 import { apiFetch } from './client';
 import type { Training, Activity } from '../types';
 
-export async function createTraining(name: string, description?: string) {
+export async function createTraining(
+  name: string,
+  description?: string,
+  start_date?: string,
+  end_date?: string,
+  race_goal?: string,
+) {
   return apiFetch<Training>('/trainings', {
     method: 'POST',
-    body: JSON.stringify({ name, description: description || null }),
+    body: JSON.stringify({
+      name,
+      description: description || null,
+      start_date: start_date || null,
+      end_date: end_date || null,
+      race_goal: race_goal || null,
+    }),
   });
 }
 
@@ -18,12 +30,17 @@ export async function getTraining(id: string) {
 
 export async function updateTraining(
   id: string,
-  name?: string,
-  description?: string,
+  fields: {
+    name?: string;
+    description?: string;
+    start_date?: string;
+    end_date?: string;
+    race_goal?: string;
+  },
 ) {
   return apiFetch<Training>(`/trainings/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify({ name, description: description || null }),
+    body: JSON.stringify(fields),
   });
 }
 

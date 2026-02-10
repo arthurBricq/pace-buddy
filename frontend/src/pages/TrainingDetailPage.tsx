@@ -167,9 +167,18 @@ export default function TrainingDetailPage() {
           {training.description && (
             <p className="text-gray-600 mt-2">{training.description}</p>
           )}
-          <p className="text-sm text-gray-500 mt-2">
-            Created {new Date(training.created_at).toLocaleDateString()}
-          </p>
+          <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-500">
+            {training.race_goal && (
+              <span>Goal: <span className="font-medium text-gray-700">{training.race_goal}</span></span>
+            )}
+            {training.start_date && (
+              <span>From: {new Date(training.start_date).toLocaleDateString()}</span>
+            )}
+            {training.end_date && (
+              <span>To: {new Date(training.end_date).toLocaleDateString()}</span>
+            )}
+            <span>Created {new Date(training.created_at).toLocaleDateString()}</span>
+          </div>
         </div>
 
         {error && <p className="text-red-600 text-sm">{error}</p>}

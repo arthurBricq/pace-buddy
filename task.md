@@ -1,3 +1,51 @@
+# LLM integration part I
+
+We now have a rather nice app, and I want to add the first LLM integration. This will consist in a few "precomputer"
+LLM prompts. The users will have the option to request 1 LLM answer, for these predefined prompts.
+
+The 1st pre-defined prompt are going to be related to the training feature. Basically, I want to add a few possible
+prompts to the training page. These are the predefined prompts that I want:
+
+1. Give me a critical overview of my training so far
+2. Give me 3 suggestions for future interval trainings.
+
+Under the hood, the LLM will be given a lot of context. They will get:
+
+- Description of the current training plan (including the dates)
+- The current date
+- Total running volume since the beginning of the plan (split by weeks)
+- Description of all the interval sessions that are in the plan (Note that currently, we have the output of the
+  interval-parsing algorithm. We need a way to represent that as text. Just including the reps is enough, so really like
+  what is displayed on the frontend)
+
+They will be prompted to make just one answer containing everything!
+
+Regarding the front-end, there will be a bit of work. The first thing is going to add a button to the training page for
+each of the two prompts that I provided. It should be in a section called LLM Insights. Once the user clicks one of
+these buttons, a pop-up should open that displays a chat box. This is actually going to be a fake chat box because the
+message showed as sent by the user will be just a short description, and not the full message. There should be a
+dropdown that shows something like: "Reveal LLM prompt" that shows the full message. Ff course, the LLM answer should be
+displayed fully, unlike the prompt.
+
+Regarding the technical implementation of the LLM chat, we will be using a library that is called Open Router I will
+provide you a minimal Rust implementation of a Rust client to the Open Router API. This client supports something
+called Chat Completion, which I think is what we need for the first proof of concept since it works for just one prompt,
+one answer. However, feel free to modify this as you want. Note that this is hidden behind the trade so that we can swap
+the actual open router implementation with just a dummy implementation as to not use too many tokens.
+
+# Training improvement
+
+Our next task is going to improve the training feature of the database and also of the front-end. Essentially, a
+training is just a set of activities that have been tagged as intervals joined together currently, a training only has a
+name and a description. These trainings will be the backbones of the LLM integration. They will be given as an enriched
+textual description as input to the LLM chat.I want you to add some more data to these trainings. So basically I want to
+add:
+
+- A start date
+- An end date
+- A race goal
+  These new fields should be optional. The race goal should have predefined values and the option to add a custom goal.
+
 # Strava API
 
 https://www.strava.com/legal/api
@@ -5,7 +53,7 @@ https://www.strava.com/legal/api
 # The profile page
 
 I have made some progress without you: I added a "training" page to create and manage trainings, and a "race" page
-that estimates the user's MAS. 
+that estimates the user's MAS.
 
 Your next task is to add a "profile-page". This page will display the user profile, as well as some statistics about
 his/her activities.
