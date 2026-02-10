@@ -41,9 +41,16 @@ export default function ActivityDetailPage() {
 
   useEffect(() => {
     if (!id || !detail) return;
-    getIntervals(id)
-      .then(setIntervals)
-      .catch((e) => console.warn('Failed to load intervals:', e));
+    
+    // Only run interval parsing algorithm if activity is tagged as intervals
+    if (detail.activity.tag === 'intervals') {
+      getIntervals(id)
+        .then(setIntervals)
+        .catch((e) => console.warn('Failed to load intervals:', e));
+    } else {
+      // Clear intervals if activity is not tagged as intervals
+      setIntervals(null);
+    }
   }, [id, detail]);
 
   useEffect(() => {

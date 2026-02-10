@@ -1,5 +1,19 @@
-# The summary page
+# Strava API
 
+https://www.strava.com/legal/api
+
+# The profile page
+
+Your next task is to add a "profile-page". This page will display the user profile, as well as some statistics about
+his/her activities. 
+
+I want to the following data to be displayed
+- year-to-date running distance, time and elevation, and average speed, number of intervals sessions
+- current year running distance, time and elevation, and average speed, number of intervals sessions
+- last-year running distance, time and elevation, and average speed
+- total running distance, time and elevation, and average speed
+
+For the POC, I don't 
 
 # The race page
 
