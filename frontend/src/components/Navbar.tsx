@@ -25,7 +25,10 @@ export default function Navbar() {
           Trainings
         </Link>
         <Link to="/races" className="text-sm text-gray-600 hover:text-gray-900">
-          Races (estimators)
+          Races
+        </Link>
+        <Link to="/profile" className="text-sm text-gray-600 hover:text-gray-900">
+          Statistics
         </Link>
         <Link to="/strava" className="text-sm text-gray-600 hover:text-gray-900">
           Strava

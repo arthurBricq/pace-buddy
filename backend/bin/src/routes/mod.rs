@@ -18,7 +18,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route("/me", web::get().to(auth_routes::me))
                     .route("/users", web::get().to(auth_routes::list_all_users))
                     .route("/mas", web::get().to(auth_routes::get_mas))
-                    .route("/mas", web::patch().to(auth_routes::update_mas)),
+                    .route("/mas", web::patch().to(auth_routes::update_mas))
+                    .route("/profile", web::get().to(auth_routes::profile)),
             )
             .service(
                 web::scope("/strava")

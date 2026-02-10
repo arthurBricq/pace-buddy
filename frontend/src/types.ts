@@ -112,6 +112,24 @@ export interface Training {
   created_at: string;
 }
 
+export interface RunningStats {
+  total_distance_m: number;
+  total_time_s: number;
+  total_elevation_m: number;
+  avg_speed_mps: number | null;
+  activity_count: number;
+  interval_count: number | null;
+}
+
+export interface ProfileResponse {
+  user: User;
+  stats: {
+    ytd: RunningStats;
+    last_year: RunningStats;
+    all_time: RunningStats;
+  };
+}
+
 export interface MASEstimate {
   date: string;
   mas_ms: number;

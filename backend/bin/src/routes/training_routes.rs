@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::errors::AppError;
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
-use domain::{DomainError, Training};
+use domain::Training;
 
 #[derive(Deserialize)]
 pub struct CreateTrainingRequest {
@@ -20,11 +20,7 @@ pub async fn create_training(
     user: AuthenticatedUser,
     body: web::Json<CreateTrainingRequest>,
 ) -> Result<HttpResponse, AppError> {
-    log::info!(
-        "POST /trainings user={} name={}",
-        user.user_id,
-        body.name
-    );
+    log::info!("POST /trainings user={} name={}", user.user_id, body.name);
 
     let training = Training {
         id: Uuid::new_v4(),
@@ -79,10 +75,7 @@ pub async fn update_training(
     body: web::Json<UpdateTrainingRequest>,
 ) -> Result<HttpResponse, AppError> {
     let training_id = path.into_inner();
-    log::info!(
-        "PATCH /trainings/{training_id} user={}",
-        user.user_id
-    );
+    log::info!("PATCH /trainings/{training_id} user={}", user.user_id);
 
     let current = state
         .storage
@@ -171,7 +164,10 @@ pub async fn get_training_activities(
     path: web::Path<Uuid>,
 ) -> Result<HttpResponse, AppError> {
     let training_id = path.into_inner();
-    log::info!("GET /trainings/{training_id}/activities user={}", user.user_id);
+    log::info!(
+        "GET /trainings/{training_id}/activities user={}",
+        user.user_id
+    );
 
     let activities = state
         .storage

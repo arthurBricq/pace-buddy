@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { User } from '../types';
+import type { User, ProfileResponse } from '../types';
 
 export async function registerStart(username: string, displayName: string) {
   return apiFetch<{ user_id: string; options: PublicKeyCredentialCreationOptions }>(
@@ -52,4 +52,8 @@ export async function updateMAS(mas_mps: number | null) {
     method: 'PATCH',
     body: JSON.stringify({ mas_mps }),
   });
+}
+
+export async function getProfile() {
+  return apiFetch<ProfileResponse>('/auth/profile');
 }

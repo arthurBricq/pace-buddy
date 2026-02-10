@@ -1,5 +1,6 @@
 use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::cookie::{Cookie, SameSite};
+use chrono::Datelike;
 use serde::Deserialize;
 use storage::Storage;
 use uuid::Uuid;
@@ -213,6 +214,49 @@ pub async fn update_mas(
     state.storage.update_user_mas(user.user_id, body.mas_mps).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "status": "ok",
+    })))
+}
+
+pub async fn profile(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+) -> Result<HttpResponse, AppError> {
+    log::debug!("GET /auth/profile user_id={}", user.user_id);
+
+    let u = state.storage.get_user_by_id(user.user_id).await?;
+
+    let now = chrono::Utc::now();
+    let this_year_start = chrono::NaiveDate::from_ymd_opt(now.year(), 1, 1)
+        .unwrap()
+        .and_hms_opt(0, 0, 0)
+        .unwrap()
+        .and_utc();
+    let last_year_start = chrono::NaiveDate::from_ymd_opt(now.year() - 1, 1, 1)
+        .unwrap()
+        .and_hms_opt(0, 0, 0)
+        .unwrap()
+        .and_utc();
+
+    let ytd = state
+        .storage
+        .get_running_stats(user.user_id, Some(this_year_start), None, true)
+        .await?;
+    let last_year = state
+        .storage
+        .get_running_stats(user.user_id, Some(last_year_start), Some(this_year_start), false)
+        .await?;
+    let all_time = state
+        .storage
+        .get_running_stats(user.user_id, None, None, false)
+        .await?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "user": u,
+        "stats": {
+            "ytd": ytd,
+            "last_year": last_year,
+            "all_time": all_time,
+        }
     })))
 }
 

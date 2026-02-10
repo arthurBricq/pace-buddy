@@ -4,16 +4,24 @@ https://www.strava.com/legal/api
 
 # The profile page
 
+I have made some progress without you: I added a "training" page to create and manage trainings, and a "race" page
+that estimates the user's MAS. 
+
 Your next task is to add a "profile-page". This page will display the user profile, as well as some statistics about
-his/her activities. 
+his/her activities.
 
 I want to the following data to be displayed
+
 - year-to-date running distance, time and elevation, and average speed, number of intervals sessions
 - current year running distance, time and elevation, and average speed, number of intervals sessions
 - last-year running distance, time and elevation, and average speed
 - total running distance, time and elevation, and average speed
 
-For the POC, I don't really care about the storing 
+For the POC, I don't really care about the storing strategy. If it makes it easier, we can derive these values on demand
+everytime the frontend opens the profile page. If you think it is not much work to already add DB persistency,. then
+let's do it. I would go a for sub-optimal approach which is to always recompute these values whenever `upsert_activity`
+is called. If you change the DB scheme, you can assume that we can delete the db (no need to take care of data
+migration)
 
 # The race page
 

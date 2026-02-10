@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use domain::{Activity, ActivityStream, ActivityTag, DomainError, StravaToken, Training, User};
+use domain::{Activity, ActivityStream, ActivityTag, DomainError, RunningStats, StravaToken, Training, User};
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow};
 use sqlx::Row;
 use uuid::Uuid;
@@ -869,5 +869,96 @@ impl Storage for SqliteStorage {
             .map_err(|e| DomainError::Storage(format!("Failed to update user MAS: {e}")))?;
 
         Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // Stats
+    // -----------------------------------------------------------------------
+    async fn get_running_stats(
+        &self,
+        user_id: Uuid,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
+        include_interval_count: bool,
+    ) -> Result<RunningStats, DomainError> {
+        let mut sql = String::from(
+            "SELECT COALESCE(SUM(distance), 0.0) as total_distance,
+                    COALESCE(SUM(moving_time), 0) as total_time,
+                    COALESCE(SUM(total_elevation_gain), 0.0) as total_elevation,
+                    COUNT(*) as activity_count
+             FROM activities
+             WHERE user_id = ? AND sport_type = 'Run'",
+        );
+        let mut binds: Vec<String> = vec![user_id.to_string()];
+
+        if let Some(ref f) = from {
+            sql.push_str(" AND start_date >= ?");
+            binds.push(f.to_rfc3339());
+        }
+        if let Some(ref t) = to {
+            sql.push_str(" AND start_date < ?");
+            binds.push(t.to_rfc3339());
+        }
+
+        let mut query = sqlx::query(&sql);
+        for b in &binds {
+            query = query.bind(b);
+        }
+
+        let row = query
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to get running stats: {e}")))?;
+
+        let total_distance: f64 = row.get("total_distance");
+        let total_time: i64 = row.get("total_time");
+        let total_elevation: f64 = row.get("total_elevation");
+        let activity_count: i32 = row.get("activity_count");
+
+        let avg_speed_mps = if total_time > 0 {
+            Some(total_distance / total_time as f64)
+        } else {
+            None
+        };
+
+        let interval_count = if include_interval_count {
+            let mut isql = String::from(
+                "SELECT COUNT(*) as cnt FROM activities WHERE user_id = ? AND sport_type = 'Run' AND tag = 'intervals'",
+            );
+            let mut ibinds: Vec<String> = vec![user_id.to_string()];
+
+            if let Some(ref f) = from {
+                isql.push_str(" AND start_date >= ?");
+                ibinds.push(f.to_rfc3339());
+            }
+            if let Some(ref t) = to {
+                isql.push_str(" AND start_date < ?");
+                ibinds.push(t.to_rfc3339());
+            }
+
+            let mut iquery = sqlx::query(&isql);
+            for b in &ibinds {
+                iquery = iquery.bind(b);
+            }
+
+            let irow = iquery
+                .fetch_one(&self.pool)
+                .await
+                .map_err(|e| DomainError::Storage(format!("Failed to get interval count: {e}")))?;
+
+            let cnt: i32 = irow.get("cnt");
+            Some(cnt as i64)
+        } else {
+            None
+        };
+
+        Ok(RunningStats {
+            total_distance_m: total_distance,
+            total_time_s: total_time,
+            total_elevation_m: total_elevation,
+            avg_speed_mps,
+            activity_count: activity_count as i64,
+            interval_count,
+        })
     }
 }
