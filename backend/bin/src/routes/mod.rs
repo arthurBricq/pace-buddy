@@ -46,7 +46,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route("/{id}/activities", web::get().to(training_routes::get_training_activities))
                     .route("/{id}/activities/{activity_id}", web::post().to(training_routes::add_activity_to_training))
                     .route("/{id}/activities/{activity_id}", web::delete().to(training_routes::remove_activity_from_training))
-                    .route("/{id}/insight", web::post().to(training_routes::training_insight)),
+                    .route("/{id}/insight", web::post().to(training_routes::training_insight))
+                    .route("/{id}/insights", web::get().to(training_routes::list_training_insights)),
             ),
     );
 }

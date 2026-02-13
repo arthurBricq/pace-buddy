@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use domain::{Activity, ActivityStream, ActivityTag, DomainError, RunningStats, StravaToken, Training, User};
+use domain::{Activity, ActivityStream, ActivityTag, DomainError, RunningStats, StravaToken, Training, TrainingInsight, User};
 use uuid::Uuid;
 
 #[async_trait]
@@ -89,6 +89,14 @@ pub trait Storage: Send + Sync {
         from: DateTime<Utc>,
         to: DateTime<Utc>,
     ) -> Result<Vec<Activity>, DomainError>;
+
+    // Training insights
+    async fn store_training_insight(&self, insight: &TrainingInsight) -> Result<(), DomainError>;
+    async fn get_training_insights(
+        &self,
+        training_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Vec<TrainingInsight>, DomainError>;
 
     // Stats
     async fn get_running_stats(

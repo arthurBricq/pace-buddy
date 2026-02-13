@@ -6,9 +6,10 @@ import {
   removeActivityFromTraining,
   addActivityToTraining,
   getTrainingInsight,
+  listTrainingInsights,
 } from '../api/trainings';
 import { listActivities } from '../api/activities';
-import type { Training, Activity, TrainingInsightResponse } from '../types';
+import type { Training, Activity, TrainingInsightResponse, TrainingInsightRecord } from '../types';
 import ReactMarkdown from 'react-markdown';
 import Navbar from '../components/Navbar';
 import TagBadge from '../components/TagBadge';
@@ -49,14 +50,16 @@ export default function TrainingDetailPage() {
   const [insightResult, setInsightResult] = useState<TrainingInsightResponse | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [insightError, setInsightError] = useState('');
+  const [insightHistory, setInsightHistory] = useState<TrainingInsightRecord[]>([]);
 
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-    Promise.all([getTraining(id), getTrainingActivities(id)])
-      .then(([t, a]) => {
+    Promise.all([getTraining(id), getTrainingActivities(id), listTrainingInsights(id)])
+      .then(([t, a, h]) => {
         setTraining(t);
         setActivities(a);
+        setInsightHistory(h);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -140,11 +143,23 @@ export default function TrainingDetailPage() {
     try {
       const result = await getTrainingInsight(id, promptType);
       setInsightResult(result);
+      // Refresh history to include the newly persisted insight
+      listTrainingInsights(id).then(setInsightHistory).catch(() => {});
     } catch (err: any) {
       setInsightError(err.message || 'Failed to get insight');
     } finally {
       setInsightLoading(false);
     }
+  };
+
+  const openHistoryInsight = (record: TrainingInsightRecord) => {
+    setInsightResult({
+      display_label: record.display_label,
+      full_prompt: record.full_prompt,
+      response: record.response,
+    });
+    setShowPrompt(false);
+    setInsightError('');
   };
 
   if (loading) {
@@ -201,7 +216,7 @@ export default function TrainingDetailPage() {
         {/* LLM Insights Section */}
         <div className="bg-white rounded-lg shadow p-4">
           <h2 className="text-lg font-semibold mb-3">AI Insights</h2>
-          <div className="flex gap-3">
+          <div className="flex gap-3 mb-4">
             <button
               onClick={() => handleInsight('overview')}
               disabled={insightLoading}
@@ -217,6 +232,33 @@ export default function TrainingDetailPage() {
               {insightLoading ? 'Thinking...' : 'Interval Suggestions'}
             </button>
           </div>
+
+          {insightHistory.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 mb-2">Previous AI Insights</h3>
+              <div className="space-y-2">
+                {insightHistory.map((record) => (
+                  <button
+                    key={record.id}
+                    onClick={() => openHistoryInsight(record)}
+                    className="w-full text-left bg-gray-50 hover:bg-purple-50 rounded-md px-3 py-2 border border-gray-200 hover:border-purple-300 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-800">{record.display_label}</span>
+                      <span className="text-xs text-gray-400">
+                        {new Date(record.created_at).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Insight Modal */}

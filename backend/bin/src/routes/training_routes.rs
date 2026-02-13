@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::errors::AppError;
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
-use domain::Training;
+use domain::{Training, TrainingInsight};
 use llm::{ChatMessage, LlmClient};
 
 fn parse_date(s: &str) -> Result<DateTime<Utc>, String> {
@@ -445,9 +445,53 @@ pub async fn training_insight(
             )))
         })?;
 
+    let insight = TrainingInsight {
+        id: Uuid::new_v4(),
+        training_id,
+        user_id: user.user_id,
+        prompt_type: body.prompt_type.clone(),
+        display_label: display_label.to_string(),
+        full_prompt: user_prompt.clone(),
+        response: response.clone(),
+        created_at: Utc::now(),
+    };
+
+    if let Err(e) = state.storage.store_training_insight(&insight).await {
+        log::error!("Failed to persist training insight: {e}");
+    }
+
     Ok(HttpResponse::Ok().json(InsightResponse {
         display_label: display_label.to_string(),
         full_prompt: user_prompt,
         response,
     }))
+}
+
+// ---------------------------------------------------------------------------
+// List training insights
+// ---------------------------------------------------------------------------
+
+pub async fn list_training_insights(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+    path: web::Path<Uuid>,
+) -> Result<HttpResponse, AppError> {
+    let training_id = path.into_inner();
+    log::debug!(
+        "GET /trainings/{training_id}/insights user={}",
+        user.user_id
+    );
+
+    // Verify training ownership
+    let _training = state
+        .storage
+        .get_training(training_id, user.user_id)
+        .await?;
+
+    let insights = state
+        .storage
+        .get_training_insights(training_id, user.user_id)
+        .await?;
+
+    Ok(HttpResponse::Ok().json(insights))
 }

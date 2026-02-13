@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use domain::{Activity, ActivityStream, ActivityTag, DomainError, RunningStats, StravaToken, Training, User};
+use domain::{Activity, ActivityStream, ActivityTag, DomainError, RunningStats, StravaToken, Training, TrainingInsight, User};
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow};
 use sqlx::Row;
 use uuid::Uuid;
@@ -156,6 +156,29 @@ impl SqliteStorage {
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create training_activities index: {e}")))?;
 
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS training_insights (
+                id TEXT PRIMARY KEY NOT NULL,
+                training_id TEXT NOT NULL REFERENCES trainings(id) ON DELETE CASCADE,
+                user_id TEXT NOT NULL REFERENCES users(id),
+                prompt_type TEXT NOT NULL,
+                display_label TEXT NOT NULL,
+                full_prompt TEXT NOT NULL,
+                response TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )"
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create training_insights table: {e}")))?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_training_insights_training ON training_insights(training_id, user_id)"
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create training_insights index: {e}")))?;
+
         Ok(Self { pool })
     }
 }
@@ -303,6 +326,28 @@ fn row_to_activity_stream(row: &SqliteRow) -> Result<ActivityStream, DomainError
         activity_id: parse_uuid(&activity_id)?,
         stream_type: parse_stream_type(&stream_type)?,
         data_json,
+    })
+}
+
+fn row_to_training_insight(row: &SqliteRow) -> Result<TrainingInsight, DomainError> {
+    let id: String = row.get("id");
+    let training_id: String = row.get("training_id");
+    let user_id: String = row.get("user_id");
+    let prompt_type: String = row.get("prompt_type");
+    let display_label: String = row.get("display_label");
+    let full_prompt: String = row.get("full_prompt");
+    let response: String = row.get("response");
+    let created_at: String = row.get("created_at");
+
+    Ok(TrainingInsight {
+        id: parse_uuid(&id)?,
+        training_id: parse_uuid(&training_id)?,
+        user_id: parse_uuid(&user_id)?,
+        prompt_type,
+        display_label,
+        full_prompt,
+        response,
+        created_at: parse_datetime(&created_at)?,
     })
 }
 
@@ -899,6 +944,49 @@ impl Storage for SqliteStorage {
         .map_err(|e| DomainError::Storage(format!("Failed to get activities in range: {e}")))?;
 
         rows.iter().map(row_to_activity).collect()
+    }
+
+    // -----------------------------------------------------------------------
+    // Training Insights
+    // -----------------------------------------------------------------------
+    async fn store_training_insight(&self, insight: &TrainingInsight) -> Result<(), DomainError> {
+        sqlx::query(
+            "INSERT INTO training_insights (id, training_id, user_id, prompt_type, display_label, full_prompt, response, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(insight.id.to_string())
+        .bind(insight.training_id.to_string())
+        .bind(insight.user_id.to_string())
+        .bind(&insight.prompt_type)
+        .bind(&insight.display_label)
+        .bind(&insight.full_prompt)
+        .bind(&insight.response)
+        .bind(insight.created_at.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to store training insight: {e}")))?;
+
+        Ok(())
+    }
+
+    async fn get_training_insights(
+        &self,
+        training_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Vec<TrainingInsight>, DomainError> {
+        let rows = sqlx::query(
+            "SELECT id, training_id, user_id, prompt_type, display_label, full_prompt, response, created_at
+             FROM training_insights
+             WHERE training_id = ? AND user_id = ?
+             ORDER BY created_at DESC",
+        )
+        .bind(training_id.to_string())
+        .bind(user_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get training insights: {e}")))?;
+
+        rows.iter().map(row_to_training_insight).collect()
     }
 
     // -----------------------------------------------------------------------

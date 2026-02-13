@@ -139,6 +139,16 @@ export interface TrainingInsightResponse {
   response: string;
 }
 
+export interface TrainingInsightRecord {
+  id: string;
+  training_id: string;
+  prompt_type: string;
+  display_label: string;
+  full_prompt: string;
+  response: string;
+  created_at: string;
+}
+
 export interface MASEstimate {
   date: string;
   mas_ms: number;

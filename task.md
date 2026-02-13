@@ -1,3 +1,27 @@
+# Strava compliance
+
+Strava API terms are rather strict, and I need to make some updates of the code as to be compliant. These are the
+two rules that we have to respect.
+
+- Do not keep any "Strava Data" for more than maximum 7 days. The strava data includes any data that comes directly from
+  Strava. This includes activity names, streams, total distance, avg. speed.
+- Do not ever store any GPS data
+
+Basically, this will be quite impossible to respect, but I want us to make a tentative attempt of making the following
+changes
+
+- We should never store the GPS data to database: only query on demand when user is viewing the activity page.
+- Regarding the strava stream, we should have a caching system configurable of N hours, default should be 24 hours.
+- The activity name can be stored, alongside metadta of the activity (*this is just for UX, I know it breaks compliance
+  but I will still try my best.*)
+- The output of the interval parsing algorithm should be stored in the database persistently. I am pretty sure that
+  currently, we don't store anything in database, so this is fine to leave this for the future.
+
+By looking at our current database scheme (defined in @backend/storage/src/traits.rs and in actual implementation
+@backend/storage/src/sqlite.rs) I want you to make a plan of the code changes to implement the points above.
+
+Do ask me any questions if you have any.
+
 # LLM integration part I
 
 We now have a rather nice app, and I want to add the first LLM integration. This will consist in a few "precomputer"
