@@ -150,6 +150,17 @@ export interface TrainingInsightRecord {
   created_at: string;
 }
 
+export interface ModelInfo {
+  id: string;
+  name: string;
+  description?: string | null;
+  pricing?: {
+    prompt: string;
+    completion: string;
+  } | null;
+  context_length?: number | null;
+}
+
 export interface AiChat {
   id: string;
   user_id: string;
@@ -157,6 +168,7 @@ export interface AiChat {
   source_insight_id: string | null;
   title: string;
   model: string;
+  conversation_length?: number | null;
   created_at: string;
   updated_at: string;
 }

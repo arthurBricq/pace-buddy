@@ -54,6 +54,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::scope("/chats")
                     .route("", web::post().to(chat_routes::create_chat))
                     .route("", web::get().to(chat_routes::list_chats))
+                    .route("/models", web::get().to(chat_routes::list_models))
                     .route("/from-insight/{insight_id}", web::post().to(chat_routes::create_from_insight))
                     .route("/{id}", web::get().to(chat_routes::get_chat))
                     .route("/{id}", web::delete().to(chat_routes::delete_chat))

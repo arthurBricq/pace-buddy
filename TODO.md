@@ -3,4 +3,6 @@
   category and per weekly-volume.
 - When registering as a new user, the "sync from strava" button yields to an error. This is because hte user has not yet
   linked their account. This is very unintuitive.
-- activity view page can be greatly improved.
+
+- when scrolling through the website, the header should stay fixed at the top.
+- calendar view of the activites

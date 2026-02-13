@@ -1,3 +1,16 @@
+# LLM settings
+
+First, read @AGENTS.md
+
+Your next task is going to add some default settings to the LLM-interaction features.
+
+When clicking on "Continue to chat" on the AI-insights pop-up, the user should be prompted two settings
+
+- to pick the LLM model from the available LLMs models. These models are defined in the backend's LLMClient
+  implementation, see @backend/llm/src/lib.rs
+- to pick the conversation length in context (number of messages). You will then need to modify the
+  @backend/bin/src/helpers/conversation_manager.rs to reflect this setting.
+
 # Custom LLM Chat
 
 Currently, the user can only ask the LLM for a single answer and can't even decide on the question.

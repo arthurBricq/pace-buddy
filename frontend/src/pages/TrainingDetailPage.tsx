@@ -14,6 +14,7 @@ import ReactMarkdown from 'react-markdown';
 import Navbar from '../components/Navbar';
 import TagBadge from '../components/TagBadge';
 import { createChatFromInsight } from '../api/chats';
+import ChatSettingsModal from '../components/ChatSettingsModal';
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -54,6 +55,7 @@ export default function TrainingDetailPage() {
   const [insightError, setInsightError] = useState('');
   const [insightHistory, setInsightHistory] = useState<TrainingInsightRecord[]>([]);
   const [currentInsightId, setCurrentInsightId] = useState<string | null>(null);
+  const [showChatSettings, setShowChatSettings] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -328,14 +330,7 @@ export default function TrainingDetailPage() {
                     {currentInsightId && (
                       <div className="flex justify-center pt-2">
                         <button
-                          onClick={async () => {
-                            try {
-                              const chat = await createChatFromInsight(currentInsightId);
-                              navigate(`/chats/${chat.id}`);
-                            } catch (err: any) {
-                              setInsightError(err.message || 'Failed to create chat');
-                            }
-                          }}
+                          onClick={() => setShowChatSettings(true)}
                           className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 text-sm"
                         >
                           Continue to Chat
@@ -350,6 +345,22 @@ export default function TrainingDetailPage() {
         )}
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
+
+        {/* Chat Settings Modal */}
+        <ChatSettingsModal
+          isOpen={showChatSettings}
+          onClose={() => setShowChatSettings(false)}
+          onConfirm={async (model, conversationLength) => {
+            if (!currentInsightId) return;
+            setShowChatSettings(false);
+            try {
+              const chat = await createChatFromInsight(currentInsightId, model, conversationLength);
+              navigate(`/chats/${chat.id}`);
+            } catch (err: any) {
+              setInsightError(err.message || 'Failed to create chat');
+            }
+          }}
+        />
 
         <div>
           <div className="flex items-center justify-between mb-3">

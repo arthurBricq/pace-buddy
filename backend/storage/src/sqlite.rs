@@ -202,6 +202,14 @@ impl SqliteStorage {
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create ai_chats index: {e}")))?;
 
+        // Add conversation_length column if it doesn't exist (migration)
+        sqlx::query(
+            "ALTER TABLE ai_chats ADD COLUMN conversation_length INTEGER"
+        )
+        .execute(&pool)
+        .await
+        .ok(); // Ignore error if column already exists
+
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS ai_chat_messages (
                 id TEXT PRIMARY KEY NOT NULL,
@@ -409,6 +417,7 @@ fn row_to_ai_chat(row: &SqliteRow) -> Result<AiChat, DomainError> {
     let source_insight_id: Option<String> = row.get("source_insight_id");
     let title: String = row.get("title");
     let model: String = row.get("model");
+    let conversation_length: Option<i32> = row.try_get("conversation_length").ok();
     let created_at: String = row.get("created_at");
     let updated_at: String = row.get("updated_at");
 
@@ -419,6 +428,7 @@ fn row_to_ai_chat(row: &SqliteRow) -> Result<AiChat, DomainError> {
         source_insight_id: source_insight_id.map(|s| parse_uuid(&s)).transpose()?,
         title,
         model,
+        conversation_length: conversation_length.map(|v| v as u32),
         created_at: parse_datetime(&created_at)?,
         updated_at: parse_datetime(&updated_at)?,
     })
@@ -1110,8 +1120,8 @@ impl Storage for SqliteStorage {
     // -----------------------------------------------------------------------
     async fn create_ai_chat(&self, chat: &AiChat) -> Result<(), DomainError> {
         sqlx::query(
-            "INSERT INTO ai_chats (id, user_id, training_id, source_insight_id, title, model, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO ai_chats (id, user_id, training_id, source_insight_id, title, model, conversation_length, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(chat.id.to_string())
         .bind(chat.user_id.to_string())
@@ -1119,6 +1129,7 @@ impl Storage for SqliteStorage {
         .bind(chat.source_insight_id.map(|id| id.to_string()))
         .bind(&chat.title)
         .bind(&chat.model)
+        .bind(chat.conversation_length.map(|v| v as i32))
         .bind(chat.created_at.to_rfc3339())
         .bind(chat.updated_at.to_rfc3339())
         .execute(&self.pool)
@@ -1130,7 +1141,7 @@ impl Storage for SqliteStorage {
 
     async fn get_ai_chat(&self, id: Uuid, user_id: Uuid) -> Result<AiChat, DomainError> {
         let row = sqlx::query(
-            "SELECT id, user_id, training_id, source_insight_id, title, model, created_at, updated_at
+            "SELECT id, user_id, training_id, source_insight_id, title, model, conversation_length, created_at, updated_at
              FROM ai_chats WHERE id = ? AND user_id = ?",
         )
         .bind(id.to_string())
@@ -1145,7 +1156,7 @@ impl Storage for SqliteStorage {
 
     async fn list_ai_chats(&self, user_id: Uuid) -> Result<Vec<AiChat>, DomainError> {
         let rows = sqlx::query(
-            "SELECT id, user_id, training_id, source_insight_id, title, model, created_at, updated_at
+            "SELECT id, user_id, training_id, source_insight_id, title, model, conversation_length, created_at, updated_at
              FROM ai_chats WHERE user_id = ? ORDER BY updated_at DESC",
         )
         .bind(user_id.to_string())
