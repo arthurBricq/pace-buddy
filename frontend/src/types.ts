@@ -29,7 +29,7 @@ export interface Activity {
   tag: ActivityTag;
   summary_polyline: string | null;
   workout_type: number | null;
-  streams_loaded: boolean;
+  streams_fetched_at: string | null;
   created_at: string;
 }
 

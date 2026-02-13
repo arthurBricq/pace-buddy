@@ -4,11 +4,14 @@ use storage::Storage;
 use uuid::Uuid;
 
 use crate::errors::AppError;
+use crate::helpers::strava_data_helper::{
+    fetch_polyline, fetch_streams_from_strava, load_and_cache_streams,
+};
 use crate::helpers::strava_token_helper::get_valid_access_token;
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
 use domain::{ActivityTag, DomainError};
-use strava_client::conversions::{strava_activity_to_domain, strava_streams_to_domain};
+use strava_client::conversions::strava_activity_to_domain;
 
 #[derive(Deserialize)]
 pub struct SyncRequest {
@@ -26,14 +29,19 @@ pub async fn sync_activities(
     let after = match body.after {
         Some(ts) => Some(ts),
         None => {
-            let latest = state.storage.get_latest_activity_start(user.user_id).await?;
+            let latest = state
+                .storage
+                .get_latest_activity_start(user.user_id)
+                .await?;
             latest.map(|dt| dt.timestamp())
         }
     };
 
     log::info!(
         "POST /activities/sync user={} after={:?} before={:?}",
-        user.user_id, after, body.before
+        user.user_id,
+        after,
+        body.before
     );
 
     let access_token =
@@ -70,7 +78,10 @@ pub async fn sync_activities(
     log::info!("Upserting {total} activities into storage");
     state.storage.upsert_activities(&all_activities).await?;
 
-    log::info!("Sync complete: {total} activities for user {}", user.user_id);
+    log::info!(
+        "Sync complete: {total} activities for user {}",
+        user.user_id
+    );
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "synced": total,
@@ -91,7 +102,10 @@ pub async fn list_activities(
     let limit = query.limit.unwrap_or(50).min(200);
     let offset = query.offset.unwrap_or(0);
 
-    log::debug!("GET /activities user={} limit={limit} offset={offset}", user.user_id);
+    log::debug!(
+        "GET /activities user={} limit={limit} offset={offset}",
+        user.user_id
+    );
 
     let activities = state
         .storage
@@ -111,58 +125,33 @@ pub async fn get_activity(
     let activity_id = path.into_inner();
     log::info!("GET /activities/{activity_id} user={}", user.user_id);
 
-    let activity = state
+    let mut activity = state
         .storage
         .get_activity(activity_id, user.user_id)
         .await?;
 
-    // Lazy-load streams if not yet loaded
-    let streams = if !activity.streams_loaded {
-        log::info!("Lazy-loading streams for activity {activity_id} (strava_id={})", activity.strava_id);
-        match load_and_store_streams(&state, &activity).await {
-            Ok(s) => {
-                log::info!("Loaded {} streams for activity {activity_id}", s.len());
-                s
-            }
-            Err(e) => {
-                log::warn!("Failed to load streams for activity {activity_id}: {e}");
-                vec![]
-            }
+    // --- Streams: serve from cache, re-fetch if purged/empty ---
+    let mut streams = state
+        .storage
+        .get_streams(activity_id)
+        .await
+        .unwrap_or_default();
+    if streams.is_empty() {
+        match load_and_cache_streams(&state, &activity).await {
+            Ok(s) => streams = s,
+            Err(e) => log::warn!("Failed to load streams for activity {activity_id}: {e}"),
         }
-    } else {
-        state.storage.get_streams(activity_id).await?
-    };
+    }
+
+    // --- Polyline: always fetch on demand (never persisted) ---
+    if let Ok(polyline) = fetch_polyline(&state, &activity).await {
+        activity.summary_polyline = polyline;
+    }
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "activity": activity,
         "streams": streams,
     })))
-}
-
-async fn load_and_store_streams(
-    state: &web::Data<AppState>,
-    activity: &domain::Activity,
-) -> Result<Vec<domain::ActivityStream>, DomainError> {
-    let access_token = get_valid_access_token(
-        &state.storage,
-        &state.strava_client,
-        activity.user_id,
-    )
-    .await?;
-
-    let strava_streams = state
-        .strava_client
-        .get_activity_streams(&access_token, activity.strava_id)
-        .await?;
-
-    let streams = strava_streams_to_domain(strava_streams, activity.id);
-
-    if !streams.is_empty() {
-        state.storage.store_streams(&streams).await?;
-    }
-    state.storage.mark_streams_loaded(activity.id).await?;
-
-    Ok(streams)
 }
 
 #[derive(Deserialize)]
@@ -176,12 +165,25 @@ pub async fn get_intervals(
     path: web::Path<Uuid>,
 ) -> Result<HttpResponse, AppError> {
     let activity_id = path.into_inner();
-    log::info!("GET /activities/{activity_id}/intervals user={}", user.user_id);
+    log::info!(
+        "GET /activities/{activity_id}/intervals user={}",
+        user.user_id
+    );
 
-    // Verify the user owns this activity
-    let _activity = state.storage.get_activity(activity_id, user.user_id).await?;
+    let activity = state
+        .storage
+        .get_activity(activity_id, user.user_id)
+        .await?;
 
-    let streams = state.storage.get_streams(activity_id).await?;
+    // Try cached streams first, fall back to Strava
+    let mut streams = state
+        .storage
+        .get_streams(activity_id)
+        .await
+        .unwrap_or_default();
+    if streams.is_empty() {
+        streams = fetch_streams_from_strava(&state, &activity).await?;
+    }
     let config = intervals::types::IntervalConfig::default();
     match intervals::parse_intervals(&streams, &config, None) {
         Ok(result) => Ok(HttpResponse::Ok().json(result)),
@@ -207,7 +209,11 @@ pub async fn update_tag(
     body: web::Json<TagUpdateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let activity_id = path.into_inner();
-    log::info!("PATCH /activities/{activity_id}/tag user={} tag={}", user.user_id, body.tag);
+    log::info!(
+        "PATCH /activities/{activity_id}/tag user={} tag={}",
+        user.user_id,
+        body.tag
+    );
 
     let tag: ActivityTag = body
         .tag

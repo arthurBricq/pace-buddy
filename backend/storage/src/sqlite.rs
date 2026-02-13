@@ -260,7 +260,7 @@ fn row_to_activity(row: &SqliteRow) -> Result<Activity, DomainError> {
     let tag: String = row.get("tag");
     let summary_polyline: Option<String> = row.get("summary_polyline");
     let workout_type: Option<i32> = row.get("workout_type");
-    let streams_loaded: i32 = row.get("streams_loaded");
+    let streams_loaded_raw: i64 = row.get("streams_loaded");
     let created_at: String = row.get("created_at");
 
     Ok(Activity {
@@ -284,7 +284,11 @@ fn row_to_activity(row: &SqliteRow) -> Result<Activity, DomainError> {
         tag: parse_tag(&tag)?,
         summary_polyline,
         workout_type,
-        streams_loaded: streams_loaded != 0,
+        streams_fetched_at: if streams_loaded_raw == 0 {
+            None
+        } else {
+            DateTime::from_timestamp(streams_loaded_raw, 0)
+        },
         created_at: parse_datetime(&created_at)?,
     })
 }
@@ -529,9 +533,9 @@ impl Storage for SqliteStorage {
             .bind(activity.average_watts)
             .bind(activity.calories)
             .bind(activity.tag.to_string())
-            .bind(&activity.summary_polyline)
+            .bind(Option::<String>::None) // Never persist GPS polyline
             .bind(activity.workout_type)
-            .bind(if activity.streams_loaded { 1i32 } else { 0i32 })
+            .bind(activity.streams_fetched_at.map(|dt| dt.timestamp()).unwrap_or(0i64))
             .bind(activity.created_at.to_rfc3339())
             .execute(&mut *tx)
             .await
@@ -636,14 +640,15 @@ impl Storage for SqliteStorage {
         Ok(())
     }
 
-    async fn mark_streams_loaded(&self, activity_id: Uuid) -> Result<(), DomainError> {
+    async fn mark_streams_fetched(&self, activity_id: Uuid) -> Result<(), DomainError> {
         let result =
-            sqlx::query("UPDATE activities SET streams_loaded = 1 WHERE id = ?")
+            sqlx::query("UPDATE activities SET streams_loaded = ? WHERE id = ?")
+                .bind(Utc::now().timestamp())
                 .bind(activity_id.to_string())
                 .execute(&self.pool)
                 .await
                 .map_err(|e| {
-                    DomainError::Storage(format!("Failed to mark streams loaded: {e}"))
+                    DomainError::Storage(format!("Failed to mark streams fetched: {e}"))
                 })?;
 
         if result.rows_affected() == 0 {
@@ -666,6 +671,10 @@ impl Storage for SqliteStorage {
             .map_err(|e| DomainError::Storage(format!("Failed to begin transaction: {e}")))?;
 
         for stream in streams {
+            // Never persist GPS data
+            if stream.stream_type == domain::StreamType::LatLng {
+                continue;
+            }
             sqlx::query(
                 "INSERT INTO activity_streams (activity_id, stream_type, data_json)
                  VALUES (?, ?, ?)
@@ -1092,5 +1101,45 @@ impl Storage for SqliteStorage {
             activity_count: activity_count as i64,
             interval_count,
         })
+    }
+}
+
+impl SqliteStorage {
+    pub async fn purge_old_streams(&self, max_age_days: i64) -> Result<u64, DomainError> {
+        let cutoff = Utc::now().timestamp() - max_age_days * 86_400;
+
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to begin transaction: {e}")))?;
+
+        let res = sqlx::query(
+            "DELETE FROM activity_streams
+             WHERE activity_id IN (
+                 SELECT id FROM activities
+                 WHERE streams_loaded != 0 AND streams_loaded < ?
+             )",
+        )
+        .bind(cutoff)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to purge old streams: {e}")))?;
+
+        sqlx::query(
+            "UPDATE activities
+             SET streams_loaded = 0
+             WHERE streams_loaded != 0 AND streams_loaded < ?",
+        )
+        .bind(cutoff)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to mark expired streams: {e}")))?;
+
+        tx.commit()
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to commit purge: {e}")))?;
+
+        Ok(res.rows_affected())
     }
 }

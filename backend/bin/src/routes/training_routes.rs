@@ -5,6 +5,7 @@ use storage::Storage;
 use uuid::Uuid;
 
 use crate::errors::AppError;
+use crate::helpers::strava_data_helper::fetch_streams_from_strava;
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
 use domain::{Training, TrainingInsight};
@@ -288,7 +289,17 @@ pub async fn training_insight(
     let config = intervals::types::IntervalConfig::default();
     let mut interval_descriptions = Vec::new();
     for activity in &training_activities {
-        let streams = state.storage.get_streams(activity.id).await?;
+        // Try cached streams first, fall back to Strava
+        let mut streams = state.storage.get_streams(activity.id).await.unwrap_or_default();
+        if streams.is_empty() {
+            streams = match fetch_streams_from_strava(&state, activity).await {
+                Ok(s) => s,
+                Err(e) => {
+                    log::warn!("Failed to fetch streams for activity {}: {e}", activity.id);
+                    continue;
+                }
+            };
+        }
         if streams.is_empty() {
             continue;
         }

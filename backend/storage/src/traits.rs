@@ -39,7 +39,7 @@ pub trait Storage: Send + Sync {
         user_id: Uuid,
         tag: ActivityTag,
     ) -> Result<(), DomainError>;
-    async fn mark_streams_loaded(&self, activity_id: Uuid) -> Result<(), DomainError>;
+    async fn mark_streams_fetched(&self, activity_id: Uuid) -> Result<(), DomainError>;
 
     // Streams
     async fn store_streams(&self, streams: &[ActivityStream]) -> Result<(), DomainError>;

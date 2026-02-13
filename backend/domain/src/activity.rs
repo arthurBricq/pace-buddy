@@ -67,6 +67,6 @@ pub struct Activity {
     pub tag: ActivityTag,
     pub summary_polyline: Option<String>,
     pub workout_type: Option<i32>,
-    pub streams_loaded: bool,
+    pub streams_fetched_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
 }

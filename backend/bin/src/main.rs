@@ -77,8 +77,32 @@ async fn main() -> std::io::Result<()> {
         Arc::new(llm::open_router::OpenRouterClient::new(key.clone()))
     });
 
+    let stream_cache_ttl_hours: i64 = std::env::var("STREAM_CACHE_TTL_HOURS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(24);
+
+    let storage = Arc::new(storage);
+
+    // Background task: purge cached streams older than the TTL
+    {
+        let storage = Arc::clone(&storage);
+        let max_age_days = stream_cache_ttl_hours.max(24) / 24; // at least 1 day
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
+            loop {
+                interval.tick().await;
+                match storage.purge_old_streams(max_age_days).await {
+                    Ok(0) => {}
+                    Ok(n) => log::info!("Purged {n} expired stream rows"),
+                    Err(e) => log::warn!("Stream purge failed: {e}"),
+                }
+            }
+        });
+    }
+
     let app_state = web::Data::new(AppState {
-        storage: Arc::new(storage),
+        storage,
         strava_client: Arc::new(strava_client),
         webauthn: Arc::new(webauthn),
         jwt: Arc::new(jwt),

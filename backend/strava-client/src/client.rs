@@ -132,6 +132,37 @@ impl StravaClient {
             .map_err(|e| DomainError::StravaApi(e.to_string()))
     }
 
+    /// Fetch a single activity from Strava (used for on-demand polyline)
+    pub async fn get_activity(
+        &self,
+        access_token: &str,
+        activity_id: i64,
+    ) -> Result<StravaActivity, DomainError> {
+        let url = format!("https://www.strava.com/api/v3/activities/{activity_id}");
+
+        let resp = self
+            .client
+            .get(&url)
+            .bearer_auth(access_token)
+            .send()
+            .await
+            .map_err(|e| DomainError::StravaApi(e.to_string()))?;
+
+        if resp.status() == 429 {
+            return Err(DomainError::StravaRateLimited);
+        }
+        if !resp.status().is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            return Err(DomainError::StravaApi(format!(
+                "Get activity failed: {text}"
+            )));
+        }
+
+        resp.json()
+            .await
+            .map_err(|e| DomainError::StravaApi(e.to_string()))
+    }
+
     /// Fetch streams for a specific activity
     pub async fn get_activity_streams(
         &self,

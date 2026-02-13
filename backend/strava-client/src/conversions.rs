@@ -34,9 +34,9 @@ pub fn strava_activity_to_domain(sa: &StravaActivity, user_id: Uuid) -> Activity
         average_watts: sa.average_watts,
         calories: sa.calories,
         tag: ActivityTag::from_strava_workout_type(sa.workout_type),
-        summary_polyline: sa.map.as_ref().and_then(|m| m.summary_polyline.clone()),
+        summary_polyline: None, // GPS data: never persisted, fetched on demand
         workout_type: sa.workout_type,
-        streams_loaded: false,
+        streams_fetched_at: None,
         created_at: Utc::now(),
     }
 }
