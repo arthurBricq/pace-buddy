@@ -117,6 +117,7 @@ impl SqliteStorage {
                 start_date TEXT,
                 end_date TEXT,
                 race_goal TEXT,
+                race_objectif TEXT,
                 created_at TEXT NOT NULL
             )"
         )
@@ -364,6 +365,7 @@ fn row_to_training(row: &SqliteRow) -> Result<Training, DomainError> {
     let start_date: Option<String> = row.get("start_date");
     let end_date: Option<String> = row.get("end_date");
     let race_goal: Option<String> = row.get("race_goal");
+    let race_objectif: Option<String> = row.try_get("race_objectif").ok();
     let created_at: String = row.get("created_at");
 
     Ok(Training {
@@ -374,6 +376,7 @@ fn row_to_training(row: &SqliteRow) -> Result<Training, DomainError> {
         start_date: start_date.map(|s| parse_datetime(&s)).transpose()?,
         end_date: end_date.map(|s| parse_datetime(&s)).transpose()?,
         race_goal,
+        race_objectif,
         created_at: parse_datetime(&created_at)?,
     })
 }
@@ -824,8 +827,8 @@ impl Storage for SqliteStorage {
     // -----------------------------------------------------------------------
     async fn create_training(&self, training: &Training) -> Result<(), DomainError> {
         sqlx::query(
-            "INSERT INTO trainings (id, user_id, name, description, start_date, end_date, race_goal, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO trainings (id, user_id, name, description, start_date, end_date, race_goal, race_objectif, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(training.id.to_string())
         .bind(training.user_id.to_string())
@@ -834,6 +837,7 @@ impl Storage for SqliteStorage {
         .bind(training.start_date.map(|d| d.to_rfc3339()))
         .bind(training.end_date.map(|d| d.to_rfc3339()))
         .bind(&training.race_goal)
+        .bind(&training.race_objectif)
         .bind(training.created_at.to_rfc3339())
         .execute(&self.pool)
         .await
@@ -844,7 +848,7 @@ impl Storage for SqliteStorage {
 
     async fn get_training(&self, id: Uuid, user_id: Uuid) -> Result<Training, DomainError> {
         let row = sqlx::query(
-            "SELECT id, user_id, name, description, start_date, end_date, race_goal, created_at
+            "SELECT id, user_id, name, description, start_date, end_date, race_goal, race_objectif, created_at
              FROM trainings
              WHERE id = ? AND user_id = ?",
         )
@@ -860,7 +864,7 @@ impl Storage for SqliteStorage {
 
     async fn list_trainings(&self, user_id: Uuid) -> Result<Vec<Training>, DomainError> {
         let rows = sqlx::query(
-            "SELECT id, user_id, name, description, start_date, end_date, race_goal, created_at
+            "SELECT id, user_id, name, description, start_date, end_date, race_goal, race_objectif, created_at
              FROM trainings
              WHERE user_id = ?
              ORDER BY created_at DESC",

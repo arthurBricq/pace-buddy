@@ -7,6 +7,7 @@ export async function createTraining(
   start_date?: string,
   end_date?: string,
   race_goal?: string,
+  race_objectif?: string,
 ) {
   return apiFetch<Training>('/trainings', {
     method: 'POST',
@@ -16,6 +17,7 @@ export async function createTraining(
       start_date: start_date || null,
       end_date: end_date || null,
       race_goal: race_goal || null,
+      race_objectif: race_objectif || null,
     }),
   });
 }

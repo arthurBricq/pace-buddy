@@ -112,6 +112,7 @@ export interface Training {
   start_date: string | null;
   end_date: string | null;
   race_goal: string | null;
+  race_objectif: string | null;
   created_at: string;
 }
 

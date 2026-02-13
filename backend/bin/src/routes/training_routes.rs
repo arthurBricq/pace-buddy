@@ -23,6 +23,7 @@ pub struct CreateTrainingRequest {
     pub start_date: Option<String>,
     pub end_date: Option<String>,
     pub race_goal: Option<String>,
+    pub race_objectif: Option<String>,
 }
 
 pub async fn create_training(
@@ -53,10 +54,38 @@ pub async fn create_training(
         start_date,
         end_date,
         race_goal: body.race_goal.clone(),
+        race_objectif: body.race_objectif.clone(),
         created_at: Utc::now(),
     };
 
     state.storage.create_training(&training).await?;
+
+    // Automatically add interval sessions within the training date range
+    if let (Some(start), Some(end)) = (training.start_date, training.end_date) {
+        let activities = state
+            .storage
+            .get_activities_in_range(user.user_id, start, end)
+            .await?;
+
+        // Filter for interval-tagged activities and add them to the training
+        for activity in activities {
+            if activity.tag == domain::ActivityTag::Intervals {
+                if let Err(e) = state
+                    .storage
+                    .add_activity_to_training(training.id, activity.id, user.user_id)
+                    .await
+                {
+                    // Log error but don't fail the request
+                    log::warn!(
+                        "Failed to auto-add activity {} to training {}: {}",
+                        activity.id,
+                        training.id,
+                        e
+                    );
+                }
+            }
+        }
+    }
 
     Ok(HttpResponse::Created().json(training))
 }

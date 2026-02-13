@@ -16,6 +16,7 @@ export default function TrainingsListPage() {
   const [newEndDate, setNewEndDate] = useState('');
   const [newRaceGoal, setNewRaceGoal] = useState('');
   const [customGoal, setCustomGoal] = useState('');
+  const [newRaceObjectif, setNewRaceObjectif] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -50,6 +51,7 @@ export default function TrainingsListPage() {
         newStartDate ? new Date(newStartDate).toISOString() : undefined,
         newEndDate ? new Date(newEndDate).toISOString() : undefined,
         goalValue || undefined,
+        newRaceObjectif.trim() || undefined,
       );
       setNewName('');
       setNewDescription('');
@@ -57,6 +59,7 @@ export default function TrainingsListPage() {
       setNewEndDate('');
       setNewRaceGoal('');
       setCustomGoal('');
+      setNewRaceObjectif('');
       setShowCreateForm(false);
       load();
     } catch (err: any) {
@@ -173,6 +176,18 @@ export default function TrainingsListPage() {
                   />
                 )}
               </div>
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Race Objectif
+                </label>
+                <textarea
+                  value={newRaceObjectif}
+                  onChange={(e) => setNewRaceObjectif(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Describe your race objective..."
+                  rows={3}
+                />
+              </div>
               <div className="flex gap-2">
                 <button
                   type="submit"
@@ -191,6 +206,7 @@ export default function TrainingsListPage() {
                     setNewEndDate('');
                     setNewRaceGoal('');
                     setCustomGoal('');
+                    setNewRaceObjectif('');
                   }}
                   className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm"
                 >

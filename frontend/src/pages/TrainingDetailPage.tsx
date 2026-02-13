@@ -244,31 +244,30 @@ export default function TrainingDetailPage() {
 
         {/* LLM Insights Section */}
         <div className="bg-white rounded-lg shadow p-4">
-          <h2 className="text-lg font-semibold mb-3">AI Insights</h2>
-          <div className="mb-4">
-            <label htmlFor="insight-model" className="block text-sm font-medium text-gray-700 mb-2">
-              LLM Model
-            </label>
-            {loadingModels ? (
-              <div className="flex items-center gap-2 text-gray-500 text-sm mb-3">
-                <div className="animate-spin h-4 w-4 border-2 border-purple-600 border-t-transparent rounded-full" />
-                Loading models...
-              </div>
-            ) : (
-              <select
-                id="insight-model"
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                disabled={insightLoading}
-                className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm mb-3 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {availableModels.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.name}
-                  </option>
-                ))}
-              </select>
-            )}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">AI Insights</h2>
+            <div className="flex items-center gap-2">
+              {loadingModels ? (
+                <div className="flex items-center gap-2 text-gray-500 text-sm">
+                  <div className="animate-spin h-4 w-4 border-2 border-purple-600 border-t-transparent rounded-full" />
+                  Loading models...
+                </div>
+              ) : (
+                <select
+                  id="insight-model"
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  disabled={insightLoading}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {availableModels.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
           </div>
           <div className="flex gap-3 mb-4">
             <button
