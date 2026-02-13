@@ -13,8 +13,9 @@ import type { Training, Activity, TrainingInsightResponse, TrainingInsightRecord
 import ReactMarkdown from 'react-markdown';
 import Navbar from '../components/Navbar';
 import TagBadge from '../components/TagBadge';
-import { createChatFromInsight } from '../api/chats';
+import { createChatFromInsight, listModels } from '../api/chats';
 import ChatSettingsModal from '../components/ChatSettingsModal';
+import type { ModelInfo } from '../types';
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -34,6 +35,11 @@ function formatPace(avgSpeed: number): string {
   const m = Math.floor(paceSeconds / 60);
   const s = Math.round(paceSeconds % 60);
   return `${m}:${s.toString().padStart(2, '0')} /km`;
+}
+
+function formatCost(cost: number | null | undefined): string {
+  if (cost === null || cost === undefined || cost === 0) return '$0';
+  return `$${cost.toFixed(4)}`;
 }
 
 export default function TrainingDetailPage() {
@@ -56,6 +62,9 @@ export default function TrainingDetailPage() {
   const [insightHistory, setInsightHistory] = useState<TrainingInsightRecord[]>([]);
   const [currentInsightId, setCurrentInsightId] = useState<string | null>(null);
   const [showChatSettings, setShowChatSettings] = useState(false);
+  const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('google/gemini-2.5-flash');
+  const [loadingModels, setLoadingModels] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -69,6 +78,18 @@ export default function TrainingDetailPage() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (availableModels.length === 0) {
+      setLoadingModels(true);
+      listModels()
+        .then(setAvailableModels)
+        .catch((err) => {
+          console.error('Failed to load models:', err);
+        })
+        .finally(() => setLoadingModels(false));
+    }
+  }, [availableModels.length]);
 
   const loadAvailableActivities = async (currentActivities: Activity[] = activities) => {
     if (!id) return;
@@ -146,7 +167,7 @@ export default function TrainingDetailPage() {
     setInsightResult(null);
     setShowPrompt(false);
     try {
-      const result = await getTrainingInsight(id, promptType);
+      const result = await getTrainingInsight(id, promptType, selectedModel);
       setInsightResult(result);
       setCurrentInsightId(result.id);
       // Refresh history to include the newly persisted insight
@@ -224,6 +245,31 @@ export default function TrainingDetailPage() {
         {/* LLM Insights Section */}
         <div className="bg-white rounded-lg shadow p-4">
           <h2 className="text-lg font-semibold mb-3">AI Insights</h2>
+          <div className="mb-4">
+            <label htmlFor="insight-model" className="block text-sm font-medium text-gray-700 mb-2">
+              LLM Model
+            </label>
+            {loadingModels ? (
+              <div className="flex items-center gap-2 text-gray-500 text-sm mb-3">
+                <div className="animate-spin h-4 w-4 border-2 border-purple-600 border-t-transparent rounded-full" />
+                Loading models...
+              </div>
+            ) : (
+              <select
+                id="insight-model"
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                disabled={insightLoading}
+                className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm mb-3 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {availableModels.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
           <div className="flex gap-3 mb-4">
             <button
               onClick={() => handleInsight('overview')}
@@ -252,7 +298,21 @@ export default function TrainingDetailPage() {
                     className="w-full text-left bg-gray-50 hover:bg-purple-50 rounded-md px-3 py-2 border border-gray-200 hover:border-purple-300 transition-colors"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-800">{record.display_label}</span>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-gray-800">{record.display_label}</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          {record.model && (
+                            <span className="text-xs text-gray-500 font-mono">
+                              {record.model.split('/').pop()}
+                            </span>
+                          )}
+                          {record.cost !== null && record.cost !== undefined && record.cost > 0 && (
+                            <span className="text-xs text-gray-500">
+                              {formatCost(record.cost)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                       <span className="text-xs text-gray-400">
                         {new Date(record.created_at).toLocaleDateString(undefined, {
                           month: 'short',

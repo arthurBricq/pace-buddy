@@ -249,6 +249,7 @@ pub async fn get_activity_trainings(
 #[derive(Deserialize)]
 pub struct InsightRequest {
     pub prompt_type: String,
+    pub model: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -259,7 +260,7 @@ pub struct InsightResponse {
     pub response: String,
 }
 
-const LLM_MODEL: &str = "google/gemini-2.5-flash";
+const DEFAULT_LLM_MODEL: &str = "google/gemini-2.5-flash";
 
 pub async fn training_insight(
     state: web::Data<AppState>,
@@ -460,8 +461,9 @@ pub async fn training_insight(
         ChatMessage::user(&user_prompt),
     ];
 
+    let model = body.model.as_deref().unwrap_or(DEFAULT_LLM_MODEL);
     let result = llm_client
-        .chat_completion(LLM_MODEL, messages, None)
+        .chat_completion(model, messages, None)
         .await
         .map_err(|e| {
             log::error!("LLM call failed: {e}");
@@ -479,6 +481,8 @@ pub async fn training_insight(
         display_label: display_label.to_string(),
         full_prompt: user_prompt.clone(),
         response: result.content.clone(),
+        model: Some(model.to_string()),
+        cost: Some(result.usage.cost),
         created_at: Utc::now(),
     };
 

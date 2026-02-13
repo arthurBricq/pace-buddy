@@ -165,6 +165,8 @@ impl SqliteStorage {
                 display_label TEXT NOT NULL,
                 full_prompt TEXT NOT NULL,
                 response TEXT NOT NULL,
+                model TEXT,
+                cost REAL,
                 created_at TEXT NOT NULL
             )"
         )
@@ -396,6 +398,8 @@ fn row_to_training_insight(row: &SqliteRow) -> Result<TrainingInsight, DomainErr
     let display_label: String = row.get("display_label");
     let full_prompt: String = row.get("full_prompt");
     let response: String = row.get("response");
+    let model: Option<String> = row.try_get("model").ok();
+    let cost: Option<f64> = row.try_get("cost").ok();
     let created_at: String = row.get("created_at");
 
     Ok(TrainingInsight {
@@ -406,6 +410,8 @@ fn row_to_training_insight(row: &SqliteRow) -> Result<TrainingInsight, DomainErr
         display_label,
         full_prompt,
         response,
+        model,
+        cost,
         created_at: parse_datetime(&created_at)?,
     })
 }
@@ -1063,8 +1069,8 @@ impl Storage for SqliteStorage {
     // -----------------------------------------------------------------------
     async fn store_training_insight(&self, insight: &TrainingInsight) -> Result<(), DomainError> {
         sqlx::query(
-            "INSERT INTO training_insights (id, training_id, user_id, prompt_type, display_label, full_prompt, response, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO training_insights (id, training_id, user_id, prompt_type, display_label, full_prompt, response, model, cost, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(insight.id.to_string())
         .bind(insight.training_id.to_string())
@@ -1073,6 +1079,8 @@ impl Storage for SqliteStorage {
         .bind(&insight.display_label)
         .bind(&insight.full_prompt)
         .bind(&insight.response)
+        .bind(insight.model.as_deref())
+        .bind(insight.cost)
         .bind(insight.created_at.to_rfc3339())
         .execute(&self.pool)
         .await
@@ -1087,7 +1095,7 @@ impl Storage for SqliteStorage {
         user_id: Uuid,
     ) -> Result<Vec<TrainingInsight>, DomainError> {
         let rows = sqlx::query(
-            "SELECT id, training_id, user_id, prompt_type, display_label, full_prompt, response, created_at
+            "SELECT id, training_id, user_id, prompt_type, display_label, full_prompt, response, model, cost, created_at
              FROM training_insights
              WHERE training_id = ? AND user_id = ?
              ORDER BY created_at DESC",
@@ -1252,7 +1260,7 @@ impl Storage for SqliteStorage {
     // -----------------------------------------------------------------------
     async fn get_training_insight_by_id(&self, id: Uuid, user_id: Uuid) -> Result<TrainingInsight, DomainError> {
         let row = sqlx::query(
-            "SELECT id, training_id, user_id, prompt_type, display_label, full_prompt, response, created_at
+            "SELECT id, training_id, user_id, prompt_type, display_label, full_prompt, response, model, cost, created_at
              FROM training_insights WHERE id = ? AND user_id = ?",
         )
         .bind(id.to_string())

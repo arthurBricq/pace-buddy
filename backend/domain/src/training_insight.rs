@@ -11,5 +11,9 @@ pub struct TrainingInsight {
     pub display_label: String,
     pub full_prompt: String,
     pub response: String,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub cost: Option<f64>,
     pub created_at: DateTime<Utc>,
 }

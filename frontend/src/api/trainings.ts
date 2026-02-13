@@ -82,10 +82,14 @@ export async function getActivityTrainings(activityId: string) {
 export async function getTrainingInsight(
   trainingId: string,
   promptType: 'overview' | 'suggestions',
+  model?: string,
 ) {
   return apiFetch<TrainingInsightResponse>(`/trainings/${trainingId}/insight`, {
     method: 'POST',
-    body: JSON.stringify({ prompt_type: promptType }),
+    body: JSON.stringify({
+      prompt_type: promptType,
+      model: model || null,
+    }),
   });
 }
 

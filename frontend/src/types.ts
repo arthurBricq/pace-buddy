@@ -147,6 +147,8 @@ export interface TrainingInsightRecord {
   display_label: string;
   full_prompt: string;
   response: string;
+  model?: string | null;
+  cost?: number | null;
   created_at: string;
 }
 
