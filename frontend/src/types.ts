@@ -134,6 +134,7 @@ export interface ProfileResponse {
 }
 
 export interface TrainingInsightResponse {
+  id: string;
   display_label: string;
   full_prompt: string;
   response: string;
@@ -147,6 +148,47 @@ export interface TrainingInsightRecord {
   full_prompt: string;
   response: string;
   created_at: string;
+}
+
+export interface AiChat {
+  id: string;
+  user_id: string;
+  training_id: string | null;
+  source_insight_id: string | null;
+  title: string;
+  model: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AiChatMessage {
+  id: string;
+  chat_id: string;
+  role: string;
+  content: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  cost: number;
+  created_at: string;
+}
+
+export interface ChatResponse {
+  chat: AiChat;
+  messages: AiChatMessage[];
+  total_cost: number;
+  total_tokens: number;
+}
+
+export interface ChatListItem {
+  id: string;
+  title: string;
+  model: string;
+  training_id: string | null;
+  message_count: number;
+  total_cost: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface MASEstimate {

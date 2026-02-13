@@ -1,3 +1,55 @@
+# Custom LLM Chat
+
+Currently, the user can only ask the LLM for a single answer and can't even decide on the question.
+
+I want you to add a button at the bottom of the AI insight chat panels, that says "continue to chat". If the user clicks
+this button, he is redirected to a new page (not a pop-up anymore, that is a full-page chatbox with the LLM)
+
+You will need to create a new Rust model for conversations, something named `ConversationManager`, that will properly¨
+call the messages of the LLM and feed all of them in the `LLMClient` as the `messages` parameter.
+
+I believe that the "ai-chat" page should be a different model as the AI-insight, as the insights are really 1 answer. So
+basically, we can create AI-chats from AI-insights, but the reverse is not true. For every AI-insights, I want to keep
+track of the cost of the current chat, since the users will typically be billed for this. The openrouter response should
+contain the following fields, so this is where we get the cost and token information. This information should be
+displayed on the AI-chat page.
+
+```
+{
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 2,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "cost": 0.95,
+    "cost_details": {
+      "upstream_inference_cost": 19
+    },
+    "prompt_tokens": 194,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 100,
+      "audio_tokens": 0
+    },
+    "total_tokens": 196
+  }
+}
+
+
+Key Usage Fields
+    total_tokens: Total tokens used in the request
+    prompt_tokens: Tokens in your input messages
+    completion_tokens: Tokens in the model's response
+    reasoning_tokens: Tokens used for reasoning (for reasoning models)
+    cached_tokens: Tokens read from cache
+    cache_write_tokens: Tokens written to cache
+    cost: Total cost in credits charged to your account
+```
+
+Finally, we also need to add a tab to the frontend, that says "AI chats", that simply lists all of the previous chats
+that were done and a way to go back to them.
+
 # Strava compliance
 
 Strava API terms are rather strict, and I need to make some updates of the code as to be compliant. These are the

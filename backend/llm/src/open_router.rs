@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use crate::{
-    ChatCompletionRequest, ChatCompletionResponse, ChatMessage, LlmClient, LlmError, ModelInfo,
-    ReasoningConfig,
+    ChatCompletionRequest, ChatCompletionResponse, ChatCompletionResult, ChatMessage, LlmClient,
+    LlmError, LlmUsage, ModelInfo, ReasoningConfig,
 };
 use reqwest::Client;
 
@@ -61,7 +61,7 @@ impl LlmClient for OpenRouterClient {
         model: &str,
         messages: Vec<ChatMessage>,
         reasoning_effort: Option<&str>,
-    ) -> Result<String, LlmError> {
+    ) -> Result<ChatCompletionResult, LlmError> {
         // API spec: https://openrouter.ai/docs/api/api-reference/chat/send-chat-completion-request
         // Reasoning tokens: https://openrouter.ai/docs/guides/best-practices/reasoning-tokens
         let reasoning = reasoning_effort.map(|effort| ReasoningConfig {
@@ -105,6 +105,16 @@ impl LlmClient for OpenRouterClient {
 
         log::debug!("OpenRouter response: {:?}", completion);
 
+        let usage = completion
+            .usage
+            .map(|u| LlmUsage {
+                prompt_tokens: u.prompt_tokens,
+                completion_tokens: u.completion_tokens,
+                total_tokens: u.total_tokens,
+                cost: u.cost.unwrap_or(0.0),
+            })
+            .unwrap_or_default();
+
         let content = completion
             .choices
             .into_iter()
@@ -117,6 +127,6 @@ impl LlmClient for OpenRouterClient {
             return Err(LlmError::NoContent);
         }
 
-        Ok(content)
+        Ok(ChatCompletionResult { content, usage })
     }
 }

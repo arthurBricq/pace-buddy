@@ -1,5 +1,6 @@
 pub mod activity_routes;
 pub mod auth_routes;
+pub mod chat_routes;
 pub mod strava_routes;
 pub mod training_routes;
 
@@ -48,6 +49,15 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route("/{id}/activities/{activity_id}", web::delete().to(training_routes::remove_activity_from_training))
                     .route("/{id}/insight", web::post().to(training_routes::training_insight))
                     .route("/{id}/insights", web::get().to(training_routes::list_training_insights)),
+            )
+            .service(
+                web::scope("/chats")
+                    .route("", web::post().to(chat_routes::create_chat))
+                    .route("", web::get().to(chat_routes::list_chats))
+                    .route("/from-insight/{insight_id}", web::post().to(chat_routes::create_from_insight))
+                    .route("/{id}", web::get().to(chat_routes::get_chat))
+                    .route("/{id}", web::delete().to(chat_routes::delete_chat))
+                    .route("/{id}/messages", web::post().to(chat_routes::send_message)),
             ),
     );
 }

@@ -125,7 +125,15 @@ pub async fn update_training(
 
     state
         .storage
-        .update_training(training_id, user.user_id, name, description, start_date, end_date, race_goal)
+        .update_training(
+            training_id,
+            user.user_id,
+            name,
+            description,
+            start_date,
+            end_date,
+            race_goal,
+        )
         .await?;
 
     let updated = state
@@ -245,6 +253,7 @@ pub struct InsightRequest {
 
 #[derive(Serialize)]
 pub struct InsightResponse {
+    pub id: String,
     pub display_label: String,
     pub full_prompt: String,
     pub response: String,
@@ -265,9 +274,10 @@ pub async fn training_insight(
         body.prompt_type
     );
 
-    let llm_client = state.llm_client.as_ref().ok_or_else(|| {
-        AppError(domain::DomainError::Internal("LLM not configured".into()))
-    })?;
+    let llm_client = state
+        .llm_client
+        .as_ref()
+        .ok_or_else(|| AppError(domain::DomainError::Internal("LLM not configured".into())))?;
 
     // Load training (verifies ownership)
     let training = state
@@ -290,7 +300,11 @@ pub async fn training_insight(
     let mut interval_descriptions = Vec::new();
     for activity in &training_activities {
         // Try cached streams first, fall back to Strava
-        let mut streams = state.storage.get_streams(activity.id).await.unwrap_or_default();
+        let mut streams = state
+            .storage
+            .get_streams(activity.id)
+            .await
+            .unwrap_or_default();
         if streams.is_empty() {
             streams = match fetch_streams_from_strava(&state, activity).await {
                 Ok(s) => s,
@@ -439,14 +453,14 @@ pub async fn training_insight(
 
     let system_prompt = "You are an experienced running coach analyzing a runner's training plan. \
         Provide specific, actionable advice based on the data provided. \
-        Use metric units (km, min/km pace). Be concise but thorough.";
+        Use metric units (km, min/km pace). Be concise but remain precise.";
 
     let messages = vec![
         ChatMessage::system(system_prompt),
         ChatMessage::user(&user_prompt),
     ];
 
-    let response = llm_client
+    let result = llm_client
         .chat_completion(LLM_MODEL, messages, None)
         .await
         .map_err(|e| {
@@ -456,14 +470,15 @@ pub async fn training_insight(
             )))
         })?;
 
+    let insight_id = Uuid::new_v4();
     let insight = TrainingInsight {
-        id: Uuid::new_v4(),
+        id: insight_id,
         training_id,
         user_id: user.user_id,
         prompt_type: body.prompt_type.clone(),
         display_label: display_label.to_string(),
         full_prompt: user_prompt.clone(),
-        response: response.clone(),
+        response: result.content.clone(),
         created_at: Utc::now(),
     };
 
@@ -472,9 +487,10 @@ pub async fn training_insight(
     }
 
     Ok(HttpResponse::Ok().json(InsightResponse {
+        id: insight_id.to_string(),
         display_label: display_label.to_string(),
         full_prompt: user_prompt,
-        response,
+        response: result.content,
     }))
 }
 

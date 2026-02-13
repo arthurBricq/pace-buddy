@@ -10,6 +10,8 @@ import TrainingsListPage from './pages/TrainingsListPage';
 import TrainingDetailPage from './pages/TrainingDetailPage';
 import RacesPage from './pages/RacesPage';
 import ProfilePage from './pages/ProfilePage';
+import AiChatsListPage from './pages/AiChatsListPage';
+import AiChatPage from './pages/AiChatPage';
 
 function App() {
   return (
@@ -55,6 +57,22 @@ function App() {
             element={
               <AuthGuard>
                 <TrainingDetailPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/chats"
+            element={
+              <AuthGuard>
+                <AiChatsListPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/chats/:id"
+            element={
+              <AuthGuard>
+                <AiChatPage />
               </AuthGuard>
             }
           />

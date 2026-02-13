@@ -24,6 +24,9 @@ export default function Navbar() {
         <Link to="/trainings" className="text-sm text-gray-600 hover:text-gray-900">
           Trainings
         </Link>
+        <Link to="/chats" className="text-sm text-gray-600 hover:text-gray-900">
+          AI Chats
+        </Link>
         <Link to="/races" className="text-sm text-gray-600 hover:text-gray-900">
           Races
         </Link>

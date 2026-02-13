@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use domain::{Activity, ActivityStream, ActivityTag, DomainError, RunningStats, StravaToken, Training, TrainingInsight, User};
+use domain::{Activity, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError, RunningStats, StravaToken, Training, TrainingInsight, User};
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow};
 use sqlx::Row;
 use uuid::Uuid;
@@ -179,6 +179,53 @@ impl SqliteStorage {
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create training_insights index: {e}")))?;
 
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS ai_chats (
+                id TEXT PRIMARY KEY NOT NULL,
+                user_id TEXT NOT NULL REFERENCES users(id),
+                training_id TEXT,
+                source_insight_id TEXT,
+                title TEXT NOT NULL,
+                model TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )"
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create ai_chats table: {e}")))?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_ai_chats_user ON ai_chats(user_id, updated_at DESC)"
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create ai_chats index: {e}")))?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS ai_chat_messages (
+                id TEXT PRIMARY KEY NOT NULL,
+                chat_id TEXT NOT NULL REFERENCES ai_chats(id) ON DELETE CASCADE,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                prompt_tokens INTEGER NOT NULL DEFAULT 0,
+                completion_tokens INTEGER NOT NULL DEFAULT 0,
+                total_tokens INTEGER NOT NULL DEFAULT 0,
+                cost REAL NOT NULL DEFAULT 0.0,
+                created_at TEXT NOT NULL
+            )"
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create ai_chat_messages table: {e}")))?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_ai_chat_messages_chat ON ai_chat_messages(chat_id, created_at ASC)"
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create ai_chat_messages index: {e}")))?;
+
         Ok(Self { pool })
     }
 }
@@ -351,6 +398,52 @@ fn row_to_training_insight(row: &SqliteRow) -> Result<TrainingInsight, DomainErr
         display_label,
         full_prompt,
         response,
+        created_at: parse_datetime(&created_at)?,
+    })
+}
+
+fn row_to_ai_chat(row: &SqliteRow) -> Result<AiChat, DomainError> {
+    let id: String = row.get("id");
+    let user_id: String = row.get("user_id");
+    let training_id: Option<String> = row.get("training_id");
+    let source_insight_id: Option<String> = row.get("source_insight_id");
+    let title: String = row.get("title");
+    let model: String = row.get("model");
+    let created_at: String = row.get("created_at");
+    let updated_at: String = row.get("updated_at");
+
+    Ok(AiChat {
+        id: parse_uuid(&id)?,
+        user_id: parse_uuid(&user_id)?,
+        training_id: training_id.map(|s| parse_uuid(&s)).transpose()?,
+        source_insight_id: source_insight_id.map(|s| parse_uuid(&s)).transpose()?,
+        title,
+        model,
+        created_at: parse_datetime(&created_at)?,
+        updated_at: parse_datetime(&updated_at)?,
+    })
+}
+
+fn row_to_ai_chat_message(row: &SqliteRow) -> Result<AiChatMessage, DomainError> {
+    let id: String = row.get("id");
+    let chat_id: String = row.get("chat_id");
+    let role: String = row.get("role");
+    let content: String = row.get("content");
+    let prompt_tokens: i32 = row.get("prompt_tokens");
+    let completion_tokens: i32 = row.get("completion_tokens");
+    let total_tokens: i32 = row.get("total_tokens");
+    let cost: f64 = row.get("cost");
+    let created_at: String = row.get("created_at");
+
+    Ok(AiChatMessage {
+        id: parse_uuid(&id)?,
+        chat_id: parse_uuid(&chat_id)?,
+        role,
+        content,
+        prompt_tokens: prompt_tokens as u32,
+        completion_tokens: completion_tokens as u32,
+        total_tokens: total_tokens as u32,
+        cost,
         created_at: parse_datetime(&created_at)?,
     })
 }
@@ -1010,6 +1103,138 @@ impl Storage for SqliteStorage {
             .map_err(|e| DomainError::Storage(format!("Failed to update user MAS: {e}")))?;
 
         Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // AI Chats
+    // -----------------------------------------------------------------------
+    async fn create_ai_chat(&self, chat: &AiChat) -> Result<(), DomainError> {
+        sqlx::query(
+            "INSERT INTO ai_chats (id, user_id, training_id, source_insight_id, title, model, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(chat.id.to_string())
+        .bind(chat.user_id.to_string())
+        .bind(chat.training_id.map(|id| id.to_string()))
+        .bind(chat.source_insight_id.map(|id| id.to_string()))
+        .bind(&chat.title)
+        .bind(&chat.model)
+        .bind(chat.created_at.to_rfc3339())
+        .bind(chat.updated_at.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create ai chat: {e}")))?;
+
+        Ok(())
+    }
+
+    async fn get_ai_chat(&self, id: Uuid, user_id: Uuid) -> Result<AiChat, DomainError> {
+        let row = sqlx::query(
+            "SELECT id, user_id, training_id, source_insight_id, title, model, created_at, updated_at
+             FROM ai_chats WHERE id = ? AND user_id = ?",
+        )
+        .bind(id.to_string())
+        .bind(user_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get ai chat: {e}")))?
+        .ok_or_else(|| DomainError::NotFound(format!("AI chat {id} not found")))?;
+
+        row_to_ai_chat(&row)
+    }
+
+    async fn list_ai_chats(&self, user_id: Uuid) -> Result<Vec<AiChat>, DomainError> {
+        let rows = sqlx::query(
+            "SELECT id, user_id, training_id, source_insight_id, title, model, created_at, updated_at
+             FROM ai_chats WHERE user_id = ? ORDER BY updated_at DESC",
+        )
+        .bind(user_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to list ai chats: {e}")))?;
+
+        rows.iter().map(row_to_ai_chat).collect()
+    }
+
+    async fn delete_ai_chat(&self, id: Uuid, user_id: Uuid) -> Result<(), DomainError> {
+        let result = sqlx::query("DELETE FROM ai_chats WHERE id = ? AND user_id = ?")
+            .bind(id.to_string())
+            .bind(user_id.to_string())
+            .execute(&self.pool)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to delete ai chat: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Err(DomainError::NotFound(format!("AI chat {id} not found")));
+        }
+
+        Ok(())
+    }
+
+    async fn touch_ai_chat(&self, id: Uuid) -> Result<(), DomainError> {
+        sqlx::query("UPDATE ai_chats SET updated_at = ? WHERE id = ?")
+            .bind(Utc::now().to_rfc3339())
+            .bind(id.to_string())
+            .execute(&self.pool)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to touch ai chat: {e}")))?;
+
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // AI Chat Messages
+    // -----------------------------------------------------------------------
+    async fn store_ai_chat_message(&self, msg: &AiChatMessage) -> Result<(), DomainError> {
+        sqlx::query(
+            "INSERT INTO ai_chat_messages (id, chat_id, role, content, prompt_tokens, completion_tokens, total_tokens, cost, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(msg.id.to_string())
+        .bind(msg.chat_id.to_string())
+        .bind(&msg.role)
+        .bind(&msg.content)
+        .bind(msg.prompt_tokens as i32)
+        .bind(msg.completion_tokens as i32)
+        .bind(msg.total_tokens as i32)
+        .bind(msg.cost)
+        .bind(msg.created_at.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to store ai chat message: {e}")))?;
+
+        Ok(())
+    }
+
+    async fn get_ai_chat_messages(&self, chat_id: Uuid) -> Result<Vec<AiChatMessage>, DomainError> {
+        let rows = sqlx::query(
+            "SELECT id, chat_id, role, content, prompt_tokens, completion_tokens, total_tokens, cost, created_at
+             FROM ai_chat_messages WHERE chat_id = ? ORDER BY created_at ASC",
+        )
+        .bind(chat_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get ai chat messages: {e}")))?;
+
+        rows.iter().map(row_to_ai_chat_message).collect()
+    }
+
+    // -----------------------------------------------------------------------
+    // Insight lookup
+    // -----------------------------------------------------------------------
+    async fn get_training_insight_by_id(&self, id: Uuid, user_id: Uuid) -> Result<TrainingInsight, DomainError> {
+        let row = sqlx::query(
+            "SELECT id, training_id, user_id, prompt_type, display_label, full_prompt, response, created_at
+             FROM training_insights WHERE id = ? AND user_id = ?",
+        )
+        .bind(id.to_string())
+        .bind(user_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get training insight: {e}")))?
+        .ok_or_else(|| DomainError::NotFound(format!("Training insight {id} not found")))?;
+
+        row_to_training_insight(&row)
     }
 
     // -----------------------------------------------------------------------

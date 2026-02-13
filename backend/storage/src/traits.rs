@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use domain::{Activity, ActivityStream, ActivityTag, DomainError, RunningStats, StravaToken, Training, TrainingInsight, User};
+use domain::{Activity, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError, RunningStats, StravaToken, Training, TrainingInsight, User};
 use uuid::Uuid;
 
 #[async_trait]
@@ -97,6 +97,20 @@ pub trait Storage: Send + Sync {
         training_id: Uuid,
         user_id: Uuid,
     ) -> Result<Vec<TrainingInsight>, DomainError>;
+
+    // AI Chats
+    async fn create_ai_chat(&self, chat: &AiChat) -> Result<(), DomainError>;
+    async fn get_ai_chat(&self, id: Uuid, user_id: Uuid) -> Result<AiChat, DomainError>;
+    async fn list_ai_chats(&self, user_id: Uuid) -> Result<Vec<AiChat>, DomainError>;
+    async fn delete_ai_chat(&self, id: Uuid, user_id: Uuid) -> Result<(), DomainError>;
+    async fn touch_ai_chat(&self, id: Uuid) -> Result<(), DomainError>;
+
+    // AI Chat Messages
+    async fn store_ai_chat_message(&self, msg: &AiChatMessage) -> Result<(), DomainError>;
+    async fn get_ai_chat_messages(&self, chat_id: Uuid) -> Result<Vec<AiChatMessage>, DomainError>;
+
+    // Insight lookup
+    async fn get_training_insight_by_id(&self, id: Uuid, user_id: Uuid) -> Result<TrainingInsight, DomainError>;
 
     // Stats
     async fn get_running_stats(

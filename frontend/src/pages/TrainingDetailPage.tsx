@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   getTraining,
   getTrainingActivities,
@@ -13,6 +13,7 @@ import type { Training, Activity, TrainingInsightResponse, TrainingInsightRecord
 import ReactMarkdown from 'react-markdown';
 import Navbar from '../components/Navbar';
 import TagBadge from '../components/TagBadge';
+import { createChatFromInsight } from '../api/chats';
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -36,6 +37,7 @@ function formatPace(avgSpeed: number): string {
 
 export default function TrainingDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [training, setTraining] = useState<Training | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +53,7 @@ export default function TrainingDetailPage() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [insightError, setInsightError] = useState('');
   const [insightHistory, setInsightHistory] = useState<TrainingInsightRecord[]>([]);
+  const [currentInsightId, setCurrentInsightId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -143,6 +146,7 @@ export default function TrainingDetailPage() {
     try {
       const result = await getTrainingInsight(id, promptType);
       setInsightResult(result);
+      setCurrentInsightId(result.id);
       // Refresh history to include the newly persisted insight
       listTrainingInsights(id).then(setInsightHistory).catch(() => {});
     } catch (err: any) {
@@ -154,10 +158,12 @@ export default function TrainingDetailPage() {
 
   const openHistoryInsight = (record: TrainingInsightRecord) => {
     setInsightResult({
+      id: record.id,
       display_label: record.display_label,
       full_prompt: record.full_prompt,
       response: record.response,
     });
+    setCurrentInsightId(record.id);
     setShowPrompt(false);
     setInsightError('');
   };
@@ -317,6 +323,25 @@ export default function TrainingDetailPage() {
                         <ReactMarkdown>{insightResult.response}</ReactMarkdown>
                       </div>
                     </div>
+
+                    {/* Continue to Chat button */}
+                    {currentInsightId && (
+                      <div className="flex justify-center pt-2">
+                        <button
+                          onClick={async () => {
+                            try {
+                              const chat = await createChatFromInsight(currentInsightId);
+                              navigate(`/chats/${chat.id}`);
+                            } catch (err: any) {
+                              setInsightError(err.message || 'Failed to create chat');
+                            }
+                          }}
+                          className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 text-sm"
+                        >
+                          Continue to Chat
+                        </button>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

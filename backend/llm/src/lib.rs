@@ -8,6 +8,20 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use thiserror::Error;
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LlmUsage {
+    pub prompt_tokens: u32,
+    pub completion_tokens: u32,
+    pub total_tokens: u32,
+    pub cost: f64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChatCompletionResult {
+    pub content: String,
+    pub usage: LlmUsage,
+}
+
 /// OpenRouter clients for LLM
 pub mod open_router;
 
@@ -29,13 +43,13 @@ pub trait LlmClient: Send + Sync {
     /// Fetches the list of available models
     async fn list_models(&self) -> Result<Vec<ModelInfo>, LlmError>;
 
-    /// Sends a chat completion request and returns the response text
+    /// Sends a chat completion request and returns the response with usage info
     async fn chat_completion(
         &self,
         model: &str,
         messages: Vec<ChatMessage>,
         reasoning_effort: Option<&str>,
-    ) -> Result<String, LlmError>;
+    ) -> Result<ChatCompletionResult, LlmError>;
 }
 
 /// Chat message for the API
@@ -98,8 +112,21 @@ pub(crate) struct ChatCompletionRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) struct RawUsage {
+    #[serde(default)]
+    pub prompt_tokens: u32,
+    #[serde(default)]
+    pub completion_tokens: u32,
+    #[serde(default)]
+    pub total_tokens: u32,
+    #[serde(default)]
+    pub cost: Option<f64>,
+}
+
+#[derive(Debug, Deserialize)]
 pub(crate) struct ChatCompletionResponse {
     pub choices: Vec<ChatChoice>,
+    pub usage: Option<RawUsage>,
 }
 
 #[derive(Debug, Deserialize)]
