@@ -1182,6 +1182,23 @@ impl Storage for SqliteStorage {
         Ok(())
     }
 
+    async fn update_ai_chat_title(&self, id: Uuid, user_id: Uuid, title: &str) -> Result<(), DomainError> {
+        let result = sqlx::query("UPDATE ai_chats SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?")
+            .bind(title)
+            .bind(Utc::now().to_rfc3339())
+            .bind(id.to_string())
+            .bind(user_id.to_string())
+            .execute(&self.pool)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to update ai chat title: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Err(DomainError::NotFound(format!("AI chat {id} not found")));
+        }
+
+        Ok(())
+    }
+
     async fn touch_ai_chat(&self, id: Uuid) -> Result<(), DomainError> {
         sqlx::query("UPDATE ai_chats SET updated_at = ? WHERE id = ?")
             .bind(Utc::now().to_rfc3339())

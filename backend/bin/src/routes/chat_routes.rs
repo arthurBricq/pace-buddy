@@ -129,6 +129,32 @@ pub async fn get_chat(
 }
 
 // ---------------------------------------------------------------------------
+// Update chat title
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+pub struct UpdateChatRequest {
+    pub title: String,
+}
+
+pub async fn update_chat(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+    path: web::Path<Uuid>,
+    body: web::Json<UpdateChatRequest>,
+) -> Result<HttpResponse, AppError> {
+    let chat_id = path.into_inner();
+    state
+        .storage
+        .update_ai_chat_title(chat_id, user.user_id, &body.title)
+        .await?;
+
+    // Return updated chat
+    let chat = state.storage.get_ai_chat(chat_id, user.user_id).await?;
+    Ok(HttpResponse::Ok().json(chat))
+}
+
+// ---------------------------------------------------------------------------
 // Delete chat
 // ---------------------------------------------------------------------------
 

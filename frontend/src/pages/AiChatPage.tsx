@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getChat, sendMessage } from '../api/chats';
+import { getChat, sendMessage, updateChatTitle } from '../api/chats';
 import type { AiChat, AiChatMessage } from '../types';
 import ReactMarkdown from 'react-markdown';
 import Navbar from '../components/Navbar';
@@ -15,7 +15,11 @@ export default function AiChatPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [input, setInput] = useState('');
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleValue, setTitleValue] = useState('');
+  const [updatingTitle, setUpdatingTitle] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   const loadChat = async () => {
     if (!id) return;
@@ -35,6 +39,19 @@ export default function AiChatPage() {
   useEffect(() => {
     loadChat();
   }, [id]);
+
+  useEffect(() => {
+    if (chat) {
+      setTitleValue(chat.title);
+    }
+  }, [chat]);
+
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [isEditingTitle]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -89,6 +106,49 @@ export default function AiChatPage() {
     return `$${cost.toFixed(4)}`;
   };
 
+  const handleTitleClick = () => {
+    if (chat) {
+      setIsEditingTitle(true);
+      setTitleValue(chat.title);
+    }
+  };
+
+  const handleTitleSave = async () => {
+    if (!id || !chat || titleValue.trim() === chat.title) {
+      setIsEditingTitle(false);
+      return;
+    }
+
+    setUpdatingTitle(true);
+    try {
+      const updatedChat = await updateChatTitle(id, titleValue.trim());
+      setChat(updatedChat);
+      setIsEditingTitle(false);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update title');
+      setTitleValue(chat.title); // Revert on error
+    } finally {
+      setUpdatingTitle(false);
+    }
+  };
+
+  const handleTitleCancel = () => {
+    if (chat) {
+      setTitleValue(chat.title);
+    }
+    setIsEditingTitle(false);
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleTitleSave();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      handleTitleCancel();
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -119,22 +179,42 @@ export default function AiChatPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Navbar />
-
-      {/* Header bar */}
-      <div className="bg-white border-b px-4 py-3">
+      <div className="sticky top-0 z-50">
+        <Navbar />
+        {/* Header bar */}
+        <div className="bg-white border-b px-4 py-3">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link to="/chats" className="text-sm text-gray-500 hover:text-gray-700">
               &larr; Chats
             </Link>
-            <h1 className="text-lg font-semibold">{chat?.title}</h1>
+            {isEditingTitle ? (
+              <input
+                ref={titleInputRef}
+                type="text"
+                value={titleValue}
+                onChange={(e) => setTitleValue(e.target.value)}
+                onBlur={handleTitleSave}
+                onKeyDown={handleTitleKeyDown}
+                disabled={updatingTitle}
+                className="text-lg font-semibold bg-white border border-purple-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-purple-500 min-w-[200px]"
+              />
+            ) : (
+              <h1
+                onClick={handleTitleClick}
+                className="text-lg font-semibold cursor-pointer hover:text-purple-600 transition-colors"
+                title="Click to rename"
+              >
+                {chat?.title}
+              </h1>
+            )}
           </div>
           <div className="flex items-center gap-4 text-xs text-gray-500">
             <span className="font-mono">{chat?.model.split('/').pop()}</span>
             <span>{totalTokens.toLocaleString()} tokens</span>
             <span>{formatCost(totalCost)}</span>
           </div>
+        </div>
         </div>
       </div>
 

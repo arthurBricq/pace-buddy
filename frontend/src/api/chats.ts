@@ -20,6 +20,13 @@ export async function getChat(id: string) {
   return apiFetch<ChatResponse>(`/chats/${id}`);
 }
 
+export async function updateChatTitle(id: string, title: string) {
+  return apiFetch<AiChat>(`/chats/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ title }),
+  });
+}
+
 export async function deleteChat(id: string) {
   return apiFetch<{ status: string }>(`/chats/${id}`, { method: 'DELETE' });
 }
