@@ -60,6 +60,21 @@ export interface StravaStatus {
   athlete_id?: number;
 }
 
+export interface ExpensiveRequest {
+  id: string;
+  type: 'insight' | 'chat';
+  title: string;
+  model: string | null;
+  cost: number;
+  created_at: string;
+  training_id?: string | null;
+}
+
+export interface AiCostSummary {
+  total_cost: number;
+  expensive_requests: ExpensiveRequest[];
+}
+
 // Interval parsing types
 
 export type SegmentKind = 'Warmup' | 'Work' | 'Recovery' | 'Cooldown' | 'Pause' | 'Steady' | 'Unknown';

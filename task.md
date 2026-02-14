@@ -1,3 +1,22 @@
+# Calender-view
+
+First, read @AGENTS.md
+
+Currently, all the strava activities are listed in the main activities page as a list. While having a list view is
+great, I want to also have a possible weekly-calendar view.
+
+This view should be displayed as follow
+
+- Each week is 1 row, where each day is 1 cell on this row
+- Each "day"-cell contains a quick visual description of the activity done, so basically the distance, whether it is an
+  internval, and the title that can be displayed very smally.
+- The week-row should contain to the left a "weekly-recap" that simply puts the cumulative distance and cumulative time.
+
+The user should always have the choice to pick which view he wants: there should be a "switch to list view" or "switch
+to calendar view".
+
+You don't have to optimize space, the weeks can be tall enough, so that we have enough space to display the days. 
+
 # LLM settings
 
 First, read @AGENTS.md

@@ -20,7 +20,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route("/users", web::get().to(auth_routes::list_all_users))
                     .route("/mas", web::get().to(auth_routes::get_mas))
                     .route("/mas", web::patch().to(auth_routes::update_mas))
-                    .route("/profile", web::get().to(auth_routes::profile)),
+                    .route("/profile", web::get().to(auth_routes::profile))
+                    .route("/ai-cost-summary", web::get().to(auth_routes::ai_cost_summary)),
             )
             .service(
                 web::scope("/strava")

@@ -1,7 +1,7 @@
 use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::cookie::{Cookie, SameSite};
 use chrono::Datelike;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use storage::Storage;
 use uuid::Uuid;
 use webauthn_rs_proto::{RegisterPublicKeyCredential, PublicKeyCredential};
@@ -258,6 +258,83 @@ pub async fn profile(
             "all_time": all_time,
         }
     })))
+}
+
+#[derive(Serialize)]
+pub struct AiCostSummary {
+    pub total_cost: f64,
+    pub expensive_requests: Vec<ExpensiveRequest>,
+}
+
+#[derive(Serialize)]
+pub struct ExpensiveRequest {
+    pub id: String,
+    pub r#type: String, // "insight" or "chat"
+    pub title: String,
+    pub model: Option<String>,
+    pub cost: f64,
+    pub created_at: String,
+    pub training_id: Option<String>, // For insights, link to training
+}
+
+pub async fn ai_cost_summary(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+) -> Result<HttpResponse, AppError> {
+    log::debug!("GET /auth/ai-cost-summary user_id={}", user.user_id);
+
+    let mut expensive_requests = Vec::new();
+    let mut total_cost = 0.0;
+
+    // Get all training insights
+    let trainings = state.storage.list_trainings(user.user_id).await?;
+    for training in trainings {
+        let insights = state
+            .storage
+            .get_training_insights(training.id, user.user_id)
+            .await?;
+        for insight in insights {
+            if let Some(cost) = insight.cost {
+                total_cost += cost;
+                expensive_requests.push(ExpensiveRequest {
+                    id: insight.id.to_string(),
+                    r#type: "insight".to_string(),
+                    title: insight.display_label,
+                    model: insight.model,
+                    cost,
+                    created_at: insight.created_at.to_rfc3339(),
+                    training_id: Some(training.id.to_string()),
+                });
+            }
+        }
+    }
+
+    // Get all chats and their messages
+    let chats = state.storage.list_ai_chats(user.user_id).await?;
+    for chat in chats {
+        let messages = state.storage.get_ai_chat_messages(chat.id).await?;
+        let chat_cost: f64 = messages.iter().map(|m| m.cost).sum();
+        total_cost += chat_cost;
+        if chat_cost > 0.0 {
+            expensive_requests.push(ExpensiveRequest {
+                id: chat.id.to_string(),
+                r#type: "chat".to_string(),
+                title: chat.title,
+                model: Some(chat.model),
+                cost: chat_cost,
+                created_at: chat.created_at.to_rfc3339(),
+                training_id: chat.training_id.map(|id| id.to_string()),
+            });
+        }
+    }
+
+    // Sort by cost descending
+    expensive_requests.sort_by(|a, b| b.cost.partial_cmp(&a.cost).unwrap_or(std::cmp::Ordering::Equal));
+
+    Ok(HttpResponse::Ok().json(AiCostSummary {
+        total_cost,
+        expensive_requests,
+    }))
 }
 
 fn build_session_cookie(token: &str) -> Cookie<'static> {

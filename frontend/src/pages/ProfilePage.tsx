@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { getProfile } from '../api/auth';
-import type { ProfileResponse, RunningStats } from '../types';
+import { useSearchParams, Link } from 'react-router-dom';
+import { getProfile, getAiCostSummary } from '../api/auth';
+import { getStravaStatus, getStravaLink } from '../api/strava';
+import type { ProfileResponse, RunningStats, StravaStatus, ExpensiveRequest, AiCostSummary } from '../types';
 import Navbar from '../components/Navbar';
 
 function formatDistance(meters: number): string {
@@ -58,17 +60,42 @@ function StatsCard({ title, stats }: { title: string; stats: RunningStats }) {
   );
 }
 
+function formatCost(cost: number): string {
+  if (cost === 0) return '$0';
+  return `$${cost.toFixed(4)}`;
+}
+
 export default function ProfilePage() {
+  const [searchParams] = useSearchParams();
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
+  const [stravaStatus, setStravaStatus] = useState<StravaStatus | null>(null);
+  const [aiCostSummary, setAiCostSummary] = useState<AiCostSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(searchParams.get('error') || '');
 
   useEffect(() => {
-    getProfile()
-      .then(setProfile)
-      .catch((err: any) => setError(err.message))
-      .finally(() => setLoading(false));
+    Promise.all([
+      getProfile().catch((e) => {
+        setError(e.message);
+        return null;
+      }),
+      getStravaStatus().catch(() => null),
+      getAiCostSummary().catch(() => null),
+    ]).then(([p, s, a]) => {
+      setProfile(p);
+      setStravaStatus(s);
+      setAiCostSummary(a);
+    }).finally(() => setLoading(false));
   }, []);
+
+  const handleLinkStrava = async () => {
+    try {
+      const { url } = await getStravaLink();
+      window.location.href = url;
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
 
   if (loading) {
     return (
@@ -111,6 +138,113 @@ export default function ProfilePage() {
           <StatsCard title="Last Year" stats={stats.last_year} />
           <StatsCard title="All Time" stats={stats.all_time} />
         </div>
+
+        {/* Strava Connection Section */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold mb-4">Strava Connection</h2>
+          {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
+          {stravaStatus && stravaStatus.linked ? (
+            <div className="space-y-2">
+              <p className="text-green-600 font-medium">Strava connected</p>
+              <p className="text-sm text-gray-500">
+                Athlete ID: {stravaStatus.athlete_id}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-gray-600">
+                Connect your Strava account to sync activities.
+              </p>
+              <button
+                onClick={handleLinkStrava}
+                className="bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600"
+              >
+                Connect Strava
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* AI Cost Summary Section */}
+        {aiCostSummary && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold mb-4">AI Usage</h2>
+            <div className="mb-6">
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm text-gray-500">Total Cost:</span>
+                <span className="text-2xl font-bold text-purple-600">
+                  {formatCost(aiCostSummary.total_cost)}
+                </span>
+              </div>
+            </div>
+
+            {aiCostSummary.expensive_requests.length > 0 && (
+              <div>
+                <h3 className="text-md font-medium text-gray-700 mb-3">
+                  Most Expensive Requests
+                </h3>
+                <div className="space-y-2">
+                  {aiCostSummary.expensive_requests.slice(0, 10).map((req) => (
+                    <div
+                      key={req.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-xs px-2 py-1 rounded ${
+                              req.type === 'insight'
+                                ? 'bg-purple-100 text-purple-700'
+                                : 'bg-blue-100 text-blue-700'
+                            }`}
+                          >
+                            {req.type === 'insight' ? 'Insight' : 'Chat'}
+                          </span>
+                          {req.type === 'insight' && req.training_id ? (
+                            <Link
+                              to={`/trainings/${req.training_id}`}
+                              className="text-sm font-medium text-gray-800 hover:text-purple-600"
+                            >
+                              {req.title}
+                            </Link>
+                          ) : req.type === 'chat' ? (
+                            <Link
+                              to={`/chats/${req.id}`}
+                              className="text-sm font-medium text-gray-800 hover:text-purple-600"
+                            >
+                              {req.title}
+                            </Link>
+                          ) : (
+                            <span className="text-sm font-medium text-gray-800">
+                              {req.title}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                          {req.model && (
+                            <span className="font-mono">{req.model.split('/').pop()}</span>
+                          )}
+                          <span>
+                            {new Date(req.created_at).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-sm font-semibold text-gray-700 ml-4">
+                        {formatCost(req.cost)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
