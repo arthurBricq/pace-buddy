@@ -95,7 +95,7 @@ pub async fn build_insight_context(
         }
     }
 
-    // Weekly running volume within training date range
+    // Weekly volume (all sports) within training date range
     let mut weekly_volume = String::new();
     if let (Some(start), Some(end)) = (training.start_date, training.end_date) {
         let range_activities = state
@@ -103,33 +103,45 @@ pub async fn build_insight_context(
             .get_activities_in_range(user_id, start, end)
             .await?;
 
-        let mut weeks: std::collections::BTreeMap<(i32, u32), (f64, i64, i64)> =
-            std::collections::BTreeMap::new();
+        // (year, week) -> sport_type -> (distance, time, count)
+        let mut weeks: std::collections::BTreeMap<
+            (i32, u32),
+            std::collections::BTreeMap<String, (f64, i64, i64)>,
+        > = std::collections::BTreeMap::new();
         for a in &range_activities {
-            if a.sport_type != "Run" {
-                continue;
-            }
             let iso_week = a.start_date.iso_week();
             let key = (iso_week.year(), iso_week.week());
-            let entry = weeks.entry(key).or_insert((0.0, 0, 0));
+            let by_sport = weeks.entry(key).or_default();
+            let entry = by_sport.entry(a.sport_type.clone()).or_insert((0.0, 0, 0));
             entry.0 += a.distance;
             entry.1 += a.moving_time as i64;
             entry.2 += 1;
         }
 
-        for ((year, week), (dist, time, count)) in &weeks {
+        for ((year, week), sports) in &weeks {
             let week_start = NaiveDate::from_isoywd_opt(*year, *week, chrono::Weekday::Mon)
                 .unwrap_or_else(|| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap());
-            let hours = time / 3600;
-            let mins = (time % 3600) / 60;
-            weekly_volume.push_str(&format!(
-                "Week of {}: {:.1}km, {}h{:02}m, {} runs\n",
-                week_start,
-                dist / 1000.0,
-                hours,
-                mins,
-                count
-            ));
+            weekly_volume.push_str(&format!("Week of {}:\n", week_start));
+            // Sort sports with "Run" always first
+            let mut sorted_sports: Vec<_> = sports.iter().collect();
+            sorted_sports.sort_by_key(|(sport, _)| if sport.as_str() == "Run" { 0 } else { 1 });
+            for (sport, (dist, time, count)) in sorted_sports {
+                let hours = time / 3600;
+                let mins = (time % 3600) / 60;
+                let label = if count > &1 {
+                    format!("{} activities", count)
+                } else {
+                    "1 activity".to_string()
+                };
+                weekly_volume.push_str(&format!(
+                    "- {}: {:.1}km, {}h{:02}m, {}\n",
+                    sport,
+                    dist / 1000.0,
+                    hours,
+                    mins,
+                    label,
+                ));
+            }
         }
     }
 
@@ -175,7 +187,7 @@ pub async fn build_insight_context(
     }
 
     if !weekly_volume.is_empty() {
-        user_prompt.push_str("\n## Weekly Running Volume\n");
+        user_prompt.push_str("\n## Weekly Volume\n");
         user_prompt.push_str(&weekly_volume);
     }
 
