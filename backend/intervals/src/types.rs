@@ -79,18 +79,9 @@ pub struct Segment {
     pub avg_cadence: Option<f64>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RecoveryStyle {
-    Jog,
-    Walk,
-    Stop,
-    Unknown,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Rep {
     pub work: Segment,
-    pub recovery: Option<Segment>,
     pub rep_index: usize,
     pub set_index: Option<usize>,
     pub distance_m: f64,
@@ -101,7 +92,8 @@ pub struct Rep {
     pub pct_mas: Option<f64>,
     pub steadiness: f64,
     pub fade: f64,
-    pub recovery_style: Option<RecoveryStyle>,
+    /// Time in seconds between end of this rep and start of next rep. None for the last rep.
+    pub recovery_duration_s: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

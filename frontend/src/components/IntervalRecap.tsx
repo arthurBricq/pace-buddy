@@ -87,8 +87,8 @@ export default function IntervalRecap({ intervals, masCurrent }: Props) {
                       )}
                     </td>
                     <td className="py-2 text-gray-500">
-                      {rep.recovery
-                        ? `${rep.recovery_style ?? '?'} (${formatDuration(rep.recovery.duration_s)})`
+                      {rep.recovery_duration_s != null
+                        ? formatDuration(rep.recovery_duration_s)
                         : '-'}
                     </td>
                   </tr>

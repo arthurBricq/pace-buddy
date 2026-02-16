@@ -1,8 +1,9 @@
 use crate::preprocess::PreprocessedData;
 use crate::stats;
-use crate::types::{IntervalConfig, RecoveryStyle, Rep, Segment, SegmentKind};
+use crate::types::{IntervalConfig, Rep, Segment, SegmentKind};
 
-/// Label warmup/cooldown and pair work+recovery segments into reps.
+/// Label warmup/cooldown and build reps from work segments.
+/// Recovery is computed as the time gap between consecutive work segments.
 pub fn build_reps(
     segments: &mut Vec<Segment>,
     data: &PreprocessedData,
@@ -11,16 +12,19 @@ pub fn build_reps(
 ) -> Vec<Rep> {
     label_warmup_cooldown(segments, config);
 
-    let work_recovery_pairs = pair_work_recovery(segments);
+    let work_segments: Vec<Segment> = segments
+        .iter()
+        .filter(|s| s.kind == SegmentKind::Work)
+        .cloned()
+        .collect();
 
-    work_recovery_pairs
-        .into_iter()
+    work_segments
+        .iter()
         .enumerate()
-        .map(|(i, (work, recovery))| {
-            let pace_std = compute_pace_std(data, &work);
-            let steadiness = compute_steadiness(data, &work);
-            let fade = compute_fade(data, &work);
-            let recovery_style = recovery.as_ref().map(|r| classify_recovery(r, data));
+        .map(|(i, work)| {
+            let pace_std = compute_pace_std(data, work);
+            let steadiness = compute_steadiness(data, work);
+            let fade = compute_fade(data, work);
 
             let avg_speed_mps = work.avg_speed_mps;
             let avg_pace_s_per_km = if avg_speed_mps > 0.0 {
@@ -37,6 +41,11 @@ pub fn build_reps(
                 }
             });
 
+            // Recovery = time from end of this work to start of next work
+            let recovery_duration_s = work_segments
+                .get(i + 1)
+                .map(|next| next.start_t - work.end_t);
+
             Rep {
                 distance_m: work.distance_m,
                 duration_s: work.duration_s,
@@ -46,9 +55,8 @@ pub fn build_reps(
                 pct_mas,
                 steadiness,
                 fade,
-                recovery_style,
-                work,
-                recovery,
+                recovery_duration_s,
+                work: work.clone(),
                 rep_index: i,
                 set_index: None,
             }
@@ -102,79 +110,6 @@ fn label_warmup_cooldown(segments: &mut Vec<Segment>, config: &IntervalConfig) {
                 }
             }
         }
-    }
-}
-
-/// Pair each Work segment with its following Recovery (if any).
-fn pair_work_recovery(segments: &[Segment]) -> Vec<(Segment, Option<Segment>)> {
-    let mut pairs = Vec::new();
-    let mut i = 0;
-
-    while i < segments.len() {
-        if segments[i].kind == SegmentKind::Work {
-            let work = segments[i].clone();
-            let recovery = if i + 1 < segments.len()
-                && matches!(
-                    segments[i + 1].kind,
-                    SegmentKind::Recovery | SegmentKind::Pause
-                )
-            {
-                i += 1;
-                Some(segments[i].clone())
-            } else {
-                None
-            };
-            pairs.push((work, recovery));
-        }
-        i += 1;
-    }
-
-    pairs
-}
-
-/// Classify recovery style based on speed and pauses.
-///
-/// After cleanup, Recovery segments may span time ranges that originally contained
-/// short Pause fragments (absorbed during cleanup). We check the per-sample pause_mask
-/// to detect this.
-fn classify_recovery(recovery: &Segment, data: &PreprocessedData) -> RecoveryStyle {
-    if recovery.kind == SegmentKind::Pause {
-        return RecoveryStyle::Stop;
-    }
-
-    let n = data.time.len();
-    let (start_idx, end_idx) = time_range_to_indices(&data.time, recovery.start_t, recovery.end_t);
-    if start_idx >= n || end_idx <= start_idx {
-        return RecoveryStyle::Unknown;
-    }
-
-    let total = (end_idx - start_idx) as f64;
-    let pause_count = data.pause_mask[start_idx..end_idx]
-        .iter()
-        .filter(|&&p| p)
-        .count() as f64;
-    let pause_ratio = if total > 0.0 { pause_count / total } else { 0.0 };
-
-    // If significant pause presence, it's a stop (standing recovery with GPS drift)
-    if pause_ratio > 0.3 {
-        return RecoveryStyle::Stop;
-    }
-
-    // Compute average speed of non-pause samples only (ignore GPS drift during pauses)
-    let active_speeds: Vec<f64> = (start_idx..end_idx)
-        .filter(|&i| !data.pause_mask[i])
-        .map(|i| data.speed_smooth[i])
-        .collect();
-    let active_avg = if active_speeds.is_empty() {
-        recovery.avg_speed_mps
-    } else {
-        crate::stats::mean(&active_speeds)
-    };
-
-    if active_avg < 1.5 {
-        RecoveryStyle::Walk
-    } else {
-        RecoveryStyle::Jog
     }
 }
 
@@ -319,12 +254,10 @@ mod tests {
     }
 
     #[test]
-    fn test_pair_work_recovery() {
+    fn test_work_segments_collected() {
         let segments = make_segments();
-        let pairs = pair_work_recovery(&segments);
-        assert_eq!(pairs.len(), 2);
-        assert!(pairs[0].1.is_some());
-        assert!(pairs[1].1.is_some());
+        let work_count = segments.iter().filter(|s| s.kind == SegmentKind::Work).count();
+        assert_eq!(work_count, 2);
     }
 
     #[test]

@@ -32,7 +32,6 @@ mod tests {
                 avg_hr: None,
                 avg_cadence: None,
             },
-            recovery: None,
             rep_index: 0,
             set_index: None,
             distance_m: avg_speed_mps * 80.0,
@@ -43,7 +42,7 @@ mod tests {
             pct_mas: None,
             steadiness: 0.95,
             fade: 0.02,
-            recovery_style: None,
+            recovery_duration_s: None,
         }
     }
 

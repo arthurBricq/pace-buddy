@@ -369,15 +369,8 @@ pub async fn training_insight(
                     if let Some(pct) = rep.pct_mas {
                         line.push_str(&format!(", {:.0}% MAS", pct * 100.0));
                     }
-                    if let Some(ref recovery) = rep.recovery {
-                        let style = rep
-                            .recovery_style
-                            .map(|s| format!("{:?}", s))
-                            .unwrap_or_else(|| "Unknown".into());
-                        line.push_str(&format!(
-                            ", recovery: {} ({:.0}s)",
-                            style, recovery.duration_s
-                        ));
+                    if let Some(rec_s) = rep.recovery_duration_s {
+                        line.push_str(&format!(", {:.0}s recovery", rec_s));
                     }
                     line.push('\n');
                     desc.push_str(&line);

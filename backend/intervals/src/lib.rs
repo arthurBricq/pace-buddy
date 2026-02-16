@@ -72,7 +72,7 @@ fn compute_interval_score(reps: &[types::Rep], config: &IntervalConfig) -> f64 {
     score += rep_score * 0.3;
 
     // Factor 2: fraction of work segments followed by recovery
-    let with_recovery = reps.iter().filter(|r| r.recovery.is_some()).count();
+    let with_recovery = reps.iter().filter(|r| r.recovery_duration_s.is_some()).count();
     let alternation = with_recovery as f64 / reps.len() as f64;
     score += alternation * 0.3;
 

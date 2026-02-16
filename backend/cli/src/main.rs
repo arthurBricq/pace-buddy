@@ -170,9 +170,8 @@ async fn main() -> anyhow::Result<()> {
                             .map(|p| format!("{:.0}%MAS", p * 100.0))
                             .unwrap_or_default();
                         let rec_str = rep
-                            .recovery
-                            .as_ref()
-                            .map(|r| format!("rec={:.0}s {:?}", r.duration_s, rep.recovery_style))
+                            .recovery_duration_s
+                            .map(|r| format!("rec={:.0}s", r))
                             .unwrap_or_else(|| "no recovery".into());
                         println!(
                             "  Rep {:2}: {:.0}m in {:.0}s @ {} ({}) | steady={:.2} fade={:.2} | {rec_str}",

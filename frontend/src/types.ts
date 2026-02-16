@@ -78,8 +78,6 @@ export interface AiCostSummary {
 // Interval parsing types
 
 export type SegmentKind = 'Warmup' | 'Work' | 'Recovery' | 'Cooldown' | 'Pause' | 'Steady' | 'Unknown';
-export type RecoveryStyle = 'Jog' | 'Walk' | 'Stop' | 'Unknown';
-
 export interface Segment {
   kind: SegmentKind;
   start_t: number;
@@ -95,7 +93,6 @@ export interface Segment {
 
 export interface Rep {
   work: Segment;
-  recovery: Segment | null;
   rep_index: number;
   set_index: number | null;
   distance_m: number;
@@ -106,7 +103,7 @@ export interface Rep {
   pct_mas: number | null;
   steadiness: number;
   fade: number;
-  recovery_style: RecoveryStyle | null;
+  recovery_duration_s: number | null;
 }
 
 export interface IntervalResult {

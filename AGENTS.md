@@ -22,5 +22,7 @@ The users are able to create "training programs" where they will be can group se
 and their LLM trainer will be able to train on these programs. The users are then able to request an AI-insights from
 their trainings, and AI insights can be transformd into "AI chat"s, where the users can simply talk with the AI.
 
+## Development Node
 
-
+This project is under development, therefore, I don't care about database migrations. For any database modification, you
+can assume that we can drop the database and start from scratch.

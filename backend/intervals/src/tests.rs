@@ -268,15 +268,6 @@ fn test_12x80s_stop_recovery() {
             "Rep distance out of range: {:.0}m",
             rep.distance_m
         );
-        // Standing recovery should be classified as Stop
-        if let Some(style) = &rep.recovery_style {
-            assert_eq!(
-                *style,
-                types::RecoveryStyle::Stop,
-                "Expected Stop recovery, got {:?}",
-                style
-            );
-        }
     }
 }
 
@@ -312,14 +303,6 @@ fn test_6x3min_jog_recovery() {
             "Rep duration out of range: {:.0}s",
             rep.duration_s
         );
-        if let Some(style) = &rep.recovery_style {
-            assert_eq!(
-                *style,
-                types::RecoveryStyle::Jog,
-                "Expected Jog recovery, got {:?}",
-                style
-            );
-        }
     }
 }
 
@@ -427,7 +410,7 @@ fn test_real_fixture(
             rep.distance_m,
             rep.duration_s,
             rep.avg_pace_s_per_km,
-            rep.recovery_style
+            rep.recovery_duration_s
         );
     }
 
