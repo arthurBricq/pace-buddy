@@ -1,7 +1,0 @@
-
-cargo run --bin rt-cli users
-cargo run --bin rt-cli streams 00bfd16f-f514-4bd8-a4bd-1c30701a1ac6
-cargo run --bin rt-cli dump-stream
-
-
-cargo run --bin rt-cli -- intervals ACTIVITY_ID --format debug

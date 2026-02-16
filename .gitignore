@@ -20,3 +20,8 @@ frontend/dist/
 # Secrets
 backend/strava_client_id
 backend/strava_client_secret
+
+# Personal files
+TODO.md
+TASK.md
+commands.txt
