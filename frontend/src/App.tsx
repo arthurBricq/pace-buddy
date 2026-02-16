@@ -5,7 +5,6 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ActivityListPage from './pages/ActivityListPage';
 import ActivityDetailPage from './pages/ActivityDetailPage';
-import LinkStravaPage from './pages/LinkStravaPage';
 import TrainingsListPage from './pages/TrainingsListPage';
 import TrainingDetailPage from './pages/TrainingDetailPage';
 import RacesPage from './pages/RacesPage';
@@ -36,14 +35,7 @@ function App() {
               </AuthGuard>
             }
           />
-          <Route
-            path="/strava"
-            element={
-              <AuthGuard>
-                <LinkStravaPage />
-              </AuthGuard>
-            }
-          />
+          <Route path="/strava" element={<Navigate to="/profile" replace />} />
           <Route
             path="/trainings"
             element={

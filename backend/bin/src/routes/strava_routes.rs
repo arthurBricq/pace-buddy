@@ -88,14 +88,14 @@ pub async fn callback(
 
     log::info!("Strava linked successfully for user {user_id}, redirecting to frontend");
     HttpResponse::Found()
-        .append_header(("Location", format!("{frontend}/strava")))
+        .append_header(("Location", format!("{frontend}/profile")))
         .finish()
 }
 
 fn redirect_with_error(frontend_url: &str, message: &str) -> HttpResponse {
     let encoded = urlencoding::encode(message);
     HttpResponse::Found()
-        .append_header(("Location", format!("{frontend_url}/strava?error={encoded}")))
+        .append_header(("Location", format!("{frontend_url}/profile?error={encoded}")))
         .finish()
 }
 

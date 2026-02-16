@@ -1,5 +1,18 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+
+function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
+  const { pathname } = useLocation();
+  const active = pathname === to || pathname.startsWith(to + '/');
+  return (
+    <Link
+      to={to}
+      className={`text-sm ${active ? 'text-gray-900 font-semibold' : 'text-gray-500 hover:text-gray-900'}`}
+    >
+      {children}
+    </Link>
+  );
+}
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -18,27 +31,13 @@ export default function Navbar() {
         <Link to="/activities" className="text-lg font-bold text-gray-900">
           RunningTool
         </Link>
-        <Link to="/activities" className="text-sm text-gray-600 hover:text-gray-900">
-          Activities
-        </Link>
-        <Link to="/trainings" className="text-sm text-gray-600 hover:text-gray-900">
-          Trainings
-        </Link>
-        <Link to="/chats" className="text-sm text-gray-600 hover:text-gray-900">
-          AI Chats
-        </Link>
-        <Link to="/races" className="text-sm text-gray-600 hover:text-gray-900">
-          Races
-        </Link>
-        <Link to="/profile" className="text-sm text-gray-600 hover:text-gray-900">
-          Statistics
-        </Link>
-        <Link to="/strava" className="text-sm text-gray-600 hover:text-gray-900">
-          Strava
-        </Link>
+        <NavLink to="/activities">Activities</NavLink>
+        <NavLink to="/trainings">Trainings</NavLink>
+        <NavLink to="/chats">AI Chats</NavLink>
+        <NavLink to="/races">Races</NavLink>
       </div>
       <div className="flex items-center gap-4">
-        <span className="text-sm text-gray-500">{user.display_name}</span>
+        <NavLink to="/profile">Profile</NavLink>
         <button
           onClick={handleLogout}
           className="text-sm text-gray-500 hover:text-gray-700"
