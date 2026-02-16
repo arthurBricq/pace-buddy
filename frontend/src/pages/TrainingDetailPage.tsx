@@ -13,9 +13,8 @@ import type { Training, Activity, TrainingInsightResponse, TrainingInsightRecord
 import ReactMarkdown from 'react-markdown';
 import Navbar from '../components/Navbar';
 import TagBadge from '../components/TagBadge';
-import { createChatFromInsight, listModels } from '../api/chats';
+import { createChatFromInsight } from '../api/chats';
 import ChatSettingsModal from '../components/ChatSettingsModal';
-import type { ModelInfo } from '../types';
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -61,10 +60,10 @@ export default function TrainingDetailPage() {
   const [insightError, setInsightError] = useState('');
   const [insightHistory, setInsightHistory] = useState<TrainingInsightRecord[]>([]);
   const [currentInsightId, setCurrentInsightId] = useState<string | null>(null);
+  const [currentInsightModel, setCurrentInsightModel] = useState<string>('google/gemini-2.5-flash');
   const [showChatSettings, setShowChatSettings] = useState(false);
-  const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>('google/gemini-2.5-flash');
-  const [loadingModels, setLoadingModels] = useState(false);
+  const [showInsightSettings, setShowInsightSettings] = useState(false);
+  const [pendingPromptType, setPendingPromptType] = useState<'overview' | 'suggestions'>('overview');
 
   useEffect(() => {
     if (!id) return;
@@ -78,18 +77,6 @@ export default function TrainingDetailPage() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [id]);
-
-  useEffect(() => {
-    if (availableModels.length === 0) {
-      setLoadingModels(true);
-      listModels()
-        .then(setAvailableModels)
-        .catch((err) => {
-          console.error('Failed to load models:', err);
-        })
-        .finally(() => setLoadingModels(false));
-    }
-  }, [availableModels.length]);
 
   const loadAvailableActivities = async (currentActivities: Activity[] = activities) => {
     if (!id) return;
@@ -160,16 +147,17 @@ export default function TrainingDetailPage() {
     }
   };
 
-  const handleInsight = async (promptType: 'overview' | 'suggestions') => {
+  const handleInsight = async (promptType: 'overview' | 'suggestions', model: string) => {
     if (!id) return;
     setInsightLoading(true);
     setInsightError('');
     setInsightResult(null);
     setShowPrompt(false);
     try {
-      const result = await getTrainingInsight(id, promptType, selectedModel);
+      const result = await getTrainingInsight(id, promptType, model);
       setInsightResult(result);
       setCurrentInsightId(result.id);
+      setCurrentInsightModel(model);
       // Refresh history to include the newly persisted insight
       listTrainingInsights(id).then(setInsightHistory).catch(() => {});
     } catch (err: any) {
@@ -187,6 +175,7 @@ export default function TrainingDetailPage() {
       response: record.response,
     });
     setCurrentInsightId(record.id);
+    setCurrentInsightModel(record.model ?? 'google/gemini-2.5-flash');
     setShowPrompt(false);
     setInsightError('');
   };
@@ -244,41 +233,17 @@ export default function TrainingDetailPage() {
 
         {/* LLM Insights Section */}
         <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">AI Insights</h2>
-            <div className="flex items-center gap-2">
-              {loadingModels ? (
-                <div className="flex items-center gap-2 text-gray-500 text-sm">
-                  <div className="animate-spin h-4 w-4 border-2 border-purple-600 border-t-transparent rounded-full" />
-                  Loading models...
-                </div>
-              ) : (
-                <select
-                  id="insight-model"
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  disabled={insightLoading}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {availableModels.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          </div>
+          <h2 className="text-lg font-semibold mb-4">AI Insights</h2>
           <div className="flex gap-3 mb-4">
             <button
-              onClick={() => handleInsight('overview')}
+              onClick={() => { setPendingPromptType('overview'); setShowInsightSettings(true); }}
               disabled={insightLoading}
               className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
               {insightLoading ? 'Thinking...' : 'Critical Overview'}
             </button>
             <button
-              onClick={() => handleInsight('suggestions')}
+              onClick={() => { setPendingPromptType('suggestions'); setShowInsightSettings(true); }}
               disabled={insightLoading}
               className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
@@ -405,10 +370,27 @@ export default function TrainingDetailPage() {
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
 
-        {/* Chat Settings Modal */}
+        {/* Insight Settings Modal (model selection before generating) */}
+        <ChatSettingsModal
+          isOpen={showInsightSettings}
+          onClose={() => setShowInsightSettings(false)}
+          onConfirm={(model) => {
+            setShowInsightSettings(false);
+            handleInsight(pendingPromptType, model);
+          }}
+          hideConversationLength
+          title={pendingPromptType === 'overview' ? 'Critical Overview' : 'Interval Suggestions'}
+          confirmLabel="Generate"
+        />
+
+        {/* Chat Settings Modal (conversation length only, model inherited from insight) */}
         <ChatSettingsModal
           isOpen={showChatSettings}
           onClose={() => setShowChatSettings(false)}
+          defaultModel={currentInsightModel}
+          hideModelSelector
+          title="Continue to Chat"
+          confirmLabel="Start Chat"
           onConfirm={async (model, conversationLength) => {
             if (!currentInsightId) return;
             setShowChatSettings(false);
