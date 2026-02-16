@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listActivities, syncActivities, updateActivityTag } from '../api/activities';
+import { getStravaStatus } from '../api/strava';
 import type { Activity, ActivityTag } from '../types';
 import TagBadge from '../components/TagBadge';
 import TagSelector from '../components/TagSelector';
@@ -53,6 +54,7 @@ export default function ActivityListPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
+  const [stravaLinked, setStravaLinked] = useState(true);
   const [error, setError] = useState('');
   const [editingTag, setEditingTag] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
@@ -129,6 +131,7 @@ export default function ActivityListPage() {
 
   useEffect(() => {
     load();
+    getStravaStatus().then((s) => setStravaLinked(s.linked)).catch(() => {});
   }, []);
 
   const handleSync = async () => {
@@ -185,7 +188,8 @@ export default function ActivityListPage() {
             </button>
             <button
               onClick={handleSync}
-              disabled={syncing}
+              disabled={syncing || !stravaLinked}
+              title={!stravaLinked ? 'Connect Strava in the Profile page first' : undefined}
               className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center gap-2"
             >
               {syncing && (

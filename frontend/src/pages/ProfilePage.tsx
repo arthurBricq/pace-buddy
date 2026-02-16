@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { getProfile, getAiCostSummary } from '../api/auth';
-import { getStravaStatus, getStravaLink } from '../api/strava';
+import { getStravaStatus, getStravaLink, disconnectStrava } from '../api/strava';
 import type { ProfileResponse, RunningStats, StravaStatus, ExpensiveRequest, AiCostSummary } from '../types';
 import Navbar from '../components/Navbar';
 
@@ -97,6 +97,16 @@ export default function ProfilePage() {
     }
   };
 
+  const handleDisconnectStrava = async () => {
+    if (!confirm('Disconnect Strava? This will delete all synced activities and streams.')) return;
+    try {
+      await disconnectStrava();
+      setStravaStatus({ linked: false });
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -144,11 +154,27 @@ export default function ProfilePage() {
           <h2 className="text-lg font-semibold mb-4">Strava Connection</h2>
           {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
           {stravaStatus && stravaStatus.linked ? (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <p className="text-green-600 font-medium">Strava connected</p>
               <p className="text-sm text-gray-500">
                 Athlete ID: {stravaStatus.athlete_id}
               </p>
+              <div className="flex items-center gap-3">
+                <a
+                  href="https://www.strava.com/settings/apps"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-orange-600 hover:text-orange-800 underline"
+                >
+                  Manage on Strava
+                </a>
+                <button
+                  onClick={handleDisconnectStrava}
+                  className="text-sm text-red-600 hover:text-red-800"
+                >
+                  Disconnect
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">

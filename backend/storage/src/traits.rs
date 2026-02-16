@@ -19,6 +19,7 @@ pub trait Storage: Send + Sync {
     // Strava tokens
     async fn upsert_strava_token(&self, token: &StravaToken) -> Result<(), DomainError>;
     async fn get_strava_token(&self, user_id: Uuid) -> Result<StravaToken, DomainError>;
+    async fn delete_strava_data(&self, user_id: Uuid) -> Result<(), DomainError>;
 
     // Activities
     async fn upsert_activities(&self, activities: &[Activity]) -> Result<(), DomainError>;

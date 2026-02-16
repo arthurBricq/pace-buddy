@@ -8,3 +8,7 @@ export async function getStravaLink() {
 export async function getStravaStatus() {
   return apiFetch<StravaStatus>('/strava/status');
 }
+
+export async function disconnectStrava() {
+  return apiFetch<{ status: string }>('/strava/disconnect', { method: 'POST' });
+}

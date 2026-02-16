@@ -90,6 +90,26 @@ impl StravaClient {
             .map_err(|e| DomainError::StravaApi(e.to_string()))
     }
 
+    /// Deauthorize the application, revoking the access token.
+    pub async fn deauthorize(&self, access_token: &str) -> Result<(), DomainError> {
+        let resp = self
+            .client
+            .post("https://www.strava.com/oauth/deauthorize")
+            .form(&[("access_token", access_token)])
+            .send()
+            .await
+            .map_err(|e| DomainError::StravaApi(e.to_string()))?;
+
+        if !resp.status().is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            return Err(DomainError::StravaApi(format!(
+                "Deauthorize failed: {text}"
+            )));
+        }
+
+        Ok(())
+    }
+
     /// Fetch activities from Strava. page is 1-indexed. per_page max 200.
     pub async fn get_activities(
         &self,

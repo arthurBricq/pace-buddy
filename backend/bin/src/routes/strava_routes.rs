@@ -99,6 +99,27 @@ fn redirect_with_error(frontend_url: &str, message: &str) -> HttpResponse {
         .finish()
 }
 
+pub async fn disconnect(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+) -> Result<HttpResponse, AppError> {
+    log::info!("POST /strava/disconnect user={}", user.user_id);
+
+    // Get the current access token to deauthorize with Strava
+    let token = state.storage.get_strava_token(user.user_id).await?;
+
+    // Call Strava's deauthorize endpoint
+    if let Err(e) = state.strava_client.deauthorize(&token.access_token).await {
+        log::warn!("Strava deauthorize API call failed (proceeding with local cleanup): {e}");
+    }
+
+    // Delete all Strava-related data locally
+    state.storage.delete_strava_data(user.user_id).await?;
+
+    log::info!("Strava disconnected for user {}", user.user_id);
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })))
+}
+
 pub async fn status(
     state: web::Data<AppState>,
     user: AuthenticatedUser,
