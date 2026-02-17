@@ -151,14 +151,10 @@ export default function ProfilePage() {
 
         {/* Strava Connection Section */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">Strava Connection</h2>
           {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
           {stravaStatus && stravaStatus.linked ? (
             <div className="space-y-3">
-              <p className="text-green-600 font-medium">Strava connected</p>
-              <p className="text-sm text-gray-500">
-                Athlete ID: {stravaStatus.athlete_id}
-              </p>
+              <img src="/strava_pwrdby_horiz_orange.svg" alt="Powered by Strava" className="h-8" />
               <div className="flex items-center gap-3">
                 <a
                   href="https://www.strava.com/settings/apps"
@@ -181,11 +177,8 @@ export default function ProfilePage() {
               <p className="text-gray-600">
                 Connect your Strava account to sync activities.
               </p>
-              <button
-                onClick={handleLinkStrava}
-                className="bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600"
-              >
-                Connect Strava
+              <button onClick={handleLinkStrava} className="hover:opacity-80 transition-opacity">
+                <img src="/btn_strava_connect_with_orange.svg" alt="Connect with Strava" className="h-12" />
               </button>
             </div>
           )}
