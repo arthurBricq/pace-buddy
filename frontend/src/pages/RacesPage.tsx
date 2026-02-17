@@ -25,7 +25,6 @@ export default function RacesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [loadingActivities, setLoadingActivities] = useState(false);
   const [currentMAS, setCurrentMAS] = useState<number | null>(null);
   const [showManualOverride, setShowManualOverride] = useState(false);
   const [manualMAS, setManualMAS] = useState('');

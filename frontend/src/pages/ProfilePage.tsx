@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { getProfile, getAiCostSummary } from '../api/auth';
 import { getStravaStatus, getStravaLink, disconnectStrava } from '../api/strava';
-import type { ProfileResponse, RunningStats, StravaStatus, ExpensiveRequest, AiCostSummary } from '../types';
+import type { ProfileResponse, RunningStats, StravaStatus, AiCostSummary } from '../types';
 import Navbar from '../components/Navbar';
 
 function formatDistance(meters: number): string {

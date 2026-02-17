@@ -79,7 +79,7 @@ export default function AiChatPage() {
     setMessages((prev) => [...prev, optimisticMsg]);
 
     try {
-      const assistantMsg = await sendMessage(id, content);
+      await sendMessage(id, content);
       // Reload full chat to get accurate totals
       const data = await getChat(id);
       setMessages(data.messages);

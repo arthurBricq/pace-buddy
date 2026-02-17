@@ -165,8 +165,8 @@ export default function StreamChart({ streams, distanceStream, timeStream, segme
                   reversed={isPace}
                 />
                 <Tooltip
-                  formatter={(value: number) => {
-                    if (isPace) {
+                  formatter={(value) => {
+                    if (isPace && typeof value === 'number') {
                       return formatPace(value);
                     }
                     return value;
