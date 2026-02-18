@@ -101,14 +101,39 @@ async fn main() -> std::io::Result<()> {
         });
     }
 
+    let strava_client = Arc::new(strava_client);
+
     let app_state = web::Data::new(AppState {
         storage,
-        strava_client: Arc::new(strava_client),
+        strava_client: Arc::clone(&strava_client),
         webauthn: Arc::new(webauthn),
         jwt: Arc::new(jwt),
         frontend_url: cfg.frontend_url.clone(),
         llm_client,
+        strava_webhook_verify_token: cfg.strava_webhook_verify_token.clone(),
     });
+
+    // Background task: check/create Strava webhook subscription
+    if let (Some(base_url), Some(verify_token)) = (&cfg.base_url, &cfg.strava_webhook_verify_token) {
+        let callback_url = format!("{base_url}/api/strava/webhook");
+        let verify_token = verify_token.clone();
+        let client = Arc::clone(&strava_client);
+        tokio::spawn(async move {
+            match client.view_webhook_subscriptions().await {
+                Ok(subs) if !subs.is_empty() => {
+                    log::info!("Strava webhook subscription already exists (id={})", subs[0].id);
+                }
+                Ok(_) => {
+                    log::info!("No Strava webhook subscription found, creating one...");
+                    match client.create_webhook_subscription(&callback_url, &verify_token).await {
+                        Ok(sub) => log::info!("Strava webhook subscription created (id={})", sub.id),
+                        Err(e) => log::error!("Failed to create Strava webhook subscription: {e}"),
+                    }
+                }
+                Err(e) => log::error!("Failed to check Strava webhook subscriptions: {e}"),
+            }
+        });
+    }
 
     let static_dir = cli.static_serving.clone();
 

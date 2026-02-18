@@ -41,6 +41,12 @@ pub struct StravaMap {
     pub summary_polyline: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct WebhookSubscriptionResponse {
+    pub id: i64,
+    pub callback_url: Option<String>,
+}
+
 /// A single stream entry inside the keyed response: `{"data": [...], ...}`
 #[derive(Debug, Deserialize)]
 pub struct StravaStreamEntry {

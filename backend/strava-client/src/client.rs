@@ -110,6 +110,63 @@ impl StravaClient {
         Ok(())
     }
 
+    /// View existing webhook subscriptions for this application.
+    pub async fn view_webhook_subscriptions(&self) -> Result<Vec<WebhookSubscriptionResponse>, DomainError> {
+        let url = format!(
+            "https://www.strava.com/api/v3/push_subscriptions?client_id={}&client_secret={}",
+            self.client_id, self.client_secret
+        );
+
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| DomainError::StravaApi(e.to_string()))?;
+
+        if !resp.status().is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            return Err(DomainError::StravaApi(format!(
+                "View webhook subscriptions failed: {text}"
+            )));
+        }
+
+        resp.json()
+            .await
+            .map_err(|e| DomainError::StravaApi(e.to_string()))
+    }
+
+    /// Create a webhook subscription with Strava.
+    pub async fn create_webhook_subscription(
+        &self,
+        callback_url: &str,
+        verify_token: &str,
+    ) -> Result<WebhookSubscriptionResponse, DomainError> {
+        let resp = self
+            .client
+            .post("https://www.strava.com/api/v3/push_subscriptions")
+            .form(&[
+                ("client_id", self.client_id.as_str()),
+                ("client_secret", self.client_secret.as_str()),
+                ("callback_url", callback_url),
+                ("verify_token", verify_token),
+            ])
+            .send()
+            .await
+            .map_err(|e| DomainError::StravaApi(e.to_string()))?;
+
+        if !resp.status().is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            return Err(DomainError::StravaApi(format!(
+                "Create webhook subscription failed: {text}"
+            )));
+        }
+
+        resp.json()
+            .await
+            .map_err(|e| DomainError::StravaApi(e.to_string()))
+    }
+
     /// Fetch activities from Strava. page is 1-indexed. per_page max 200.
     pub async fn get_activities(
         &self,

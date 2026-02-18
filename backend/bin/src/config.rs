@@ -13,6 +13,8 @@ pub struct Config {
     pub port: u16,
     pub frontend_url: String,
     pub openrouter_api_key: Option<String>,
+    pub strava_webhook_verify_token: Option<String>,
+    pub base_url: Option<String>,
 }
 
 impl Config {
@@ -70,6 +72,8 @@ impl Config {
                     .map(|s| s.trim().to_string())
                     .filter(|s| !s.is_empty())
             }),
+            strava_webhook_verify_token: env::var("STRAVA_WEBHOOK_VERIFY_TOKEN").ok(),
+            base_url,
         }
     }
 }

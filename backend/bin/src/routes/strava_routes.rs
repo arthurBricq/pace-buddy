@@ -1,13 +1,17 @@
 use actix_web::{web, HttpResponse};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
+use std::collections::HashMap;
+use std::sync::Arc;
 use storage::Storage;
 use uuid::Uuid;
 
 use crate::errors::AppError;
+use crate::helpers::strava_token_helper::get_valid_access_token;
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
 use domain::{DomainError, StravaToken};
+use strava_client::conversions::strava_activity_to_domain;
 
 pub async fn link(
     state: web::Data<AppState>,
@@ -140,4 +144,118 @@ pub async fn status(
             })))
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Webhook endpoints (unauthenticated — called by Strava)
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+pub struct WebhookValidateQuery {
+    #[serde(rename = "hub.mode")]
+    pub hub_mode: String,
+    #[serde(rename = "hub.verify_token")]
+    pub hub_verify_token: String,
+    #[serde(rename = "hub.challenge")]
+    pub hub_challenge: String,
+}
+
+pub async fn webhook_validate(
+    state: web::Data<AppState>,
+    query: web::Query<WebhookValidateQuery>,
+) -> HttpResponse {
+    log::info!("GET /strava/webhook hub.mode={}", query.hub_mode);
+
+    let verify_token = match &state.strava_webhook_verify_token {
+        Some(t) => t,
+        None => {
+            log::warn!("Webhook verify token not configured, rejecting");
+            return HttpResponse::Forbidden().finish();
+        }
+    };
+
+    if query.hub_mode != "subscribe" || &query.hub_verify_token != verify_token {
+        log::warn!("Webhook validation failed: mode or token mismatch");
+        return HttpResponse::Forbidden().finish();
+    }
+
+    log::info!("Webhook validation succeeded, returning challenge");
+    HttpResponse::Ok().json(serde_json::json!({
+        "hub.challenge": query.hub_challenge,
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WebhookEvent {
+    pub aspect_type: String,     // "create", "update", "delete"
+    pub object_id: i64,          // activity id or athlete id
+    pub object_type: String,     // "activity" or "athlete"
+    pub owner_id: i64,           // athlete id
+    #[allow(dead_code)]
+    pub subscription_id: i64,
+    #[allow(dead_code)]
+    pub event_time: i64,
+    #[serde(default)]
+    pub updates: HashMap<String, serde_json::Value>,
+}
+
+pub async fn webhook_event(
+    state: web::Data<AppState>,
+    body: web::Json<WebhookEvent>,
+) -> HttpResponse {
+    log::info!(
+        "POST /strava/webhook object_type={} aspect_type={} object_id={} owner_id={}",
+        body.object_type, body.aspect_type, body.object_id, body.owner_id
+    );
+
+    let event = body.into_inner();
+    let storage = Arc::clone(&state.storage);
+    let strava_client = Arc::clone(&state.strava_client);
+
+    tokio::spawn(async move {
+        if let Err(e) = handle_webhook_event(event, storage, strava_client).await {
+            log::error!("Webhook event handler error: {e}");
+        }
+    });
+
+    HttpResponse::Ok().finish()
+}
+
+async fn handle_webhook_event(
+    event: WebhookEvent,
+    storage: Arc<storage::SqliteStorage>,
+    strava_client: Arc<strava_client::StravaClient>,
+) -> Result<(), DomainError> {
+    // Look up the user by Strava athlete id
+    let token = storage.get_strava_token_by_athlete_id(event.owner_id).await?;
+    let user_id = token.user_id;
+
+    match (event.object_type.as_str(), event.aspect_type.as_str()) {
+        ("activity", "create") | ("activity", "update") => {
+            log::info!("Webhook: syncing activity {} for user {}", event.object_id, user_id);
+            let access_token = get_valid_access_token(&storage, &strava_client, user_id).await?;
+            let strava_activity = strava_client.get_activity(&access_token, event.object_id).await?;
+            let domain_activity = strava_activity_to_domain(&strava_activity, user_id);
+            storage.upsert_activities(&[domain_activity]).await?;
+            log::info!("Webhook: activity {} synced for user {}", event.object_id, user_id);
+        }
+        ("activity", "delete") => {
+            log::info!("Webhook: deleting activity {} for user {}", event.object_id, user_id);
+            storage.delete_activity_by_strava_id(event.object_id, user_id).await?;
+            log::info!("Webhook: activity {} deleted for user {}", event.object_id, user_id);
+        }
+        ("athlete", "update") => {
+            // Check if this is a deauthorization event
+            if event.updates.get("authorized").and_then(|v| v.as_str()) == Some("false") {
+                log::info!("Webhook: athlete {} deauthorized, cleaning up user {}", event.owner_id, user_id);
+                storage.delete_strava_data(user_id).await?;
+                log::info!("Webhook: strava data deleted for user {}", user_id);
+            }
+        }
+        _ => {
+            log::debug!("Webhook: ignoring event {}:{}", event.object_type, event.aspect_type);
+        }
+    }
+
+    Ok(())
 }

@@ -12,4 +12,5 @@ pub struct AppState {
     pub jwt: Arc<JwtService>,
     pub frontend_url: String,
     pub llm_client: Option<Arc<OpenRouterClient>>,
+    pub strava_webhook_verify_token: Option<String>,
 }

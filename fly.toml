@@ -25,4 +25,5 @@ primary_region = 'fra'
 [env]
   RUST_LOG='info'
   BASE_URL='https://running-tool.fly.dev'
+  STRAVA_WEBHOOK_VERIFY_TOKEN='dde04be37f216cb0d29f3703315d70e28e4ecfb317767858fee9c86c9003f7a5'
 

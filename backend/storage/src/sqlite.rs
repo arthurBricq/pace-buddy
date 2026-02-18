@@ -590,6 +590,64 @@ impl Storage for SqliteStorage {
         row_to_strava_token(&row)
     }
 
+    async fn get_strava_token_by_athlete_id(&self, athlete_id: i64) -> Result<StravaToken, DomainError> {
+        let row = sqlx::query(
+            "SELECT user_id, strava_athlete_id, access_token, refresh_token, expires_at
+             FROM strava_tokens WHERE strava_athlete_id = ?",
+        )
+        .bind(athlete_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get strava token by athlete id: {e}")))?
+        .ok_or_else(|| {
+            DomainError::NotFound(format!("Strava token for athlete {athlete_id} not found"))
+        })?;
+
+        row_to_strava_token(&row)
+    }
+
+    async fn delete_activity_by_strava_id(&self, strava_id: i64, user_id: Uuid) -> Result<(), DomainError> {
+        let uid = user_id.to_string();
+
+        // Find the activity's internal id
+        let row: Option<(String,)> = sqlx::query_as(
+            "SELECT id FROM activities WHERE strava_id = ? AND user_id = ?",
+        )
+        .bind(strava_id)
+        .bind(&uid)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to find activity by strava_id: {e}")))?;
+
+        let activity_id = match row {
+            Some((id,)) => id,
+            None => return Ok(()), // Activity doesn't exist locally, nothing to delete
+        };
+
+        // Delete streams
+        sqlx::query("DELETE FROM activity_streams WHERE activity_id = ?")
+            .bind(&activity_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to delete streams: {e}")))?;
+
+        // Delete training-activity links
+        sqlx::query("DELETE FROM training_activities WHERE activity_id = ?")
+            .bind(&activity_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to delete training_activities: {e}")))?;
+
+        // Delete the activity
+        sqlx::query("DELETE FROM activities WHERE id = ?")
+            .bind(&activity_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to delete activity: {e}")))?;
+
+        Ok(())
+    }
+
     async fn delete_strava_data(&self, user_id: Uuid) -> Result<(), DomainError> {
         let uid = user_id.to_string();
 
