@@ -1,0 +1,67 @@
+# flyctl launch added from .gitignore
+# IDE
+**/.idea
+
+# Rust
+**/backend/target
+
+# Node
+**/frontend/node_modules
+**/frontend/dist
+
+# SQLite
+**/*.db
+**/*.db-journal
+**/*.db-wal
+**/*.db-shm
+
+# Environment
+**/.env
+
+# Secrets
+**/backend/strava_client_id
+**/backend/strava_client_secret
+
+# Personal files
+**/TODO.md
+**/TASK.md
+**/commands.txt
+
+# flyctl launch added from .idea/.gitignore
+# Default ignored files
+.idea/shelf
+.idea/workspace.xml
+# Ignored default folder with query files
+.idea/queries
+# Datasource local storage ignored files
+.idea/dataSources
+.idea/dataSources.local.xml
+# Editor-based HTTP Client requests
+.idea/httpRequests
+
+# flyctl launch added from frontend/.gitignore
+# Logs
+frontend/**/logs
+frontend/**/*.log
+frontend/**/npm-debug.log*
+frontend/**/yarn-debug.log*
+frontend/**/yarn-error.log*
+frontend/**/pnpm-debug.log*
+frontend/**/lerna-debug.log*
+
+frontend/**/node_modules
+frontend/**/dist
+frontend/**/dist-ssr
+frontend/**/*.local
+
+# Editor directories and files
+frontend/**/.vscode/*
+!frontend/**/.vscode/extensions.json
+frontend/**/.idea
+frontend/**/.DS_Store
+frontend/**/*.suo
+frontend/**/*.ntvs*
+frontend/**/*.njsproj
+frontend/**/*.sln
+frontend/**/*.sw?
+fly.toml
