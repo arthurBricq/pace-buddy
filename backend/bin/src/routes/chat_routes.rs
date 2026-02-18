@@ -29,6 +29,7 @@ pub async fn create_chat(
     user: AuthenticatedUser,
     body: web::Json<CreateChatRequest>,
 ) -> Result<HttpResponse, AppError> {
+    log::info!("POST /chats user={} title={}", user.user_id, body.title);
     let now = Utc::now();
     let training_id = body
         .training_id
@@ -73,6 +74,7 @@ pub async fn list_chats(
     state: web::Data<AppState>,
     user: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
+    log::debug!("GET /chats user={}", user.user_id);
     let chats = state.storage.list_ai_chats(user.user_id).await?;
 
     let mut items = Vec::new();
@@ -114,6 +116,7 @@ pub async fn get_chat(
     path: web::Path<Uuid>,
 ) -> Result<HttpResponse, AppError> {
     let chat_id = path.into_inner();
+    log::debug!("GET /chats/{chat_id} user={}", user.user_id);
     let chat = state.storage.get_ai_chat(chat_id, user.user_id).await?;
     let messages = state.storage.get_ai_chat_messages(chat_id).await?;
 
@@ -144,6 +147,7 @@ pub async fn update_chat(
     body: web::Json<UpdateChatRequest>,
 ) -> Result<HttpResponse, AppError> {
     let chat_id = path.into_inner();
+    log::info!("PATCH /chats/{chat_id} user={}", user.user_id);
     state
         .storage
         .update_ai_chat_title(chat_id, user.user_id, &body.title)
@@ -164,6 +168,7 @@ pub async fn delete_chat(
     path: web::Path<Uuid>,
 ) -> Result<HttpResponse, AppError> {
     let chat_id = path.into_inner();
+    log::info!("DELETE /chats/{chat_id} user={}", user.user_id);
     state.storage.delete_ai_chat(chat_id, user.user_id).await?;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })))
@@ -185,6 +190,7 @@ pub async fn send_message(
     body: web::Json<SendMessageRequest>,
 ) -> Result<HttpResponse, AppError> {
     let chat_id = path.into_inner();
+    log::info!("POST /chats/{chat_id}/messages user={}", user.user_id);
     let chat = state.storage.get_ai_chat(chat_id, user.user_id).await?;
 
     let llm_client = state
@@ -209,6 +215,7 @@ pub async fn list_models(
     state: web::Data<AppState>,
     _user: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
+    log::debug!("GET /chats/models");
     let llm_client = state
         .llm_client
         .as_ref()
@@ -243,6 +250,7 @@ pub async fn create_from_insight(
     body: Option<web::Json<CreateFromInsightRequest>>,
 ) -> Result<HttpResponse, AppError> {
     let insight_id = path.into_inner();
+    log::info!("POST /chats/from-insight/{insight_id} user={}", user.user_id);
 
     let insight = state
         .storage
