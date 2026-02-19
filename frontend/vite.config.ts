@@ -7,8 +7,8 @@ import fs from 'node:fs'
 function getHttpsConfig() {
   try {
     return {
-      key: fs.readFileSync("./running.tool-key.pem"),
-      cert: fs.readFileSync("./running.tool.pem"),
+      key: fs.readFileSync("./pacebuddy-key.pem"),
+      cert: fs.readFileSync("./pacebuddy.pem"),
     };
   } catch {
     // Certificates not available (e.g., in CI/production build)
@@ -22,8 +22,8 @@ export default defineConfig({
       '/api': 'http://localhost:8080',
     },
     host: true,
-    allowedHosts: ['running.tool'],
-    hmr: { host: 'running.tool'},
+    allowedHosts: ['pacebuddy'],
+    hmr: { host: 'pacebuddy'},
     https: getHttpsConfig(),
   },
 })

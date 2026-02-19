@@ -84,8 +84,8 @@ impl LlmClient for OpenRouterClient {
             .post(format!("{}/chat/completions", self.base_url))
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
-            .header("HTTP-Referer", "https://running-tool.app")
-            .header("X-Title", "Running Tool")
+            .header("HTTP-Referer", "https://pacebuddy.app")
+            .header("X-Title", "Pace Buddy")
             .json(&request)
             .send()
             .await?;

@@ -19,7 +19,7 @@ use crate::config::Config;
 use crate::state::AppState;
 
 #[derive(Parser)]
-#[command(name = "running-tool", about = "Running Tool backend server")]
+#[command(name = "pace-buddy", about = "Pace Buddy backend server")]
 struct Cli {
     /// Path to a frontend dist directory to serve as static files.
     /// When omitted, only the API is served.

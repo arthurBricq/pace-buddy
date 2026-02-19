@@ -4,7 +4,7 @@ use storage::Storage;
 use uuid::Uuid;
 
 #[derive(Parser)]
-#[command(name = "rt-cli", about = "Running Tool – DB inspection utility")]
+#[command(name = "rt-cli", about = "Pace Buddy – DB inspection utility")]
 struct Cli {
     /// Path to the SQLite database (default: sqlite:data.db?mode=rwc)
     #[arg(long, default_value = "sqlite:data.db?mode=rwc")]

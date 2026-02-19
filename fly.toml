@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for running-tool on 2026-02-18T11:32:11+01:00
+# fly.toml app configuration file generated for pace-buddy on 2026-02-18T11:32:11+01:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'running-tool'
+app = 'pace-buddy'
 primary_region = 'fra'
 
 [build]
@@ -13,7 +13,7 @@ primary_region = 'fra'
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
   processes = ['app']
 
 [[vm]]
@@ -24,10 +24,9 @@ primary_region = 'fra'
 
 [env]
   RUST_LOG='info'
-  BASE_URL='https://running-tool.fly.dev'
+  BASE_URL='https://pace-buddy.fly.dev'
   STRAVA_WEBHOOK_VERIFY_TOKEN='dde04be37f216cb0d29f3703315d70e28e4ecfb317767858fee9c86c9003f7a5'
   DATABASE_URL="sqlite:/data/data.db?mode=rwc"
-
 
 [mounts]
 source = "data"

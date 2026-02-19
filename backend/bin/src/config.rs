@@ -26,14 +26,14 @@ impl Config {
 
         let default_origin = base_url
             .as_deref()
-            .unwrap_or("https://running.tool:5173")
+            .unwrap_or("https://pacebuddy:5173")
             .to_string();
 
         let default_rp_id = base_url
             .as_deref()
             .and_then(|u| u.split("://").nth(1))
             .map(|host| host.split(':').next().unwrap_or(host).to_string())
-            .unwrap_or_else(|| "running.tool".to_string());
+            .unwrap_or_else(|| "pacebuddy".to_string());
 
         let default_redirect_uri = base_url
             .as_deref()

@@ -18,7 +18,7 @@ RUN cargo build --release -p bin
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 
-COPY --from=backend-build /app/backend/target/release/bin /usr/local/bin/running-tool
+COPY --from=backend-build /app/backend/target/release/bin /usr/local/bin/pace-buddy
 COPY --from=frontend-build /app/frontend/dist /srv/frontend
 
 ENV HOST=0.0.0.0
@@ -26,4 +26,4 @@ ENV PORT=8080
 
 EXPOSE 8080
 
-CMD ["running-tool", "--static-serving", "/srv/frontend"]
+CMD ["pace-buddy", "--static-serving", "/srv/frontend"]
