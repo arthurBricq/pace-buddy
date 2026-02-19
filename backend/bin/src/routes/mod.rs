@@ -63,7 +63,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route("/{id}", web::get().to(chat_routes::get_chat))
                     .route("/{id}", web::patch().to(chat_routes::update_chat))
                     .route("/{id}", web::delete().to(chat_routes::delete_chat))
-                    .route("/{id}/messages", web::post().to(chat_routes::send_message)),
+                    .route("/{id}/messages", web::post().to(chat_routes::send_message))
+                    .route("/{id}/context", web::post().to(chat_routes::add_context)),
             ),
     );
 }

@@ -29,6 +29,7 @@ pub async fn send_message(
         completion_tokens: 0,
         total_tokens: 0,
         cost: 0.0,
+        context_label: None,
         created_at: Utc::now(),
     };
     storage.store_ai_chat_message(&user_msg).await?;
@@ -83,6 +84,7 @@ pub async fn send_message(
         completion_tokens: result.usage.completion_tokens,
         total_tokens: result.usage.total_tokens,
         cost: result.usage.cost,
+        context_label: None,
         created_at: Utc::now(),
     };
     storage.store_ai_chat_message(&assistant_msg).await?;
@@ -129,6 +131,7 @@ pub async fn create_from_insight(
         completion_tokens: 0,
         total_tokens: 0,
         cost: 0.0,
+        context_label: None,
         created_at: now,
     };
     storage.store_ai_chat_message(&system_msg).await?;
@@ -142,6 +145,7 @@ pub async fn create_from_insight(
         completion_tokens: 0,
         total_tokens: 0,
         cost: 0.0,
+        context_label: None,
         created_at: now,
     };
     storage.store_ai_chat_message(&user_msg).await?;
@@ -155,6 +159,7 @@ pub async fn create_from_insight(
         completion_tokens: 0,
         total_tokens: 0,
         cost: 0.0,
+        context_label: None,
         created_at: now,
     };
     storage.store_ai_chat_message(&assistant_msg).await?;

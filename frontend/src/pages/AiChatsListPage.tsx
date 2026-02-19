@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { listChats, deleteChat } from '../api/chats';
+import { Link, useNavigate } from 'react-router-dom';
+import { listChats, deleteChat, createChat } from '../api/chats';
 import type { ChatListItem } from '../types';
 import Navbar from '../components/Navbar';
+import ChatSettingsModal from '../components/ChatSettingsModal';
 
 export default function AiChatsListPage() {
+  const navigate = useNavigate();
   const [chats, setChats] = useState<ChatListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showNewChat, setShowNewChat] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -44,7 +47,15 @@ export default function AiChatsListPage() {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
       <div className="max-w-6xl mx-auto px-4 py-6">
-        <h1 className="text-xl font-bold mb-4">AI Chats</h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-xl font-bold">AI Chats</h1>
+          <button
+            onClick={() => setShowNewChat(true)}
+            className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 text-sm"
+          >
+            + New Chat
+          </button>
+        </div>
 
         {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
 
@@ -52,7 +63,7 @@ export default function AiChatsListPage() {
           <p className="text-gray-500">Loading chats...</p>
         ) : chats.length === 0 ? (
           <p className="text-gray-500">
-            No AI chats yet. Generate an insight from a training and click "Continue to Chat" to start one.
+            No AI chats yet. Click "+ New Chat" to start one, or generate an insight from a training.
           </p>
         ) : (
           <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -109,6 +120,22 @@ export default function AiChatsListPage() {
             </table>
           </div>
         )}
+        <ChatSettingsModal
+          isOpen={showNewChat}
+          onClose={() => setShowNewChat(false)}
+          onConfirm={async (model) => {
+            try {
+              const chat = await createChat('New chat', model);
+              navigate(`/chats/${chat.id}`);
+            } catch (err: any) {
+              setError(err.message);
+              setShowNewChat(false);
+            }
+          }}
+          hideConversationLength
+          title="New Chat"
+          confirmLabel="Create Chat"
+        />
       </div>
     </div>
   );

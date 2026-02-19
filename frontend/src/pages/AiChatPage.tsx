@@ -4,6 +4,8 @@ import { getChat, sendMessage, updateChatTitle } from '../api/chats';
 import type { AiChat, AiChatMessage } from '../types';
 import ReactMarkdown from 'react-markdown';
 import Navbar from '../components/Navbar';
+import ContextPanel from '../components/ContextPanel';
+import CollapsibleContext from '../components/CollapsibleContext';
 
 export default function AiChatPage() {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +20,7 @@ export default function AiChatPage() {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
   const [updatingTitle, setUpdatingTitle] = useState(false);
+  const [showContext, setShowContext] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
 
@@ -74,6 +77,7 @@ export default function AiChatPage() {
       completion_tokens: 0,
       total_tokens: 0,
       cost: 0,
+      context_label: null,
       created_at: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, optimisticMsg]);
@@ -213,78 +217,107 @@ export default function AiChatPage() {
             <span className="font-mono">{chat?.model.split('/').pop()}</span>
             <span>{totalTokens.toLocaleString()} tokens</span>
             <span>{formatCost(totalCost)}</span>
+            <button
+              onClick={() => setShowContext(!showContext)}
+              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                showContext
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Context
+            </button>
           </div>
         </div>
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-4 py-4 space-y-4">
-          {visibleMessages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`rounded-lg px-4 py-3 max-w-[85%] ${
-                  msg.role === 'user'
-                    ? 'bg-purple-100 text-purple-900'
-                    : 'bg-gray-100 text-gray-900'
-                }`}
-              >
-                {msg.role === 'assistant' ? (
-                  <div className="prose prose-sm max-w-none">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
-                  </div>
+      {/* Main content area with optional side panel */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Chat column */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-4xl mx-auto px-4 py-4 space-y-4">
+              {visibleMessages.map((msg) =>
+                msg.context_label ? (
+                  <CollapsibleContext
+                    key={msg.id}
+                    label={msg.context_label}
+                    content={msg.content}
+                  />
                 ) : (
-                  <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
-                )}
-                {msg.role === 'assistant' && msg.cost > 0 && (
-                  <div className="mt-2 text-xs text-gray-400">
-                    {msg.total_tokens} tokens &middot; {formatCost(msg.cost)}
+                  <div
+                    key={msg.id}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`rounded-lg px-4 py-3 max-w-[85%] ${
+                        msg.role === 'user'
+                          ? 'bg-purple-100 text-purple-900'
+                          : 'bg-gray-100 text-gray-900'
+                      }`}
+                    >
+                      {msg.role === 'assistant' ? (
+                        <div className="prose prose-sm max-w-none">
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
+                      )}
+                      {msg.role === 'assistant' && msg.cost > 0 && (
+                        <div className="mt-2 text-xs text-gray-400">
+                          {msg.total_tokens} tokens &middot; {formatCost(msg.cost)}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
-          ))}
+                )
+              )}
 
-          {sending && (
-            <div className="flex justify-start">
-              <div className="bg-gray-100 rounded-lg px-4 py-3">
-                <div className="flex items-center gap-2 text-gray-500 text-sm">
-                  <div className="animate-spin h-4 w-4 border-2 border-purple-600 border-t-transparent rounded-full" />
-                  Thinking...
+              {sending && (
+                <div className="flex justify-start">
+                  <div className="bg-gray-100 rounded-lg px-4 py-3">
+                    <div className="flex items-center gap-2 text-gray-500 text-sm">
+                      <div className="animate-spin h-4 w-4 border-2 border-purple-600 border-t-transparent rounded-full" />
+                      Thinking...
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              <div ref={messagesEndRef} />
             </div>
-          )}
+          </div>
 
-          <div ref={messagesEndRef} />
+          {/* Input */}
+          <div className="bg-white border-t px-4 py-3">
+            <div className="max-w-4xl mx-auto flex gap-3">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type your message... (Enter to send, Shift+Enter for newline)"
+                rows={2}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none text-sm"
+                disabled={sending}
+              />
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() || sending}
+                className="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm self-end"
+              >
+                Send
+              </button>
+            </div>
+            {error && <p className="max-w-4xl mx-auto text-red-600 text-xs mt-2">{error}</p>}
+          </div>
         </div>
-      </div>
 
-      {/* Input */}
-      <div className="bg-white border-t px-4 py-3">
-        <div className="max-w-4xl mx-auto flex gap-3">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type your message... (Enter to send, Shift+Enter for newline)"
-            rows={2}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none text-sm"
-            disabled={sending}
-          />
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || sending}
-            className="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm self-end"
-          >
-            Send
-          </button>
-        </div>
-        {error && <p className="max-w-4xl mx-auto text-red-600 text-xs mt-2">{error}</p>}
+        {/* Context panel */}
+        {showContext && id && (
+          <ContextPanel chatId={id} onContextAdded={loadChat} />
+        )}
       </div>
     </div>
   );

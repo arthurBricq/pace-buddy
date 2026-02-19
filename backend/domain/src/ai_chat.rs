@@ -26,5 +26,6 @@ pub struct AiChatMessage {
     pub completion_tokens: u32,
     pub total_tokens: u32,
     pub cost: f64,
+    pub context_label: Option<String>,
     pub created_at: DateTime<Utc>,
 }

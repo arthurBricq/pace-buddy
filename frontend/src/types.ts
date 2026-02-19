@@ -197,6 +197,7 @@ export interface AiChatMessage {
   completion_tokens: number;
   total_tokens: number;
   cost: number;
+  context_label: string | null;
   created_at: string;
 }
 

@@ -223,6 +223,7 @@ impl SqliteStorage {
                 completion_tokens INTEGER NOT NULL DEFAULT 0,
                 total_tokens INTEGER NOT NULL DEFAULT 0,
                 cost REAL NOT NULL DEFAULT 0.0,
+                context_label TEXT,
                 created_at TEXT NOT NULL
             )"
         )
@@ -452,6 +453,7 @@ fn row_to_ai_chat_message(row: &SqliteRow) -> Result<AiChatMessage, DomainError>
     let completion_tokens: i32 = row.get("completion_tokens");
     let total_tokens: i32 = row.get("total_tokens");
     let cost: f64 = row.get("cost");
+    let context_label: Option<String> = row.get("context_label");
     let created_at: String = row.get("created_at");
 
     Ok(AiChatMessage {
@@ -463,6 +465,7 @@ fn row_to_ai_chat_message(row: &SqliteRow) -> Result<AiChatMessage, DomainError>
         completion_tokens: completion_tokens as u32,
         total_tokens: total_tokens as u32,
         cost,
+        context_label,
         created_at: parse_datetime(&created_at)?,
     })
 }
@@ -1323,8 +1326,8 @@ impl Storage for SqliteStorage {
     // -----------------------------------------------------------------------
     async fn store_ai_chat_message(&self, msg: &AiChatMessage) -> Result<(), DomainError> {
         sqlx::query(
-            "INSERT INTO ai_chat_messages (id, chat_id, role, content, prompt_tokens, completion_tokens, total_tokens, cost, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO ai_chat_messages (id, chat_id, role, content, prompt_tokens, completion_tokens, total_tokens, cost, context_label, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(msg.id.to_string())
         .bind(msg.chat_id.to_string())
@@ -1334,6 +1337,7 @@ impl Storage for SqliteStorage {
         .bind(msg.completion_tokens as i32)
         .bind(msg.total_tokens as i32)
         .bind(msg.cost)
+        .bind(&msg.context_label)
         .bind(msg.created_at.to_rfc3339())
         .execute(&self.pool)
         .await
@@ -1344,7 +1348,7 @@ impl Storage for SqliteStorage {
 
     async fn get_ai_chat_messages(&self, chat_id: Uuid) -> Result<Vec<AiChatMessage>, DomainError> {
         let rows = sqlx::query(
-            "SELECT id, chat_id, role, content, prompt_tokens, completion_tokens, total_tokens, cost, created_at
+            "SELECT id, chat_id, role, content, prompt_tokens, completion_tokens, total_tokens, cost, context_label, created_at
              FROM ai_chat_messages WHERE chat_id = ? ORDER BY created_at ASC",
         )
         .bind(chat_id.to_string())

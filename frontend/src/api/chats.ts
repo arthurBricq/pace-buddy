@@ -42,6 +42,19 @@ export async function listModels() {
   return apiFetch<ModelInfo[]>('/chats/models');
 }
 
+export type ContextRequest =
+  | { context_type: 'last_activities'; count: number }
+  | { context_type: 'activity_detail'; activity_id: string }
+  | { context_type: 'weekly_stats'; from: string; to: string }
+  | { context_type: 'training_recap'; training_id: string };
+
+export async function addContext(chatId: string, request: ContextRequest) {
+  return apiFetch<AiChatMessage>(`/chats/${chatId}/context`, {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
+
 export async function createChatFromInsight(
   insightId: string,
   model?: string,

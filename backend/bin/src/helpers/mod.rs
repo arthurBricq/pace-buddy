@@ -1,3 +1,4 @@
+pub mod context_builder;
 pub mod conversation_manager;
 pub mod insight_builder;
 pub mod strava_data_helper;

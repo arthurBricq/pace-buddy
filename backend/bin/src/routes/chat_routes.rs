@@ -5,6 +5,7 @@ use storage::Storage;
 use uuid::Uuid;
 
 use crate::errors::AppError;
+use crate::helpers::context_builder::{self, ContextRequest};
 use crate::helpers::conversation_manager;
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
@@ -282,4 +283,42 @@ pub async fn create_from_insight(
     .await?;
 
     Ok(HttpResponse::Created().json(chat))
+}
+
+// ---------------------------------------------------------------------------
+// Add context to chat
+// ---------------------------------------------------------------------------
+
+pub async fn add_context(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+    path: web::Path<Uuid>,
+    body: web::Json<ContextRequest>,
+) -> Result<HttpResponse, AppError> {
+    let chat_id = path.into_inner();
+    log::info!("POST /chats/{chat_id}/context user={}", user.user_id);
+
+    // Verify chat belongs to user
+    let _chat = state.storage.get_ai_chat(chat_id, user.user_id).await?;
+
+    // Build context
+    let result = context_builder::build_context(&state.storage, user.user_id, body.into_inner()).await?;
+
+    // Store as a user message with context_label
+    let msg = domain::AiChatMessage {
+        id: Uuid::new_v4(),
+        chat_id,
+        role: "user".to_string(),
+        content: result.content,
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+        cost: 0.0,
+        context_label: Some(result.label),
+        created_at: chrono::Utc::now(),
+    };
+    state.storage.store_ai_chat_message(&msg).await?;
+    state.storage.touch_ai_chat(chat_id).await?;
+
+    Ok(HttpResponse::Ok().json(msg))
 }
