@@ -57,9 +57,34 @@ async fn main() -> std::io::Result<()> {
         log::info!("Fresh start: database cleared");
     }
 
+    // Check if the database file already exists before initializing
+    let db_path = cfg
+        .database_url
+        .strip_prefix("sqlite:")
+        .unwrap_or(&cfg.database_url)
+        .split('?')
+        .next()
+        .unwrap_or("data.db");
+    let db_existed = std::path::Path::new(db_path).exists();
+
     let storage = SqliteStorage::new(&cfg.database_url)
         .await
         .expect("Failed to initialize storage");
+
+    if db_existed {
+        log::info!("Database loaded from {db_path}");
+    } else {
+        log::info!("Database created at {db_path}");
+    }
+
+    // Log registered user count
+    {
+        use storage::Storage;
+        match storage.list_users().await {
+            Ok(users) => log::info!("{} registered user(s)", users.len()),
+            Err(e) => log::warn!("Could not count users: {e}"),
+        }
+    }
 
     let webauthn = WebAuthnService::new(&cfg.webauthn_rp_id, &cfg.webauthn_rp_origin)
         .expect("Failed to initialize WebAuthn");
