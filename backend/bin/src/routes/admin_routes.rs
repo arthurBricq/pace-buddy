@@ -24,10 +24,11 @@ async fn verify_admin(
         .storage
         .get_strava_token(user.user_id)
         .await
-        .map_err(|_| domain::DomainError::Forbidden("Not an admin".into()))?
-        .ok_or_else(|| domain::DomainError::Forbidden("Not an admin".into()))?;
+        .map_err(|_| domain::DomainError::Forbidden("Not an admin".into()))?;
 
-    if token.athlete_id != admin_id {
+    log::info!("Admin verification for user: {}", user.user_id);
+
+    if token.strava_athlete_id != admin_id {
         return Err(domain::DomainError::Forbidden("Not an admin".into()).into());
     }
 

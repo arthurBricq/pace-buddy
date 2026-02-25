@@ -2,19 +2,41 @@ use std::env;
 use std::fs;
 
 pub struct Config {
+    /// SQLite connection URL. Env: `DATABASE_URL`. Default: `sqlite:data.db?mode=rwc`.
     pub database_url: String,
+    /// Secret used to sign and verify JWT session tokens. Env: `JWT_SECRET`.
     pub jwt_secret: String,
+    /// WebAuthn Relying Party identifier (typically the hostname). Env: `WEBAUTHN_RP_ID`.
+    /// Derived from `BASE_URL` if not set.
     pub webauthn_rp_id: String,
+    /// WebAuthn Relying Party origin (full URL). Env: `WEBAUTHN_RP_ORIGIN`.
+    /// Derived from `BASE_URL` if not set.
     pub webauthn_rp_origin: String,
+    /// Strava OAuth2 client ID. Env: `STRAVA_CLIENT_ID`, or read from `strava_client_id` file.
     pub strava_client_id: String,
+    /// Strava OAuth2 client secret. Env: `STRAVA_CLIENT_SECRET`, or read from `strava_client_secret` file.
     pub strava_client_secret: String,
+    /// Strava OAuth2 redirect URI. Env: `STRAVA_REDIRECT_URI`. Derived from `BASE_URL` if not set.
     pub strava_redirect_uri: String,
+    /// Address the HTTP server binds to. Env: `HOST`. Default: `127.0.0.1`.
     pub host: String,
+    /// Port the HTTP server listens on. Env: `PORT`. Default: `8080`.
     pub port: u16,
+    /// Frontend origin URL used for CORS and redirects. Env: `FRONTEND_URL`.
+    /// Derived from `BASE_URL` if not set.
     pub frontend_url: String,
+    /// OpenRouter API key for LLM-powered insights. Env: `OPENROUTER_API_KEY`,
+    /// or read from `openrouter_key` file. `None` disables LLM features.
     pub openrouter_api_key: Option<String>,
+    /// Verification token for Strava webhook subscription validation.
+    /// Env: `STRAVA_WEBHOOK_VERIFY_TOKEN`. `None` disables webhook setup.
     pub strava_webhook_verify_token: Option<String>,
+    /// Unified base URL that derives defaults for `frontend_url`, `webauthn_rp_origin`,
+    /// `strava_redirect_uri`, and `webauthn_rp_id`. Env: `BASE_URL`.
     pub base_url: Option<String>,
+    /// Strava athlete ID of the admin user. Env: `ADMIN_STRAVA_ATHLETE_ID`.
+    /// `None` disables the admin dashboard for all users.
+    pub admin_strava_athlete_id: Option<i64>,
 }
 
 impl Config {
@@ -26,14 +48,14 @@ impl Config {
 
         let default_origin = base_url
             .as_deref()
-            .unwrap_or("https://pacebuddy:5173")
+            .unwrap_or("https://pace-buddy:5173")
             .to_string();
 
         let default_rp_id = base_url
             .as_deref()
             .and_then(|u| u.split("://").nth(1))
             .map(|host| host.split(':').next().unwrap_or(host).to_string())
-            .unwrap_or_else(|| "pacebuddy".to_string());
+            .unwrap_or_else(|| "pace-buddy".to_string());
 
         let default_redirect_uri = base_url
             .as_deref()
@@ -74,6 +96,9 @@ impl Config {
             }),
             strava_webhook_verify_token: env::var("STRAVA_WEBHOOK_VERIFY_TOKEN").ok(),
             base_url,
+            admin_strava_athlete_id: env::var("ADMIN_STRAVA_ID")
+                .ok()
+                .and_then(|v| v.parse().ok()),
         }
     }
 }

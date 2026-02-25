@@ -1,4 +1,5 @@
 pub mod activity_routes;
+pub mod admin_routes;
 pub mod auth_routes;
 pub mod chat_routes;
 pub mod strava_routes;
@@ -53,6 +54,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route("/{id}/activities/{activity_id}", web::delete().to(training_routes::remove_activity_from_training))
                     .route("/{id}/insight", web::post().to(training_routes::training_insight))
                     .route("/{id}/insights", web::get().to(training_routes::list_training_insights)),
+            )
+            .service(
+                web::scope("/admin")
+                    .route("/stats", web::get().to(admin_routes::stats)),
             )
             .service(
                 web::scope("/chats")

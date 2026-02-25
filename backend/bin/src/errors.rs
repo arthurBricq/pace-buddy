@@ -32,6 +32,7 @@ impl ResponseError for AppError {
             DomainError::NotFound(_) => HttpResponse::NotFound().json(body),
             DomainError::Unauthorized(_) => HttpResponse::Unauthorized().json(body),
             DomainError::BadRequest(_) => HttpResponse::BadRequest().json(body),
+            DomainError::Forbidden(_) => HttpResponse::Forbidden().json(body),
             DomainError::StravaRateLimited => {
                 HttpResponse::TooManyRequests().json(body)
             }

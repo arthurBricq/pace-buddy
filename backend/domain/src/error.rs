@@ -11,6 +11,9 @@ pub enum DomainError {
     #[error("Bad request: {0}")]
     BadRequest(String),
 
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
+
     #[error("Strava API error: {0}")]
     StravaApi(String),
 
