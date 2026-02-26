@@ -85,7 +85,10 @@ pub async fn list_chats(
     for chat in chats {
         let messages = state.storage.get_ai_chat_messages(chat.id).await?;
         let message_count = messages.len() as i64;
-        let total_cost: f64 = messages.iter().map(|m| m.cost).sum();
+        let total_cost: f64 = messages
+            .iter()
+            .map(|m| state.cost_to_user_quota(m.cost))
+            .sum::<f64>();
 
         items.push(ChatListItem {
             id: chat.id.to_string(),
@@ -122,7 +125,12 @@ pub async fn get_chat(
     let chat_id = path.into_inner();
     log::debug!("GET /chats/{chat_id} user={}", user.user_id);
     let chat = state.storage.get_ai_chat(chat_id, user.user_id).await?;
-    let messages = state.storage.get_ai_chat_messages(chat_id).await?;
+    let mut messages = state.storage.get_ai_chat_messages(chat_id).await?;
+
+    // Apply cost conversion so displayed costs reflect what users are charged
+    for msg in &mut messages {
+        msg.cost = state.cost_to_user_quota(msg.cost);
+    }
 
     let total_cost: f64 = messages.iter().map(|m| m.cost).sum();
     let total_tokens: u64 = messages.iter().map(|m| m.total_tokens as u64).sum();
@@ -213,15 +221,24 @@ pub async fn send_message(
     // We need an Arc<dyn LlmClient> — clone the Arc
     let llm_arc: std::sync::Arc<dyn LlmClient> = llm_client.clone();
 
-    let assistant_msg =
+    let mut assistant_msg =
         conversation_manager::send_message(&state.storage, &llm_arc, &chat, &body.content).await?;
+
+    // Update the price
+    assistant_msg.cost = state.cost_to_user_quota(assistant_msg.cost);
 
     // Deduct quota
     if assistant_msg.cost > 0.0 {
-        let charge = assistant_msg.cost * state.quota_markup_ratio;
-        let _ = state.storage.deduct_quota(user.user_id, charge).await;
+        if let Err(err) = state
+            .storage
+            .deduct_quota(user.user_id, assistant_msg.cost)
+            .await
+        {
+            log::error!("Failed to deduct quota: {}", err);
+        }
     }
 
+    // Return with markup-adjusted cost
     Ok(HttpResponse::Ok().json(assistant_msg))
 }
 

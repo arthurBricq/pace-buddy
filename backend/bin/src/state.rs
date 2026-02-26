@@ -16,3 +16,10 @@ pub struct AppState {
     pub admin_strava_athlete_id: Option<i64>,
     pub quota_markup_ratio: f64,
 }
+
+impl AppState {
+    /// Computes the cost in user quotas
+    pub(crate) fn cost_to_user_quota(&self, real: f64) -> f64 {
+        real * self.quota_markup_ratio
+    }
+}

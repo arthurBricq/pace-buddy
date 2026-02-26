@@ -314,10 +314,14 @@ pub async fn training_insight(
         )));
     }
 
-    let context =
-        insight_builder::build_insight_context(&state, user.user_id, training_id, &body.prompt_type)
-            .await
-            .map_err(AppError)?;
+    let context = insight_builder::build_insight_context(
+        &state,
+        user.user_id,
+        training_id,
+        &body.prompt_type,
+    )
+    .await
+    .map_err(AppError)?;
 
     let model = body
         .model
@@ -337,7 +341,7 @@ pub async fn training_insight(
 
     // Deduct quota
     if let Some(cost) = insight.cost {
-        let charge = cost * state.quota_markup_ratio;
+        let charge = state.cost_to_user_quota(cost);
         let _ = state.storage.deduct_quota(user.user_id, charge).await;
     }
 
@@ -370,10 +374,15 @@ pub async fn list_training_insights(
         .get_training(training_id, user.user_id)
         .await?;
 
-    let insights = state
+    let mut insights = state
         .storage
         .get_training_insights(training_id, user.user_id)
         .await?;
+
+    // Apply markup so displayed costs reflect what users are charged
+    for insight in &mut insights {
+        insight.cost = insight.cost.map(|c| state.cost_to_user_quota(c));
+    }
 
     Ok(HttpResponse::Ok().json(insights))
 }

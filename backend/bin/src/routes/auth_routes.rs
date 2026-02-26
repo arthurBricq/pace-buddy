@@ -1,10 +1,10 @@
-use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::cookie::{Cookie, SameSite};
+use actix_web::{web, HttpRequest, HttpResponse};
 use chrono::Datelike;
 use serde::{Deserialize, Serialize};
 use storage::Storage;
 use uuid::Uuid;
-use webauthn_rs_proto::{RegisterPublicKeyCredential, PublicKeyCredential};
+use webauthn_rs_proto::{PublicKeyCredential, RegisterPublicKeyCredential};
 
 use crate::errors::AppError;
 use crate::middleware::AuthenticatedUser;
@@ -28,7 +28,12 @@ pub async fn register_start(
     }
 
     // Check if username already exists
-    if state.storage.get_user_by_username(&body.username).await.is_ok() {
+    if state
+        .storage
+        .get_user_by_username(&body.username)
+        .await
+        .is_ok()
+    {
         return Err(DomainError::BadRequest("Username already taken".into()).into());
     }
 
@@ -44,7 +49,10 @@ pub async fn register_start(
 
     state.storage.create_user(&user).await?;
 
-    let ccr = state.webauthn.start_registration(user_id, &body.username).await?;
+    let ccr = state
+        .webauthn
+        .start_registration(user_id, &body.username)
+        .await?;
 
     log::info!("Registration challenge created for user {user_id}");
 
@@ -65,10 +73,13 @@ pub async fn register_finish(
         .finish_registration(body.user_id, &body.credential)
         .await?;
 
-    let passkey_json = serde_json::to_string(&passkey)
-        .map_err(|e| DomainError::Internal(e.to_string()))?;
+    let passkey_json =
+        serde_json::to_string(&passkey).map_err(|e| DomainError::Internal(e.to_string()))?;
 
-    state.storage.store_passkey(body.user_id, &passkey_json).await?;
+    state
+        .storage
+        .store_passkey(body.user_id, &passkey_json)
+        .await?;
 
     let token = state.jwt.create_token(body.user_id)?;
     let cookie = build_session_cookie(&token);
@@ -211,8 +222,15 @@ pub async fn update_mas(
     user: AuthenticatedUser,
     body: web::Json<UpdateMASRequest>,
 ) -> Result<HttpResponse, AppError> {
-    log::info!("PATCH /auth/mas user_id={} mas_mps={:?}", user.user_id, body.mas_mps);
-    state.storage.update_user_mas(user.user_id, body.mas_mps).await?;
+    log::info!(
+        "PATCH /auth/mas user_id={} mas_mps={:?}",
+        user.user_id,
+        body.mas_mps
+    );
+    state
+        .storage
+        .update_user_mas(user.user_id, body.mas_mps)
+        .await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "status": "ok",
     })))
@@ -244,7 +262,12 @@ pub async fn profile(
         .await?;
     let last_year = state
         .storage
-        .get_running_stats(user.user_id, Some(last_year_start), Some(this_year_start), false)
+        .get_running_stats(
+            user.user_id,
+            Some(last_year_start),
+            Some(this_year_start),
+            false,
+        )
         .await?;
     let all_time = state
         .storage
@@ -283,7 +306,6 @@ pub async fn ai_cost_summary(
     user: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
     log::debug!("GET /auth/ai-cost-summary user_id={}", user.user_id);
-
     let mut expensive_requests = Vec::new();
     let mut total_cost = 0.0;
 
@@ -296,13 +318,14 @@ pub async fn ai_cost_summary(
             .await?;
         for insight in insights {
             if let Some(cost) = insight.cost {
-                total_cost += cost;
+                let user_cost = state.cost_to_user_quota(cost);
+                total_cost += user_cost;
                 expensive_requests.push(ExpensiveRequest {
                     id: insight.id.to_string(),
                     r#type: "insight".to_string(),
                     title: insight.display_label,
                     model: insight.model,
-                    cost,
+                    cost: user_cost,
                     created_at: insight.created_at.to_rfc3339(),
                     training_id: Some(training.id.to_string()),
                 });
@@ -314,7 +337,10 @@ pub async fn ai_cost_summary(
     let chats = state.storage.list_ai_chats(user.user_id).await?;
     for chat in chats {
         let messages = state.storage.get_ai_chat_messages(chat.id).await?;
-        let chat_cost: f64 = messages.iter().map(|m| m.cost).sum();
+        let chat_cost: f64 = messages
+            .iter()
+            .map(|m| state.cost_to_user_quota(m.cost))
+            .sum::<f64>();
         total_cost += chat_cost;
         if chat_cost > 0.0 {
             expensive_requests.push(ExpensiveRequest {
@@ -330,7 +356,11 @@ pub async fn ai_cost_summary(
     }
 
     // Sort by cost descending
-    expensive_requests.sort_by(|a, b| b.cost.partial_cmp(&a.cost).unwrap_or(std::cmp::Ordering::Equal));
+    expensive_requests.sort_by(|a, b| {
+        b.cost
+            .partial_cmp(&a.cost)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     Ok(HttpResponse::Ok().json(AiCostSummary {
         total_cost,
