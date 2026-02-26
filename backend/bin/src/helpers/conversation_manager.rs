@@ -38,7 +38,7 @@ pub async fn send_message(
     let mut llm_messages: Vec<ChatMessage> = Vec::new();
 
     // Separate system messages from other messages
-    let (system_messages, mut other_messages): (Vec<_>, Vec<_>) = existing_messages
+    let (system_messages, other_messages): (Vec<_>, Vec<_>) = existing_messages
         .iter()
         .partition(|m| m.role == "system");
 
@@ -52,15 +52,26 @@ pub async fn send_message(
         llm_messages.push(ChatMessage::system(DEFAULT_SYSTEM_PROMPT));
     }
 
-    // Apply conversation length limit if set
-    if let Some(max_messages) = chat.conversation_length {
-        // Keep only the last N messages (excluding system message)
-        let start_idx = other_messages.len().saturating_sub(max_messages as usize);
-        other_messages = other_messages[start_idx..].to_vec();
+    // Always include context messages (they carry authoritative data)
+    for msg in &other_messages {
+        if msg.context_label.is_some() {
+            llm_messages.push(ChatMessage::system(&msg.content));
+        }
     }
 
-    // Add other messages
-    for msg in &other_messages {
+    // Apply conversation length limit to non-context messages if set
+    let mut conversation_messages: Vec<_> = other_messages
+        .iter()
+        .filter(|m| m.context_label.is_none())
+        .collect();
+    if let Some(max_messages) = chat.conversation_length {
+        if max_messages > 0 {
+            let start_idx = conversation_messages.len().saturating_sub(max_messages as usize);
+            conversation_messages = conversation_messages[start_idx..].to_vec();
+        }
+    }
+
+    for msg in &conversation_messages {
         llm_messages.push(ChatMessage {
             role: msg.role.clone(),
             content: msg.content.clone(),

@@ -463,7 +463,8 @@ fn row_to_ai_chat(row: &SqliteRow) -> Result<AiChat, DomainError> {
     let source_insight_id: Option<String> = row.get("source_insight_id");
     let title: String = row.get("title");
     let model: String = row.get("model");
-    let conversation_length: Option<i32> = row.try_get("conversation_length").ok();
+    let conversation_length: Option<i32> = row.try_get::<Option<i32>, _>("conversation_length")
+        .unwrap_or(None);
     let created_at: String = row.get("created_at");
     let updated_at: String = row.get("updated_at");
 
