@@ -14,13 +14,24 @@ Here is the high-level architecture of the project:
   database, as to avoid the need to fetch many times the same data.
 - The registration is done merely via passkeys, as to avoid the need to store any sensitive data like passwords.
 
-The core value of this project is the **interval parsing algorithm** (see the crate defined at
+# Features
+
+## Interval parsing algorithm
+
+One of the core value of this project is the **interval parsing algorithm** (see the crate defined at
 `backend/intervals/src/lib.rs`), which allows every session tagged as `interval` by the user to be parsed into a
 series of intervals, which is something with high-descriptive value of the session.
+
+## Trainings
 
 The users are able to create "training programs" where they will be can group sessions into a training program,
 and their LLM trainer will be able to train on these programs. The users are then able to request an AI-insights from
 their trainings, and AI insights can be transformd into "AI chat"s, where the users can simply talk with the AI.
+
+## Contextualized LLM chats
+
+Users don't have to create AI-chats from training, they can also create chats from scratch. When they do this, there is
+a "add context" panel, where users can select what they want to feed the LLM with.
 
 ## Development Node
 

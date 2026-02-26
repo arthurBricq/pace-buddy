@@ -54,7 +54,7 @@ export default function ContextPanel({ chatId, onContextAdded }: ContextPanelPro
   };
 
   return (
-    <div className="w-72 border-l bg-white flex flex-col">
+    <div className="w-72 border-l bg-white flex flex-col shrink-0 overflow-y-auto">
       <div className="px-4 py-3 border-b">
         <h3 className="text-sm font-semibold text-gray-700">Add Context</h3>
       </div>

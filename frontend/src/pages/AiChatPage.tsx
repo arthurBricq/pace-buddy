@@ -182,8 +182,8 @@ export default function AiChatPage() {
   const visibleMessages = messages.filter((m) => m.role !== 'system');
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <div className="sticky top-0 z-50">
+    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+      <div className="shrink-0 z-50">
         <Navbar />
         {/* Header bar */}
         <div className="bg-white border-b px-4 py-3">
