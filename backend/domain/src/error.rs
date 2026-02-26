@@ -28,4 +28,7 @@ pub enum DomainError {
 
     #[error("Internal error: {0}")]
     Internal(String),
+
+    #[error("Quota exhausted: {0}")]
+    QuotaExhausted(String),
 }

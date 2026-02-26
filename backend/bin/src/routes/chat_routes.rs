@@ -45,7 +45,10 @@ pub async fn create_chat(
         training_id,
         source_insight_id: None,
         title: body.title.clone(),
-        model: body.model.clone().unwrap_or_else(|| DEFAULT_MODEL.to_string()),
+        model: body
+            .model
+            .clone()
+            .unwrap_or_else(|| DEFAULT_MODEL.to_string()),
         conversation_length: None,
         created_at: now,
         updated_at: now,
@@ -194,6 +197,14 @@ pub async fn send_message(
     log::info!("POST /chats/{chat_id}/messages user={}", user.user_id);
     let chat = state.storage.get_ai_chat(chat_id, user.user_id).await?;
 
+    // Quota check: require at least $0.25 to make a request
+    let quota = state.storage.get_user_quota(user.user_id).await?;
+    if quota < 0.25 {
+        return Err(AppError(DomainError::QuotaExhausted(
+            "Your AI token quota is too low. Request more tokens from your profile.".into(),
+        )));
+    }
+
     let llm_client = state
         .llm_client
         .as_ref()
@@ -204,6 +215,12 @@ pub async fn send_message(
 
     let assistant_msg =
         conversation_manager::send_message(&state.storage, &llm_arc, &chat, &body.content).await?;
+
+    // Deduct quota
+    if assistant_msg.cost > 0.0 {
+        let charge = assistant_msg.cost * state.quota_markup_ratio;
+        let _ = state.storage.deduct_quota(user.user_id, charge).await;
+    }
 
     Ok(HttpResponse::Ok().json(assistant_msg))
 }
@@ -234,7 +251,8 @@ pub async fn list_models(
 // Create from insight
 // ---------------------------------------------------------------------------
 
-const SYSTEM_PROMPT: &str = "You are an experienced running coach analyzing a runner's training plan. \
+const SYSTEM_PROMPT: &str =
+    "You are an experienced running coach analyzing a runner's training plan. \
     Provide specific, actionable advice based on the data provided. \
     Use metric units (km, min/km pace). Be concise but remain precise.";
 
@@ -251,7 +269,10 @@ pub async fn create_from_insight(
     body: Option<web::Json<CreateFromInsightRequest>>,
 ) -> Result<HttpResponse, AppError> {
     let insight_id = path.into_inner();
-    log::info!("POST /chats/from-insight/{insight_id} user={}", user.user_id);
+    log::info!(
+        "POST /chats/from-insight/{insight_id} user={}",
+        user.user_id
+    );
 
     let insight = state
         .storage
@@ -264,9 +285,7 @@ pub async fn create_from_insight(
         .and_then(|b| b.model.as_ref())
         .map(|s| s.as_str())
         .unwrap_or(DEFAULT_MODEL);
-    let conversation_length = body
-        .as_ref()
-        .and_then(|b| b.conversation_length);
+    let conversation_length = body.as_ref().and_then(|b| b.conversation_length);
 
     let chat = conversation_manager::create_from_insight(
         &state.storage,
@@ -302,7 +321,8 @@ pub async fn add_context(
     let _chat = state.storage.get_ai_chat(chat_id, user.user_id).await?;
 
     // Build context
-    let result = context_builder::build_context(&state.storage, user.user_id, body.into_inner()).await?;
+    let result =
+        context_builder::build_context(&state.storage, user.user_id, body.into_inner()).await?;
 
     // Store as a user message with context_label
     let msg = domain::AiChatMessage {

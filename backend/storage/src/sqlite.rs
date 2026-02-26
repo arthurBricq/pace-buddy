@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use domain::{Activity, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError, RunningStats, StravaToken, Training, TrainingInsight, User};
+use domain::{Activity, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError, QuotaRequest, QuotaRequestStatus, RunningStats, StravaToken, Training, TrainingInsight, User};
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow};
 use sqlx::Row;
 use uuid::Uuid;
@@ -26,7 +26,8 @@ impl SqliteStorage {
                 username TEXT UNIQUE NOT NULL,
                 display_name TEXT NOT NULL,
                 created_at TEXT NOT NULL,
-                mas_current REAL
+                mas_current REAL,
+                quota_balance_usd REAL NOT NULL DEFAULT 0.0
             )"
         )
         .execute(&pool)
@@ -238,6 +239,20 @@ impl SqliteStorage {
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create ai_chat_messages index: {e}")))?;
 
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS quota_requests (
+                id TEXT PRIMARY KEY NOT NULL,
+                user_id TEXT NOT NULL REFERENCES users(id),
+                status TEXT NOT NULL DEFAULT 'pending',
+                requested_at TEXT NOT NULL,
+                resolved_at TEXT,
+                granted_amount_usd REAL
+            )"
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create quota_requests table: {e}")))?;
+
         Ok(Self { pool })
     }
 }
@@ -273,12 +288,33 @@ fn row_to_user(row: &SqliteRow) -> Result<User, DomainError> {
     let created_at: String = row.get("created_at");
     let mas_current: Option<f64> = row.get("mas_current");
 
+    let quota_balance_usd: f64 = row.try_get("quota_balance_usd").unwrap_or(0.0);
+
     Ok(User {
         id: parse_uuid(&id)?,
         username,
         display_name,
         created_at: parse_datetime(&created_at)?,
         mas_current,
+        quota_balance_usd,
+    })
+}
+
+fn row_to_quota_request(row: &SqliteRow) -> Result<QuotaRequest, DomainError> {
+    let id: String = row.get("id");
+    let user_id: String = row.get("user_id");
+    let status: String = row.get("status");
+    let requested_at: String = row.get("requested_at");
+    let resolved_at: Option<String> = row.get("resolved_at");
+    let granted_amount_usd: Option<f64> = row.get("granted_amount_usd");
+
+    Ok(QuotaRequest {
+        id: parse_uuid(&id)?,
+        user_id: parse_uuid(&user_id)?,
+        status: QuotaRequestStatus::from_str(&status),
+        requested_at: parse_datetime(&requested_at)?,
+        resolved_at: resolved_at.as_deref().map(parse_datetime).transpose()?,
+        granted_amount_usd,
     })
 }
 
@@ -1466,6 +1502,133 @@ impl Storage for SqliteStorage {
             activity_count: activity_count as i64,
             interval_count,
         })
+    }
+
+    // -----------------------------------------------------------------------
+    // Quota
+    // -----------------------------------------------------------------------
+
+    async fn get_user_quota(&self, user_id: Uuid) -> Result<f64, DomainError> {
+        let row = sqlx::query(
+            "SELECT quota_balance_usd FROM users WHERE id = ?"
+        )
+        .bind(user_id.to_string())
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| DomainError::NotFound(format!("User not found: {e}")))?;
+
+        Ok(row.get("quota_balance_usd"))
+    }
+
+    async fn deduct_quota(&self, user_id: Uuid, amount: f64) -> Result<(), DomainError> {
+        let result = sqlx::query(
+            "UPDATE users SET quota_balance_usd = quota_balance_usd - ? WHERE id = ? AND quota_balance_usd >= ?"
+        )
+        .bind(amount)
+        .bind(user_id.to_string())
+        .bind(amount)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to deduct quota: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Err(DomainError::QuotaExhausted("Insufficient quota balance".into()));
+        }
+        Ok(())
+    }
+
+    async fn add_quota(&self, user_id: Uuid, amount: f64) -> Result<(), DomainError> {
+        sqlx::query(
+            "UPDATE users SET quota_balance_usd = quota_balance_usd + ? WHERE id = ?"
+        )
+        .bind(amount)
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to add quota: {e}")))?;
+
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // Quota requests
+    // -----------------------------------------------------------------------
+
+    async fn create_quota_request(&self, req: &QuotaRequest) -> Result<(), DomainError> {
+        sqlx::query(
+            "INSERT INTO quota_requests (id, user_id, status, requested_at, resolved_at, granted_amount_usd)
+             VALUES (?, ?, ?, ?, ?, ?)"
+        )
+        .bind(req.id.to_string())
+        .bind(req.user_id.to_string())
+        .bind(req.status.as_str())
+        .bind(req.requested_at.to_rfc3339())
+        .bind(req.resolved_at.map(|dt| dt.to_rfc3339()))
+        .bind(req.granted_amount_usd)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create quota request: {e}")))?;
+
+        Ok(())
+    }
+
+    async fn get_quota_request(&self, id: Uuid) -> Result<QuotaRequest, DomainError> {
+        let row = sqlx::query(
+            "SELECT id, user_id, status, requested_at, resolved_at, granted_amount_usd
+             FROM quota_requests WHERE id = ?"
+        )
+        .bind(id.to_string())
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|_| DomainError::NotFound("Quota request not found".into()))?;
+
+        row_to_quota_request(&row)
+    }
+
+    async fn get_pending_quota_requests(&self) -> Result<Vec<QuotaRequest>, DomainError> {
+        let rows = sqlx::query(
+            "SELECT id, user_id, status, requested_at, resolved_at, granted_amount_usd
+             FROM quota_requests WHERE status = 'pending' ORDER BY requested_at ASC"
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get quota requests: {e}")))?;
+
+        rows.iter().map(row_to_quota_request).collect()
+    }
+
+    async fn get_user_quota_requests(&self, user_id: Uuid) -> Result<Vec<QuotaRequest>, DomainError> {
+        let rows = sqlx::query(
+            "SELECT id, user_id, status, requested_at, resolved_at, granted_amount_usd
+             FROM quota_requests WHERE user_id = ? ORDER BY requested_at DESC"
+        )
+        .bind(user_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get user quota requests: {e}")))?;
+
+        rows.iter().map(row_to_quota_request).collect()
+    }
+
+    async fn resolve_quota_request(
+        &self,
+        id: Uuid,
+        status: QuotaRequestStatus,
+        granted_amount_usd: Option<f64>,
+    ) -> Result<(), DomainError> {
+        let now = Utc::now().to_rfc3339();
+        sqlx::query(
+            "UPDATE quota_requests SET status = ?, resolved_at = ?, granted_amount_usd = ? WHERE id = ?"
+        )
+        .bind(status.as_str())
+        .bind(&now)
+        .bind(granted_amount_usd)
+        .bind(id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to resolve quota request: {e}")))?;
+
+        Ok(())
     }
 }
 

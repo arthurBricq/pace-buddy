@@ -4,6 +4,22 @@ export interface User {
   display_name: string;
   created_at: string;
   mas_current: number | null; // Current MAS estimate in m/s
+  quota_balance_usd: number;
+}
+
+export interface QuotaRequestRecord {
+  id: string;
+  user_id: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requested_at: string;
+  resolved_at: string | null;
+  granted_amount_usd: number | null;
+}
+
+export interface QuotaStatus {
+  balance_usd: number;
+  has_pending_request: boolean;
+  requests: QuotaRequestRecord[];
 }
 
 export type ActivityTag = 'normal' | 'intervals' | 'race';

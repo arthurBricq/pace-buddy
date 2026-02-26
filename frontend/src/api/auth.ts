@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { User, ProfileResponse } from '../types';
+import type { User, ProfileResponse, QuotaStatus, QuotaRequestRecord } from '../types';
 
 export async function registerStart(username: string, displayName: string) {
   return apiFetch<{ user_id: string; options: PublicKeyCredentialCreationOptions }>(
@@ -74,4 +74,12 @@ export interface AiCostSummary {
 
 export async function getAiCostSummary() {
   return apiFetch<AiCostSummary>('/auth/ai-cost-summary');
+}
+
+export async function getQuotaStatus() {
+  return apiFetch<QuotaStatus>('/auth/quota');
+}
+
+export async function requestQuota() {
+  return apiFetch<QuotaRequestRecord>('/auth/quota/request', { method: 'POST' });
 }

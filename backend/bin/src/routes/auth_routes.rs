@@ -39,6 +39,7 @@ pub async fn register_start(
         display_name: body.display_name.clone(),
         created_at: chrono::Utc::now(),
         mas_current: None,
+        quota_balance_usd: 0.0,
     };
 
     state.storage.create_user(&user).await?;
@@ -335,6 +336,49 @@ pub async fn ai_cost_summary(
         total_cost,
         expensive_requests,
     }))
+}
+
+pub async fn quota_status(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+) -> Result<HttpResponse, AppError> {
+    log::debug!("GET /auth/quota user_id={}", user.user_id);
+    let balance = state.storage.get_user_quota(user.user_id).await?;
+    let requests = state.storage.get_user_quota_requests(user.user_id).await?;
+    let has_pending = requests
+        .iter()
+        .any(|r| r.status == domain::QuotaRequestStatus::Pending);
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "balance_usd": balance,
+        "has_pending_request": has_pending,
+        "requests": requests,
+    })))
+}
+
+pub async fn request_quota(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+) -> Result<HttpResponse, AppError> {
+    log::info!("POST /auth/quota/request user_id={}", user.user_id);
+    let requests = state.storage.get_user_quota_requests(user.user_id).await?;
+    if requests
+        .iter()
+        .any(|r| r.status == domain::QuotaRequestStatus::Pending)
+    {
+        return Err(DomainError::BadRequest("You already have a pending request".into()).into());
+    }
+
+    let req = domain::QuotaRequest {
+        id: Uuid::new_v4(),
+        user_id: user.user_id,
+        status: domain::QuotaRequestStatus::Pending,
+        requested_at: chrono::Utc::now(),
+        resolved_at: None,
+        granted_amount_usd: None,
+    };
+    state.storage.create_quota_request(&req).await?;
+    Ok(HttpResponse::Created().json(req))
 }
 
 fn build_session_cookie(token: &str) -> Cookie<'static> {

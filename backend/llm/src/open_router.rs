@@ -79,6 +79,7 @@ impl LlmClient for OpenRouterClient {
             reasoning,
         };
 
+
         let response = self
             .client
             .post(format!("{}/chat/completions", self.base_url))

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { getProfile, getAiCostSummary } from '../api/auth';
+import { getProfile, getAiCostSummary, getQuotaStatus, requestQuota } from '../api/auth';
 import { getStravaStatus, getStravaLink, disconnectStrava } from '../api/strava';
-import type { ProfileResponse, RunningStats, StravaStatus, AiCostSummary } from '../types';
+import type { ProfileResponse, RunningStats, StravaStatus, AiCostSummary, QuotaStatus } from '../types';
 import Navbar from '../components/Navbar';
 
 function formatDistance(meters: number): string {
@@ -70,6 +70,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [stravaStatus, setStravaStatus] = useState<StravaStatus | null>(null);
   const [aiCostSummary, setAiCostSummary] = useState<AiCostSummary | null>(null);
+  const [quotaStatus, setQuotaStatus] = useState<QuotaStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(searchParams.get('error') || '');
 
@@ -81,10 +82,12 @@ export default function ProfilePage() {
       }),
       getStravaStatus().catch(() => null),
       getAiCostSummary().catch(() => null),
-    ]).then(([p, s, a]) => {
+      getQuotaStatus().catch(() => null),
+    ]).then(([p, s, a, q]) => {
       setProfile(p);
       setStravaStatus(s);
       setAiCostSummary(a);
+      setQuotaStatus(q);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -188,6 +191,38 @@ export default function ProfilePage() {
         {aiCostSummary && (
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold mb-4">AI Usage</h2>
+
+            {/* Quota */}
+            {quotaStatus && (
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm text-gray-500">AI Budget Remaining:</span>
+                    <span className="ml-2 text-lg font-bold text-green-600">
+                      ${quotaStatus.balance_usd.toFixed(2)}
+                    </span>
+                  </div>
+                  {quotaStatus.has_pending_request ? (
+                    <span className="text-sm text-amber-600 font-medium">Request pending...</span>
+                  ) : (
+                    <button
+                      onClick={async () => {
+                        try {
+                          await requestQuota();
+                          setQuotaStatus({ ...quotaStatus, has_pending_request: true });
+                        } catch (err: any) {
+                          setError(err.message);
+                        }
+                      }}
+                      className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700"
+                    >
+                      Request More Tokens
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="mb-6">
               <div className="flex items-baseline gap-2">
                 <span className="text-sm text-gray-500">Total Cost:</span>

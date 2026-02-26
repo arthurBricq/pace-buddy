@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use domain::{Activity, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError, RunningStats, StravaToken, Training, TrainingInsight, User};
+use domain::{Activity, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError, QuotaRequest, QuotaRequestStatus, RunningStats, StravaToken, Training, TrainingInsight, User};
 use uuid::Uuid;
 
 #[async_trait]
@@ -115,6 +115,23 @@ pub trait Storage: Send + Sync {
 
     // Insight lookup
     async fn get_training_insight_by_id(&self, id: Uuid, user_id: Uuid) -> Result<TrainingInsight, DomainError>;
+
+    // Quota
+    async fn get_user_quota(&self, user_id: Uuid) -> Result<f64, DomainError>;
+    async fn deduct_quota(&self, user_id: Uuid, amount: f64) -> Result<(), DomainError>;
+    async fn add_quota(&self, user_id: Uuid, amount: f64) -> Result<(), DomainError>;
+
+    // Quota requests
+    async fn create_quota_request(&self, req: &QuotaRequest) -> Result<(), DomainError>;
+    async fn get_quota_request(&self, id: Uuid) -> Result<QuotaRequest, DomainError>;
+    async fn get_pending_quota_requests(&self) -> Result<Vec<QuotaRequest>, DomainError>;
+    async fn get_user_quota_requests(&self, user_id: Uuid) -> Result<Vec<QuotaRequest>, DomainError>;
+    async fn resolve_quota_request(
+        &self,
+        id: Uuid,
+        status: QuotaRequestStatus,
+        granted_amount_usd: Option<f64>,
+    ) -> Result<(), DomainError>;
 
     // Stats
     async fn get_running_stats(

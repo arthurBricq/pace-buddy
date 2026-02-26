@@ -43,7 +43,7 @@ pub trait LlmClient: Send + Sync {
     /// Fetches the list of available models
     async fn list_models(&self) -> Result<Vec<ModelInfo>, LlmError>;
 
-    /// Sends a chat completion request and returns the response with usage info
+    /// Sends a chat completion request and returns the response with usage info.
     async fn chat_completion(
         &self,
         model: &str,

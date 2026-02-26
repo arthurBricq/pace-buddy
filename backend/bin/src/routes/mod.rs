@@ -22,7 +22,9 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route("/mas", web::get().to(auth_routes::get_mas))
                     .route("/mas", web::patch().to(auth_routes::update_mas))
                     .route("/profile", web::get().to(auth_routes::profile))
-                    .route("/ai-cost-summary", web::get().to(auth_routes::ai_cost_summary)),
+                    .route("/ai-cost-summary", web::get().to(auth_routes::ai_cost_summary))
+                    .route("/quota", web::get().to(auth_routes::quota_status))
+                    .route("/quota/request", web::post().to(auth_routes::request_quota)),
             )
             .service(
                 web::scope("/strava")
@@ -57,7 +59,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             )
             .service(
                 web::scope("/admin")
-                    .route("/stats", web::get().to(admin_routes::stats)),
+                    .route("/stats", web::get().to(admin_routes::stats))
+                    .route("/quota-requests", web::get().to(admin_routes::list_quota_requests))
+                    .route("/quota-requests/{id}/approve", web::post().to(admin_routes::approve_quota_request))
+                    .route("/quota-requests/{id}/reject", web::post().to(admin_routes::reject_quota_request)),
             )
             .service(
                 web::scope("/chats")

@@ -306,6 +306,14 @@ pub async fn training_insight(
         .as_ref()
         .ok_or_else(|| AppError(domain::DomainError::Internal("LLM not configured".into())))?;
 
+    // Quota check: require at least $0.25 to make a request
+    let quota = state.storage.get_user_quota(user.user_id).await?;
+    if quota < 0.25 {
+        return Err(AppError(domain::DomainError::QuotaExhausted(
+            "Your AI token quota is too low. Request more tokens from your profile.".into(),
+        )));
+    }
+
     let context =
         insight_builder::build_insight_context(&state, user.user_id, training_id, &body.prompt_type)
             .await
@@ -326,6 +334,12 @@ pub async fn training_insight(
     )
     .await
     .map_err(AppError)?;
+
+    // Deduct quota
+    if let Some(cost) = insight.cost {
+        let charge = cost * state.quota_markup_ratio;
+        let _ = state.storage.deduct_quota(user.user_id, charge).await;
+    }
 
     Ok(HttpResponse::Ok().json(InsightResponse {
         id: insight.id.to_string(),

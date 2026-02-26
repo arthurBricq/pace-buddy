@@ -1,6 +1,7 @@
 pub mod activity;
 pub mod ai_chat;
 pub mod error;
+pub mod quota;
 pub mod stats;
 pub mod strava_token;
 pub mod stream;
@@ -11,6 +12,7 @@ pub mod user;
 pub use activity::{Activity, ActivityTag};
 pub use ai_chat::{AiChat, AiChatMessage};
 pub use error::DomainError;
+pub use quota::{QuotaRequest, QuotaRequestStatus};
 pub use stats::RunningStats;
 pub use strava_token::StravaToken;
 pub use stream::{ActivityStream, StreamType};

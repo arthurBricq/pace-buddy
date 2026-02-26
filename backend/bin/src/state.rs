@@ -14,4 +14,5 @@ pub struct AppState {
     pub llm_client: Option<Arc<OpenRouterClient>>,
     pub strava_webhook_verify_token: Option<String>,
     pub admin_strava_athlete_id: Option<i64>,
+    pub quota_markup_ratio: f64,
 }

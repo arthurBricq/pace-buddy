@@ -38,6 +38,9 @@ impl ResponseError for AppError {
             }
             DomainError::StravaApi(_) => HttpResponse::BadGateway().json(body),
             DomainError::Auth(_) => HttpResponse::Unauthorized().json(body),
+            DomainError::QuotaExhausted(_) => {
+                HttpResponse::PaymentRequired().json(body)
+            }
             DomainError::Storage(_) | DomainError::Internal(_) => {
                 log::error!("Internal error: {}", self.0);
                 HttpResponse::InternalServerError().json(ErrorBody {

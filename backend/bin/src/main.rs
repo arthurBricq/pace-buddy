@@ -137,6 +137,7 @@ async fn main() -> std::io::Result<()> {
         llm_client,
         strava_webhook_verify_token: cfg.strava_webhook_verify_token.clone(),
         admin_strava_athlete_id: cfg.admin_strava_athlete_id,
+        quota_markup_ratio: cfg.quota_markup_ratio,
     });
 
     // Background task: check/create Strava webhook subscription

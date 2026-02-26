@@ -9,4 +9,5 @@ pub struct User {
     pub display_name: String,
     pub created_at: DateTime<Utc>,
     pub mas_current: Option<f64>, // Current MAS estimate in m/s
+    pub quota_balance_usd: f64,
 }
