@@ -2,6 +2,7 @@ export interface User {
   id: string;
   username: string;
   display_name: string;
+  email?: string | null;
   created_at: string;
   mas_current: number | null; // Current MAS estimate in m/s
   quota_balance_usd: number;

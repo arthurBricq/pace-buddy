@@ -1,3 +1,4 @@
+use actix_web::cookie::{Cookie, SameSite};
 use actix_web::{web, HttpResponse};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
@@ -26,9 +27,8 @@ pub async fn link(
         )
         .into());
     }
-    let url = state
-        .strava_client
-        .authorize_url(&user.user_id.to_string());
+    let oauth_state = state.jwt.create_strava_link_state(user.user_id)?;
+    let url = state.strava_client.authorize_url(&oauth_state);
     log::info!("Generated Strava authorize URL for user {}", user.user_id);
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "url": url,
@@ -52,29 +52,125 @@ pub async fn callback(
     log::info!("GET /strava/callback code=<redacted> state={:?}", query.state);
     let frontend = &app.frontend_url;
 
-    let user_id = match query
-        .state
-        .as_deref()
-        .and_then(|s| Uuid::parse_str(s).ok())
-    {
-        Some(id) => id,
+    let state_raw = match query.state.as_deref() {
+        Some(s) => s,
         None => {
-            log::warn!("Strava callback: missing or invalid state parameter");
-            return redirect_with_error(frontend, "Missing or invalid state parameter");
+            log::warn!("Strava callback: missing state parameter");
+            return redirect_with_error(frontend, "Missing state parameter");
         }
     };
 
-    log::info!("Exchanging Strava OAuth code for user {user_id}");
+    let oauth_state = match app.jwt.verify_oauth_state(state_raw) {
+        Ok(claims) => claims,
+        Err(e) => {
+            log::warn!("Strava callback: invalid OAuth state token: {e}");
+            return redirect_with_error(frontend, "Invalid OAuth state");
+        }
+    };
+
+    log::info!(
+        "Strava callback verified state: purpose={} user_id_present={}",
+        oauth_state.purpose,
+        oauth_state.user_id.is_some()
+    );
+
     let token_resp = match app.strava_client.exchange_code(&query.code).await {
         Ok(t) => t,
         Err(e) => {
-            log::error!("Strava token exchange failed for user {user_id}: {e}");
+            log::error!("Strava token exchange failed: {e}");
             return redirect_with_error(frontend, &format!("Token exchange failed: {e}"));
         }
     };
 
     let athlete_id = token_resp.athlete.as_ref().map(|a| a.id).unwrap_or(0);
-    log::info!("Strava token exchange succeeded: athlete_id={athlete_id} user={user_id}");
+    if athlete_id == 0 {
+        return redirect_with_error(frontend, "Strava did not return an athlete id");
+    }
+
+    match oauth_state.purpose.as_str() {
+        "strava_login" => handle_strava_login_callback(&app, athlete_id, token_resp).await,
+        "strava_link" => {
+            let Some(user_id) = oauth_state
+                .user_id
+                .as_deref()
+                .and_then(|s| Uuid::parse_str(s).ok())
+            else {
+                return redirect_with_error(frontend, "Invalid link state payload");
+            };
+
+            let strava_token = StravaToken {
+                user_id,
+                strava_athlete_id: athlete_id,
+                access_token: token_resp.access_token,
+                refresh_token: token_resp.refresh_token,
+                expires_at: DateTime::<Utc>::from_timestamp(token_resp.expires_at, 0)
+                    .unwrap_or_else(Utc::now),
+            };
+
+            if let Err(e) = app.storage.upsert_strava_token(&strava_token).await {
+                log::error!("Failed to save Strava token for user {user_id}: {e}");
+                return redirect_with_error(frontend, &format!("Failed to save token: {e}"));
+            }
+
+            log::info!("Strava linked successfully for user {user_id}, redirecting to frontend");
+            HttpResponse::Found()
+                .append_header(("Location", format!("{frontend}/profile")))
+                .finish()
+        }
+        _ => redirect_with_error(frontend, "Invalid state purpose"),
+    }
+}
+
+async fn generate_unique_strava_username(
+    app: &web::Data<AppState>,
+    athlete_id: i64,
+) -> Result<String, DomainError> {
+    let base = format!("strava_{athlete_id}");
+    if app.storage.get_user_by_username(&base).await.is_err() {
+        return Ok(base);
+    }
+
+    for suffix in 1..=9999 {
+        let candidate = format!("strava_{athlete_id}_{suffix}");
+        if app.storage.get_user_by_username(&candidate).await.is_err() {
+            return Ok(candidate);
+        }
+    }
+
+    Err(DomainError::Internal(
+        "Unable to allocate a unique Strava username".into(),
+    ))
+}
+
+async fn handle_strava_login_callback(
+    app: &web::Data<AppState>,
+    athlete_id: i64,
+    token_resp: strava_client::types::TokenResponse,
+) -> HttpResponse {
+    let frontend = &app.frontend_url;
+
+    let user_id = match app.storage.get_strava_token_by_athlete_id(athlete_id).await {
+        Ok(existing) => existing.user_id,
+        Err(_) => {
+            let username = match generate_unique_strava_username(app, athlete_id).await {
+                Ok(u) => u,
+                Err(e) => return redirect_with_error(frontend, &format!("Failed to create user: {e}")),
+            };
+            let user = domain::User {
+                id: Uuid::new_v4(),
+                username: username.clone(),
+                display_name: username,
+                email: None,
+                created_at: Utc::now(),
+                mas_current: None,
+                quota_balance_usd: 0.0,
+            };
+            if let Err(e) = app.storage.create_user(&user).await {
+                return redirect_with_error(frontend, &format!("Failed to create user: {e}"));
+            }
+            user.id
+        }
+    };
 
     let strava_token = StravaToken {
         user_id,
@@ -86,13 +182,26 @@ pub async fn callback(
     };
 
     if let Err(e) = app.storage.upsert_strava_token(&strava_token).await {
-        log::error!("Failed to save Strava token for user {user_id}: {e}");
-        return redirect_with_error(frontend, &format!("Failed to save token: {e}"));
+        return redirect_with_error(frontend, &format!("Failed to save Strava token: {e}"));
     }
 
-    log::info!("Strava linked successfully for user {user_id}, redirecting to frontend");
+    let jwt = match app.jwt.create_token(user_id) {
+        Ok(v) => v,
+        Err(e) => return redirect_with_error(frontend, &format!("Failed to create session token: {e}")),
+    };
+
     HttpResponse::Found()
-        .append_header(("Location", format!("{frontend}/profile")))
+        .append_header(("Location", format!("{frontend}/activities")))
+        .cookie(build_session_cookie(&jwt))
+        .finish()
+}
+
+fn build_session_cookie(token: &str) -> Cookie<'static> {
+    Cookie::build("session", token.to_owned())
+        .path("/")
+        .http_only(true)
+        .same_site(SameSite::Lax)
+        .max_age(actix_web::cookie::time::Duration::days(7))
         .finish()
 }
 

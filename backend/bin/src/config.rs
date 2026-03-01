@@ -63,7 +63,7 @@ impl Config {
         let default_redirect_uri = base_url
             .as_deref()
             .map(|u| format!("{u}/api/strava/callback"))
-            .unwrap_or_else(|| "http://localhost:8080/api/strava/callback".to_string());
+            .unwrap_or_else(|| "https://pace-buddy:5173/api/strava/callback".to_string());
 
         Self {
             database_url: env::var("DATABASE_URL")

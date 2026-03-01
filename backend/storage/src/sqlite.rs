@@ -25,6 +25,7 @@ impl SqliteStorage {
                 id TEXT PRIMARY KEY NOT NULL,
                 username TEXT UNIQUE NOT NULL,
                 display_name TEXT NOT NULL,
+                email TEXT UNIQUE,
                 created_at TEXT NOT NULL,
                 mas_current REAL,
                 quota_balance_usd REAL NOT NULL DEFAULT 0.0
@@ -285,6 +286,7 @@ fn row_to_user(row: &SqliteRow) -> Result<User, DomainError> {
     let id: String = row.get("id");
     let username: String = row.get("username");
     let display_name: String = row.get("display_name");
+    let email: Option<String> = row.try_get("email").unwrap_or(None);
     let created_at: String = row.get("created_at");
     let mas_current: Option<f64> = row.get("mas_current");
 
@@ -294,6 +296,7 @@ fn row_to_user(row: &SqliteRow) -> Result<User, DomainError> {
         id: parse_uuid(&id)?,
         username,
         display_name,
+        email,
         created_at: parse_datetime(&created_at)?,
         mas_current,
         quota_balance_usd,
@@ -517,11 +520,12 @@ impl Storage for SqliteStorage {
     // -----------------------------------------------------------------------
     async fn create_user(&self, user: &User) -> Result<(), DomainError> {
         sqlx::query(
-            "INSERT INTO users (id, username, display_name, created_at, mas_current) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO users (id, username, display_name, email, created_at, mas_current) VALUES (?, ?, ?, ?, ?, ?)",
         )
         .bind(user.id.to_string())
         .bind(&user.username)
         .bind(&user.display_name)
+        .bind(&user.email)
         .bind(user.created_at.to_rfc3339())
         .bind(user.mas_current)
         .execute(&self.pool)
@@ -532,7 +536,7 @@ impl Storage for SqliteStorage {
     }
 
     async fn get_user_by_id(&self, id: Uuid) -> Result<User, DomainError> {
-        let row = sqlx::query("SELECT id, username, display_name, created_at, mas_current FROM users WHERE id = ?")
+        let row = sqlx::query("SELECT id, username, display_name, email, created_at, mas_current FROM users WHERE id = ?")
             .bind(id.to_string())
             .fetch_optional(&self.pool)
             .await
@@ -543,7 +547,7 @@ impl Storage for SqliteStorage {
     }
 
     async fn list_users(&self) -> Result<Vec<User>, DomainError> {
-        let rows = sqlx::query("SELECT id, username, display_name, created_at, mas_current FROM users ORDER BY created_at")
+        let rows = sqlx::query("SELECT id, username, display_name, email, created_at, mas_current FROM users ORDER BY created_at")
             .fetch_all(&self.pool)
             .await
             .map_err(|e| DomainError::Storage(format!("Failed to list users: {e}")))?;
@@ -553,13 +557,26 @@ impl Storage for SqliteStorage {
 
     async fn get_user_by_username(&self, username: &str) -> Result<User, DomainError> {
         let row = sqlx::query(
-            "SELECT id, username, display_name, created_at, mas_current FROM users WHERE username = ?",
+            "SELECT id, username, display_name, email, created_at, mas_current FROM users WHERE username = ?",
         )
         .bind(username)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to get user: {e}")))?
         .ok_or_else(|| DomainError::NotFound(format!("User '{username}' not found")))?;
+
+        row_to_user(&row)
+    }
+
+    async fn get_user_by_email(&self, email: &str) -> Result<User, DomainError> {
+        let row = sqlx::query(
+            "SELECT id, username, display_name, email, created_at, mas_current FROM users WHERE email = ?",
+        )
+        .bind(email)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get user by email: {e}")))?
+        .ok_or_else(|| DomainError::NotFound(format!("User email '{email}' not found")))?;
 
         row_to_user(&row)
     }

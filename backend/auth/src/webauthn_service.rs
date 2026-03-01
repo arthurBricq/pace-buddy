@@ -16,7 +16,7 @@ const CHALLENGE_TTL_SECS: u64 = 300;
 pub struct WebAuthnService {
     webauthn: Arc<Webauthn>,
     reg_state: Arc<Mutex<HashMap<Uuid, (PasskeyRegistration, Instant)>>>,
-    auth_state: Arc<Mutex<HashMap<Uuid, (PasskeyAuthentication, Instant)>>>,
+    auth_state: Arc<Mutex<HashMap<Uuid, (DiscoverableAuthentication, Instant)>>>,
 }
 
 impl WebAuthnService {
@@ -93,53 +93,68 @@ impl WebAuthnService {
         Ok(passkey)
     }
 
-    /// Begin passkey authentication for the given user.
+    /// Begin discoverable (username-less) passkey authentication.
     ///
-    /// `passkeys` should be the user's stored passkeys.
-    /// Returns the `RequestChallengeResponse` that must be sent to the client.
+    /// Returns challenge options and an ephemeral authentication session id
+    /// that must be sent back to `finish_authentication`.
     pub async fn start_authentication(
         &self,
-        user_id: Uuid,
-        passkeys: &[Passkey],
-    ) -> Result<RequestChallengeResponse, DomainError> {
+    ) -> Result<(Uuid, RequestChallengeResponse), DomainError> {
         // Lazily clean up expired state entries.
         self.cleanup_expired().await;
 
         let (rcr, auth_state) = self
             .webauthn
-            .start_passkey_authentication(passkeys)
+            .start_discoverable_authentication()
             .map_err(|e| DomainError::Auth(e.to_string()))?;
 
+        let auth_id = Uuid::new_v4();
         self.auth_state
             .lock()
             .await
-            .insert(user_id, (auth_state, Instant::now()));
+            .insert(auth_id, (auth_state, Instant::now()));
 
-        Ok(rcr)
+        Ok((auth_id, rcr))
     }
 
-    /// Complete passkey authentication.
+    /// Identify which user submitted this discoverable authentication attempt.
+    pub fn identify_user_from_authentication(
+        &self,
+        auth: &PublicKeyCredential,
+    ) -> Result<Uuid, DomainError> {
+        let (user_id, _cred_id) = self
+            .webauthn
+            .identify_discoverable_authentication(auth)
+            .map_err(|e| DomainError::Auth(e.to_string()))?;
+        Ok(user_id)
+    }
+
+    /// Complete discoverable passkey authentication.
     ///
-    /// Retrieves (and removes) the stored authentication state for `user_id`,
-    /// then verifies the client's `PublicKeyCredential`.
+    /// Retrieves (and removes) the stored authentication state for `auth_id`,
+    /// then verifies the client's `PublicKeyCredential` against the user's passkeys.
     /// Returns the `AuthenticationResult` on success.
     pub async fn finish_authentication(
         &self,
-        user_id: Uuid,
+        auth_id: Uuid,
         auth: &PublicKeyCredential,
+        passkeys: &[Passkey],
     ) -> Result<AuthenticationResult, DomainError> {
         let (state, _ts) = self
             .auth_state
             .lock()
             .await
-            .remove(&user_id)
+            .remove(&auth_id)
             .ok_or_else(|| {
                 DomainError::Auth("No pending authentication state for this user".to_string())
             })?;
 
+        let discoverable_keys: Vec<DiscoverableKey> =
+            passkeys.iter().map(DiscoverableKey::from).collect();
+
         let result = self
             .webauthn
-            .finish_passkey_authentication(auth, &state)
+            .finish_discoverable_authentication(auth, state, &discoverable_keys)
             .map_err(|e| DomainError::Auth(e.to_string()))?;
 
         Ok(result)

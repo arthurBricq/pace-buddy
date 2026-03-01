@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY NOT NULL,
     username TEXT UNIQUE NOT NULL,
     display_name TEXT NOT NULL,
+    email TEXT UNIQUE,
     created_at TEXT NOT NULL,
     mas_current REAL
 );

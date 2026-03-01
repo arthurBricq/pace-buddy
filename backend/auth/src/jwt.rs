@@ -14,6 +14,19 @@ pub struct Claims {
     pub exp: usize,
 }
 
+/// Claims used for OAuth state tokens (e.g. Strava login/link callbacks).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OAuthStateClaims {
+    /// Purpose of this state token (`strava_login` or `strava_link`).
+    pub purpose: String,
+    /// Optional app user id (present for `strava_link` flow).
+    pub user_id: Option<String>,
+    /// Unique nonce to prevent accidental token reuse collisions.
+    pub nonce: String,
+    /// Expiration time (as UTC timestamp in seconds).
+    pub exp: usize,
+}
+
 /// Service for creating and verifying JWT tokens.
 pub struct JwtService {
     encoding_key: EncodingKey,
@@ -55,5 +68,38 @@ impl JwtService {
 
         Uuid::parse_str(&token_data.claims.sub)
             .map_err(|e| DomainError::Auth(format!("Invalid user_id in token: {e}")))
+    }
+
+    /// Create a signed OAuth state token for Strava login.
+    pub fn create_strava_login_state(&self) -> Result<String, DomainError> {
+        self.create_oauth_state("strava_login", None)
+    }
+
+    /// Create a signed OAuth state token for Strava account linking.
+    pub fn create_strava_link_state(&self, user_id: Uuid) -> Result<String, DomainError> {
+        self.create_oauth_state("strava_link", Some(user_id))
+    }
+
+    /// Verify an OAuth state token and return claims.
+    pub fn verify_oauth_state(&self, token: &str) -> Result<OAuthStateClaims, DomainError> {
+        let token_data = decode::<OAuthStateClaims>(token, &self.decoding_key, &Validation::default())
+            .map_err(|e| DomainError::Auth(format!("OAuth state decode error: {e}")))?;
+        Ok(token_data.claims)
+    }
+
+    fn create_oauth_state(&self, purpose: &str, user_id: Option<Uuid>) -> Result<String, DomainError> {
+        let expiration = Utc::now()
+            .checked_add_signed(Duration::minutes(10))
+            .ok_or_else(|| DomainError::Auth("Failed to compute oauth state expiration".to_string()))?;
+
+        let claims = OAuthStateClaims {
+            purpose: purpose.to_string(),
+            user_id: user_id.map(|id| id.to_string()),
+            nonce: Uuid::new_v4().to_string(),
+            exp: expiration.timestamp() as usize,
+        };
+
+        encode(&Header::default(), &claims, &self.encoding_key)
+            .map_err(|e| DomainError::Auth(format!("OAuth state encode error: {e}")))
     }
 }

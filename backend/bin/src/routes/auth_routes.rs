@@ -1,6 +1,6 @@
 use actix_web::cookie::{Cookie, SameSite};
 use actix_web::{web, HttpRequest, HttpResponse};
-use serde::{Deserialize};
+use serde::Deserialize;
 use storage::Storage;
 use uuid::Uuid;
 use webauthn_rs_proto::{PublicKeyCredential, RegisterPublicKeyCredential};
@@ -13,7 +13,7 @@ use domain::DomainError;
 #[derive(Deserialize)]
 pub struct RegisterStartRequest {
     pub username: String,
-    pub display_name: String,
+    pub email: Option<String>,
 }
 
 pub async fn register_start(
@@ -22,25 +22,38 @@ pub async fn register_start(
 ) -> Result<HttpResponse, AppError> {
     log::info!("POST /auth/register/start username={}", body.username);
 
-    if body.username.is_empty() {
+    let username = body.username.trim();
+    if username.is_empty() {
         return Err(DomainError::BadRequest("Username required".into()).into());
     }
 
     // Check if username already exists
-    if state
-        .storage
-        .get_user_by_username(&body.username)
-        .await
-        .is_ok()
-    {
+    if state.storage.get_user_by_username(username).await.is_ok() {
         return Err(DomainError::BadRequest("Username already taken".into()).into());
+    }
+
+    let email = body
+        .email
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+
+    if let Some(email) = &email {
+        if !email.contains('@') {
+            return Err(DomainError::BadRequest("Invalid email format".into()).into());
+        }
+        if state.storage.get_user_by_email(email).await.is_ok() {
+            return Err(DomainError::BadRequest("Email already taken".into()).into());
+        }
     }
 
     let user_id = Uuid::new_v4();
     let user = domain::User {
         id: user_id,
-        username: body.username.clone(),
-        display_name: body.display_name.clone(),
+        username: username.to_string(),
+        display_name: username.to_string(),
+        email,
         created_at: chrono::Utc::now(),
         mas_current: None,
         quota_balance_usd: 0.0,
@@ -50,7 +63,7 @@ pub async fn register_start(
 
     let ccr = state
         .webauthn
-        .start_registration(user_id, &body.username)
+        .start_registration(user_id, username)
         .await?;
 
     log::info!("Registration challenge created for user {user_id}");
@@ -96,24 +109,37 @@ pub struct RegisterFinishRequest {
     pub credential: RegisterPublicKeyCredential,
 }
 
-#[derive(Deserialize)]
-pub struct LoginStartRequest {
-    pub username: String,
-}
-
 pub async fn login_start(
     state: web::Data<AppState>,
-    body: web::Json<LoginStartRequest>,
+    _body: web::Json<serde_json::Value>,
 ) -> Result<HttpResponse, AppError> {
-    log::info!("POST /auth/login/start username={}", body.username);
+    log::info!("POST /auth/login/start (username-less)");
+    let (auth_id, rcr) = state.webauthn.start_authentication().await?;
+    log::info!("Auth challenge created auth_id={auth_id}");
 
-    let user = state
-        .storage
-        .get_user_by_username(&body.username)
-        .await
-        .map_err(|_| DomainError::NotFound("User not found".into()))?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "auth_id": auth_id,
+        "options": rcr,
+    })))
+}
 
-    let passkey_jsons = state.storage.get_passkeys_for_user(user.id).await?;
+#[derive(Deserialize)]
+pub struct LoginFinishRequest {
+    pub auth_id: Uuid,
+    pub credential: PublicKeyCredential,
+}
+
+pub async fn login_finish(
+    state: web::Data<AppState>,
+    body: web::Json<LoginFinishRequest>,
+) -> Result<HttpResponse, AppError> {
+    log::info!("POST /auth/login/finish auth_id={}", body.auth_id);
+
+    let user_id = state
+        .webauthn
+        .identify_user_from_authentication(&body.credential)?;
+
+    let passkey_jsons = state.storage.get_passkeys_for_user(user_id).await?;
     if passkey_jsons.is_empty() {
         return Err(DomainError::Auth("No passkeys registered".into()).into());
     }
@@ -123,44 +149,15 @@ pub async fn login_start(
         .filter_map(|j| serde_json::from_str(j).ok())
         .collect();
 
-    if passkeys.is_empty() {
-        return Err(DomainError::Auth("Failed to parse passkeys".into()).into());
-    }
-
-    let rcr = state
-        .webauthn
-        .start_authentication(user.id, &passkeys)
-        .await?;
-
-    log::info!("Auth challenge created for user {}", user.id);
-
-    Ok(HttpResponse::Ok().json(serde_json::json!({
-        "user_id": user.id,
-        "options": rcr,
-    })))
-}
-
-#[derive(Deserialize)]
-pub struct LoginFinishRequest {
-    pub user_id: Uuid,
-    pub credential: PublicKeyCredential,
-}
-
-pub async fn login_finish(
-    state: web::Data<AppState>,
-    body: web::Json<LoginFinishRequest>,
-) -> Result<HttpResponse, AppError> {
-    log::info!("POST /auth/login/finish user_id={}", body.user_id);
-
     let _auth_result = state
         .webauthn
-        .finish_authentication(body.user_id, &body.credential)
+        .finish_authentication(body.auth_id, &body.credential, &passkeys)
         .await?;
 
-    let token = state.jwt.create_token(body.user_id)?;
+    let token = state.jwt.create_token(user_id)?;
     let cookie = build_session_cookie(&token);
 
-    log::info!("User {} logged in successfully", body.user_id);
+    log::info!("User {} logged in successfully", user_id);
 
     Ok(HttpResponse::Ok().cookie(cookie).json(serde_json::json!({
         "status": "ok",
@@ -189,6 +186,23 @@ pub async fn me(
     log::debug!("GET /auth/me user_id={}", user.user_id);
     let u = state.storage.get_user_by_id(user.user_id).await?;
     Ok(HttpResponse::Ok().json(u))
+}
+
+pub async fn strava_auth_start(state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
+    log::info!("POST /auth/strava/start");
+
+    if !state.strava_client.is_configured() {
+        return Err(DomainError::BadRequest("Strava is not configured".into()).into());
+    }
+
+    let oauth_state = state.jwt.create_strava_login_state()?;
+    let url = state.strava_client.authorize_url(&oauth_state);
+    log::info!(
+        "Strava auth start: issuing signed oauth state token state={} authorize_url={}",
+        oauth_state, url
+    );
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "url": url })))
 }
 
 fn build_session_cookie(token: &str) -> Cookie<'static> {
