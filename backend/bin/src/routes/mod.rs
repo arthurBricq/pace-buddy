@@ -98,6 +98,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         web::get().to(admin_routes::list_quota_requests),
                     )
                     .route(
+                        "/delete-all-data",
+                        web::post().to(admin_routes::delete_all_data),
+                    )
+                    .route(
                         "/quota-requests/{id}/approve",
                         web::post().to(admin_routes::approve_quota_request),
                     )

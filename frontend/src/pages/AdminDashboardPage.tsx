@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
-import { getAdminStats, getQuotaRequests, approveQuotaRequest, rejectQuotaRequest, type AdminStats } from '../api/admin';
+import {
+  getAdminStats,
+  getQuotaRequests,
+  approveQuotaRequest,
+  rejectQuotaRequest,
+  deleteAllData,
+  type AdminStats,
+} from '../api/admin';
 import type { QuotaRequestRecord } from '../types';
 import Navbar from '../components/Navbar';
 
@@ -8,8 +15,11 @@ export default function AdminDashboardPage() {
   const [requests, setRequests] = useState<QuotaRequestRecord[]>([]);
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadData = () => {
+    setNotice(null);
     getAdminStats().then(setStats).catch((e) => setError(e.message));
     getQuotaRequests().then(setRequests).catch(() => {});
   };
@@ -36,6 +46,27 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleDeleteAllData = async () => {
+    const confirmation = window.prompt(
+      'This will permanently delete all database data. Type DELETE ALL to confirm.'
+    );
+    if (confirmation !== 'DELETE ALL') {
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      await deleteAllData();
+      setAmounts({});
+      loadData();
+      setNotice('All database data has been deleted.');
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
@@ -45,6 +76,11 @@ export default function AdminDashboardPage() {
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
             {error === 'Unauthorized' ? 'You must be logged in.' : `Access denied: ${error}`}
+          </div>
+        )}
+        {notice && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-green-700">
+            {notice}
           </div>
         )}
 
@@ -105,6 +141,21 @@ export default function AdminDashboardPage() {
               ))}
             </div>
           )}
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6 border border-red-200">
+          <h3 className="text-lg font-semibold text-red-700 mb-2">Danger Zone</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Delete all data in the database (users, activities, trainings, chats, quota requests).
+            This is intended for development only.
+          </p>
+          <button
+            onClick={handleDeleteAllData}
+            disabled={isDeleting}
+            className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-60"
+          >
+            {isDeleting ? 'Deleting...' : 'Delete All Database Data'}
+          </button>
         </div>
 
         {!stats && !error && (

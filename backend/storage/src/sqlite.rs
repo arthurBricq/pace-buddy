@@ -1671,4 +1671,40 @@ impl SqliteStorage {
 
         Ok(res.rows_affected())
     }
+
+    /// Development helper: remove all application data while keeping schema intact.
+    pub async fn delete_all_data(&self) -> Result<(), DomainError> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to begin transaction: {e}")))?;
+
+        // Child tables first, then parent tables.
+        for table in [
+            "ai_chat_messages",
+            "ai_chats",
+            "training_insights",
+            "training_activities",
+            "activity_streams",
+            "activities",
+            "trainings",
+            "quota_requests",
+            "passkeys",
+            "strava_tokens",
+            "users",
+        ] {
+            let query = format!("DELETE FROM {table}");
+            sqlx::query(&query)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| DomainError::Storage(format!("Failed to clear {table}: {e}")))?;
+        }
+
+        tx.commit()
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to commit delete-all-data: {e}")))?;
+
+        Ok(())
+    }
 }

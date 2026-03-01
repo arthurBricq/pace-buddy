@@ -115,3 +115,13 @@ pub async fn reject_quota_request(
 
     Ok(HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })))
 }
+
+pub async fn delete_all_data(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+) -> Result<HttpResponse, AppError> {
+    verify_admin(&state, &user).await?;
+    state.storage.delete_all_data().await?;
+    log::warn!("Admin {} deleted all database data", user.user_id);
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })))
+}

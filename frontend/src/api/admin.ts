@@ -23,3 +23,7 @@ export function approveQuotaRequest(id: string, amount_usd: number): Promise<{ s
 export function rejectQuotaRequest(id: string): Promise<{ status: string }> {
   return apiFetch('/admin/quota-requests/' + id + '/reject', { method: 'POST' });
 }
+
+export function deleteAllData(): Promise<{ status: string }> {
+  return apiFetch('/admin/delete-all-data', { method: 'POST' });
+}
