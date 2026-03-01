@@ -191,15 +191,6 @@ pub async fn me(
     Ok(HttpResponse::Ok().json(u))
 }
 
-pub async fn list_all_users(
-    state: web::Data<AppState>,
-    _user: AuthenticatedUser,
-) -> Result<HttpResponse, AppError> {
-    log::debug!("GET /auth/users");
-    let users = state.storage.list_users().await?;
-    Ok(HttpResponse::Ok().json(users))
-}
-
 fn build_session_cookie(token: &str) -> Cookie<'static> {
     Cookie::build("session", token.to_owned())
         .path("/")

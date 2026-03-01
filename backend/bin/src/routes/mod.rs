@@ -25,7 +25,6 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route("/login/finish", web::post().to(auth_routes::login_finish))
                     .route("/logout", web::post().to(auth_routes::logout))
                     .route("/me", web::get().to(auth_routes::me))
-                    .route("/users", web::get().to(auth_routes::list_all_users))
                     .route("/mas", web::get().to(profile_routes::get_mas))
                     .route("/mas", web::patch().to(profile_routes::update_mas))
                     .route("/profile", web::get().to(profile_routes::profile))
