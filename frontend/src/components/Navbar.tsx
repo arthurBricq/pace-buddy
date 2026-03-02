@@ -65,6 +65,7 @@ export default function Navbar() {
         </div>
 
         <div className="navbar-actions-desktop">
+          <NavLink to="/help">Help</NavLink>
           <NavLink to="/profile">Profile</NavLink>
           <button
             onClick={handleLogout}
@@ -99,6 +100,9 @@ export default function Navbar() {
             </NavLink>
             <NavLink to="/races" mobile onClick={() => setMenuOpen(false)}>
               Races
+            </NavLink>
+            <NavLink to="/help" mobile onClick={() => setMenuOpen(false)}>
+              Help
             </NavLink>
             <NavLink to="/profile" mobile onClick={() => setMenuOpen(false)}>
               Profile
