@@ -4,7 +4,6 @@ import { getActivitiesSyncStatus, listActivities, updateActivityTag } from '../a
 import { getStravaStatus } from '../api/strava';
 import type { Activity, ActivityTag } from '../types';
 import TagBadge from '../components/TagBadge';
-import TagSelector from '../components/TagSelector';
 import Navbar from '../components/Navbar';
 
 function formatDuration(seconds: number): string {
@@ -49,6 +48,12 @@ function addDays(date: Date, days: number): Date {
   return copy;
 }
 
+const TAG_OPTIONS: ActivityTag[] = ['normal', 'intervals', 'long_run', 'race'];
+
+function formatTagLabel(tag: ActivityTag): string {
+  return tag.replace('_', ' ');
+}
+
 export default function ActivityListPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +68,7 @@ export default function ActivityListPage() {
   const [qualityOnly, setQualityOnly] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const limit = 50;
+  const editingActivity = editingTag ? activities.find((a) => a.id === editingTag) ?? null : null;
 
   const load = async (off = 0) => {
     setLoading(true);
@@ -209,6 +215,10 @@ export default function ActivityListPage() {
     } catch (err: any) {
       setError(err.message);
     }
+  };
+
+  const openTagEditor = (activityId: string) => {
+    setEditingTag(activityId);
   };
 
   return (
@@ -366,16 +376,13 @@ export default function ActivityListPage() {
                           {new Date(a.start_date).toLocaleDateString()}
                         </p>
                         <div>
-                          {editingTag === a.id ? (
-                            <TagSelector
-                              current={a.tag}
-                              onChange={(tag) => handleTagChange(a.id, tag)}
-                            />
-                          ) : (
-                            <button onClick={() => setEditingTag(a.id)}>
-                              <TagBadge tag={a.tag} />
-                            </button>
-                          )}
+                          <button
+                            onClick={() => openTagEditor(a.id)}
+                            className="inline-flex rounded-full p-0.5 transition-all hover:scale-[1.03] hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            title="Edit activity type"
+                          >
+                            <TagBadge tag={a.tag} />
+                          </button>
                         </div>
                       </div>
                       <Link
@@ -444,16 +451,13 @@ export default function ActivityListPage() {
                             {formatPace(a.average_speed)}
                           </td>
                           <td className="px-4 py-3 text-center">
-                            {editingTag === a.id ? (
-                              <TagSelector
-                                current={a.tag}
-                                onChange={(tag) => handleTagChange(a.id, tag)}
-                              />
-                            ) : (
-                              <button onClick={() => setEditingTag(a.id)}>
-                                <TagBadge tag={a.tag} />
-                              </button>
-                            )}
+                            <button
+                              onClick={() => openTagEditor(a.id)}
+                              className="inline-flex rounded-full p-0.5 transition-all hover:scale-[1.03] hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                              title="Edit activity type"
+                            >
+                              <TagBadge tag={a.tag} />
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -487,6 +491,46 @@ export default function ActivityListPage() {
           </>
         )}
       </div>
+
+      {editingActivity && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          onClick={() => setEditingTag(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-lg bg-white p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3">
+              <h2 className="text-base font-semibold text-gray-900">Edit activity type</h2>
+              <p className="text-xs text-gray-500 mt-1 truncate">{editingActivity.name}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {TAG_OPTIONS.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => handleTagChange(editingActivity.id, tag)}
+                  className={`rounded-md border px-3 py-2 text-sm font-medium capitalize transition-colors ${
+                    tag === editingActivity.tag
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'
+                  }`}
+                >
+                  {formatTagLabel(tag)}
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 flex justify-end">
+              <button
+                onClick={() => setEditingTag(null)}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
