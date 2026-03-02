@@ -13,6 +13,7 @@ use domain::{AiChat, DomainError};
 use llm::LlmClient;
 
 const DEFAULT_MODEL: &str = "google/gemini-2.5-flash";
+const MIN_QUOTA: f64 = 0.25;
 
 // ---------------------------------------------------------------------------
 // Create empty chat
@@ -207,7 +208,7 @@ pub async fn send_message(
 
     // Quota check: require at least $0.25 to make a request
     let quota = state.storage.get_user_quota(user.user_id).await?;
-    if quota < 0.25 {
+    if quota < MIN_QUOTA {
         return Err(AppError(DomainError::QuotaExhausted(
             "Your AI token quota is too low. Request more tokens from your profile.".into(),
         )));

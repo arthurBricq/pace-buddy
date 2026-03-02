@@ -1,44 +1,17 @@
-import {apiFetch} from './client';
-import type {Activity, ActivityDetail, IntervalResult} from '../types';
-
-type SyncActivitiesResult = { synced: number };
-type SyncListener = (syncing: boolean) => void;
-
-let syncActivitiesPromise: Promise<SyncActivitiesResult> | null = null;
-const syncListeners = new Set<SyncListener>();
-
-function emitSyncState() {
-  const syncing = syncActivitiesPromise !== null;
-  syncListeners.forEach((listener) => listener(syncing));
-}
-
-export function isActivitiesSyncInProgress() {
-  return syncActivitiesPromise !== null;
-}
-
-export function subscribeActivitiesSync(listener: SyncListener) {
-  syncListeners.add(listener);
-  listener(isActivitiesSyncInProgress());
-  return () => {
-    syncListeners.delete(listener);
-  };
-}
+import { apiFetch } from './client';
+import type { Activity, ActivityDetail, IntervalResult } from '../types';
 
 export async function syncActivities(after?: number, before?: number) {
-  if (syncActivitiesPromise) {
-    return syncActivitiesPromise;
-  }
-
-  syncActivitiesPromise = apiFetch<SyncActivitiesResult>('/activities/sync', {
+  return apiFetch<{ synced: number; already_running?: boolean }>('/activities/sync', {
     method: 'POST',
-    body: JSON.stringify({after: after ?? null, before: before ?? null}),
-  }).finally(() => {
-    syncActivitiesPromise = null;
-    emitSyncState();
+    body: JSON.stringify({ after: after ?? null, before: before ?? null }),
   });
+}
 
-  emitSyncState();
-  return syncActivitiesPromise;
+export async function getActivitiesSyncStatus() {
+  return apiFetch<{ status: 'idle' | 'running' | 'finished' | 'failed'; error?: string | null }>(
+    '/activities/sync/status'
+  );
 }
 
 export async function listActivities(limit = 50, offset = 0) {

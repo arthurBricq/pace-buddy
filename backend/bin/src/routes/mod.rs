@@ -51,6 +51,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .service(
                 web::scope("/activities")
                     .route("/sync", web::post().to(activity_routes::sync_activities))
+                    .route("/sync/status", web::get().to(activity_routes::sync_status))
                     .route("", web::get().to(activity_routes::list_activities))
                     .route("/{id}", web::get().to(activity_routes::get_activity))
                     .route("/{id}/tag", web::patch().to(activity_routes::update_tag))

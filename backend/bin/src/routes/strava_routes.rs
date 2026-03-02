@@ -8,6 +8,7 @@ use storage::Storage;
 use uuid::Uuid;
 
 use crate::errors::AppError;
+use crate::helpers::activity_sync_helper::sync_user_activities;
 use crate::helpers::strava_token_helper::get_valid_access_token;
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
@@ -112,6 +113,21 @@ pub async fn callback(
                 return redirect_with_error(frontend, &format!("Failed to save token: {e}"));
             }
 
+            let should_start_initial_sync = match app.storage.get_latest_activity_start(user_id).await {
+                Ok(None) => true,
+                Ok(Some(_)) => false,
+                Err(e) => {
+                    log::warn!(
+                        "Could not determine if initial sync should start for user {}: {}",
+                        user_id, e
+                    );
+                    false
+                }
+            };
+            if should_start_initial_sync {
+                start_background_initial_sync(app.clone(), user_id);
+            }
+
             log::info!("Strava linked successfully for user {user_id}, redirecting to frontend");
             HttpResponse::Found()
                 .append_header(("Location", format!("{frontend}/profile")))
@@ -148,6 +164,7 @@ async fn handle_strava_login_callback(
     token_resp: strava_client::types::TokenResponse,
 ) -> HttpResponse {
     let frontend = &app.frontend_url;
+    let mut created_new_user = false;
 
     let user_id = match app.storage.get_strava_token_by_athlete_id(athlete_id).await {
         Ok(existing) => existing.user_id,
@@ -168,6 +185,7 @@ async fn handle_strava_login_callback(
             if let Err(e) = app.storage.create_user(&user).await {
                 return redirect_with_error(frontend, &format!("Failed to create user: {e}"));
             }
+            created_new_user = true;
             user.id
         }
     };
@@ -183,6 +201,10 @@ async fn handle_strava_login_callback(
 
     if let Err(e) = app.storage.upsert_strava_token(&strava_token).await {
         return redirect_with_error(frontend, &format!("Failed to save Strava token: {e}"));
+    }
+
+    if created_new_user {
+        start_background_initial_sync(app.clone(), user_id);
     }
 
     let jwt = match app.jwt.create_token(user_id) {
@@ -210,6 +232,40 @@ fn redirect_with_error(frontend_url: &str, message: &str) -> HttpResponse {
     HttpResponse::Found()
         .append_header(("Location", format!("{frontend_url}/profile?error={encoded}")))
         .finish()
+}
+
+fn start_background_initial_sync(app: web::Data<AppState>, user_id: Uuid) {
+    tokio::spawn(async move {
+        if !app.try_begin_activities_sync(user_id).await {
+            log::info!(
+                "Initial background sync skipped for user {} because another sync is already running",
+                user_id
+            );
+            return;
+        }
+
+        log::info!("Starting initial background Strava sync for user {}", user_id);
+        let result = sync_user_activities(&app, user_id, None, None).await;
+
+        match result {
+            Ok(total) => {
+                app.mark_activities_sync_finished(user_id).await;
+                log::info!(
+                    "Initial background Strava sync complete for user {}: {} activities",
+                    user_id,
+                    total
+                );
+            }
+            Err(e) => {
+                app.mark_activities_sync_failed(user_id, e.to_string()).await;
+                log::error!(
+                    "Initial background Strava sync failed for user {}: {}",
+                    user_id,
+                    e
+                );
+            }
+        }
+    });
 }
 
 pub async fn disconnect(

@@ -4,14 +4,13 @@ use storage::Storage;
 use uuid::Uuid;
 
 use crate::errors::AppError;
+use crate::helpers::activity_sync_helper::sync_user_activities;
 use crate::helpers::strava_data_helper::{
     fetch_polyline, fetch_streams_from_strava, load_and_cache_streams,
 };
-use crate::helpers::strava_token_helper::get_valid_access_token;
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
 use domain::{ActivityTag, DomainError};
-use strava_client::conversions::strava_activity_to_domain;
 
 #[derive(Deserialize)]
 pub struct SyncRequest {
@@ -24,67 +23,48 @@ pub async fn sync_activities(
     user: AuthenticatedUser,
     body: web::Json<SyncRequest>,
 ) -> Result<HttpResponse, AppError> {
-    // If no explicit `after` provided, default to latest stored activity start_date
-    // so we only fetch new activities (incremental sync).
-    let after = match body.after {
-        Some(ts) => Some(ts),
-        None => {
-            let latest = state
-                .storage
-                .get_latest_activity_start(user.user_id)
-                .await?;
-            latest.map(|dt| dt.timestamp())
-        }
-    };
-
     log::info!(
         "POST /activities/sync user={} after={:?} before={:?}",
         user.user_id,
-        after,
+        body.after,
         body.before
     );
 
-    let access_token =
-        get_valid_access_token(&state.storage, &state.strava_client, user.user_id).await?;
-
-    let mut all_activities = Vec::new();
-    let mut page = 1u32;
-    let per_page = 200u32;
-
-    loop {
-        log::info!("Fetching Strava activities page {page}...");
-        let strava_activities = state
-            .strava_client
-            .get_activities(&access_token, page, per_page, after, body.before)
-            .await?;
-
-        let count = strava_activities.len();
-        log::info!("Got {count} activities from Strava (page {page})");
-
-        let domain_activities: Vec<_> = strava_activities
-            .iter()
-            .map(|sa| strava_activity_to_domain(sa, user.user_id))
-            .collect();
-
-        all_activities.extend(domain_activities);
-
-        if (count as u32) < per_page {
-            break;
-        }
-        page += 1;
+    if !state.try_begin_activities_sync(user.user_id).await {
+        log::info!("Sync already running for user {}, returning early", user.user_id);
+        return Ok(HttpResponse::Ok().json(serde_json::json!({
+            "synced": 0,
+            "already_running": true,
+        })));
     }
 
-    let total = all_activities.len();
-    log::info!("Upserting {total} activities into storage");
-    state.storage.upsert_activities(&all_activities).await?;
-
-    log::info!(
-        "Sync complete: {total} activities for user {}",
-        user.user_id
-    );
+    let result = sync_user_activities(&state, user.user_id, body.after, body.before).await;
+    let total = match result {
+        Ok(total) => {
+            state.mark_activities_sync_finished(user.user_id).await;
+            total
+        }
+        Err(e) => {
+            state
+                .mark_activities_sync_failed(user.user_id, e.to_string())
+                .await;
+            return Err(AppError(e));
+        }
+    };
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "synced": total,
+    })))
+}
+
+pub async fn sync_status(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+) -> Result<HttpResponse, AppError> {
+    let (status, error) = state.get_activities_sync_status(user.user_id).await;
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "status": status,
+        "error": error,
     })))
 }
 

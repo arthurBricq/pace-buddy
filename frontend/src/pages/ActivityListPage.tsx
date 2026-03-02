@@ -1,12 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  isActivitiesSyncInProgress,
-  listActivities,
-  subscribeActivitiesSync,
-  syncActivities,
-  updateActivityTag,
-} from '../api/activities';
+import { getActivitiesSyncStatus, listActivities, updateActivityTag } from '../api/activities';
 import { getStravaStatus } from '../api/strava';
 import type { Activity, ActivityTag } from '../types';
 import TagBadge from '../components/TagBadge';
@@ -58,9 +52,10 @@ function addDays(date: Date, days: number): Date {
 export default function ActivityListPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(() => isActivitiesSyncInProgress());
-  const [syncResult, setSyncResult] = useState<string | null>(null);
-  const [stravaLinked, setStravaLinked] = useState(true);
+  const [stravaLinked, setStravaLinked] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'running' | 'finished' | 'failed' | null>(null);
+  const [syncStatusError, setSyncStatusError] = useState('');
+  const [syncStatusHandled, setSyncStatusHandled] = useState(false);
   const [error, setError] = useState('');
   const [editingTag, setEditingTag] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
@@ -87,6 +82,12 @@ export default function ActivityListPage() {
     .filter((a) => (qualityOnly ? a.tag === 'intervals' || a.tag === 'long_run' || a.tag === 'race' : true));
 
   const qualityTooltip = 'Quality sessions are intervals, long runs, and races.';
+  const showSyncBanner =
+    !loading &&
+    activities.length === 0 &&
+    stravaLinked &&
+    !syncStatusHandled &&
+    (syncStatus === null || syncStatus === 'running');
 
   const getHighlightClasses = (tag: ActivityTag) => {
     if (tag === 'intervals') {
@@ -152,24 +153,51 @@ export default function ActivityListPage() {
 
   useEffect(() => {
     load();
-    getStravaStatus().then((s) => setStravaLinked(s.linked)).catch(() => {});
+    getStravaStatus()
+      .then((status) => setStravaLinked(Boolean(status.linked)))
+      .catch(() => setStravaLinked(false));
   }, []);
 
   useEffect(() => {
-    return subscribeActivitiesSync(setSyncing);
-  }, []);
-
-  const handleSync = async () => {
-    setError('');
-    setSyncResult(null);
-    try {
-      const result = await syncActivities();
-      setSyncResult(`Synced ${result.synced} activities from Strava.`);
-      load();
-    } catch (err: any) {
-      setError(err.message);
+    if (loading || activities.length > 0 || !stravaLinked || syncStatusHandled) {
+      return;
     }
-  };
+
+    let stopped = false;
+    let intervalId: number | null = null;
+
+    const poll = async () => {
+      try {
+        const status = await getActivitiesSyncStatus();
+        if (stopped) return;
+
+        setSyncStatus(status.status);
+        setSyncStatusError(status.error || '');
+
+        if (status.status === 'finished') {
+          setSyncStatusHandled(true);
+          load();
+          return;
+        }
+
+        if (status.status === 'failed') {
+          setSyncStatusHandled(true);
+        }
+      } catch {
+        // Ignore transient polling errors.
+      }
+    };
+
+    poll();
+    intervalId = window.setInterval(poll, 1500);
+
+    return () => {
+      stopped = true;
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, [loading, activities.length, stravaLinked, syncStatusHandled]);
 
   const handleTagChange = async (activityId: string, tag: ActivityTag) => {
     try {
@@ -225,46 +253,33 @@ export default function ActivityListPage() {
             >
               {qualityOnly ? 'Showing quality sessions only' : 'Filter only quality sessions'}
             </button>
-            <button
-              onClick={handleSync}
-              disabled={syncing || !stravaLinked}
-              title={!stravaLinked ? 'Connect Strava in the Profile page first' : undefined}
-              className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center justify-center gap-2 sm:w-auto"
-            >
-              {syncing && (
-                <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              )}
-              {syncing ? 'Syncing...' : 'Sync from Strava'}
-            </button>
           </div>
         </div>
 
-        {syncing && (
+        {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
+
+        {showSyncBanner && (
           <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-md mb-4 flex items-center gap-2 text-sm">
             <svg className="animate-spin h-4 w-4 text-blue-600" viewBox="0 0 24 24" fill="none">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            Fetching activities from Strava... This may take a moment.
+            Importing activities from Strava...
           </div>
         )}
 
-        {syncResult && !syncing && (
-          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md mb-4 text-sm">
-            {syncResult}
+        {!loading && activities.length === 0 && syncStatus === 'failed' && syncStatusError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4 text-sm">
+            Automatic Strava import failed: {syncStatusError}
           </div>
         )}
-
-        {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
 
         {loading ? (
           <p className="text-gray-500">Loading activities...</p>
         ) : activities.length === 0 ? (
           <p className="text-gray-500">
-            No activities yet. Sync from Strava to get started.
+            No activities yet. If Strava is linked, imports happen automatically. You can request
+            a manual resync from your profile.
           </p>
         ) : viewMode === 'calendar' ? (
           calendarWeeks.length === 0 ? (

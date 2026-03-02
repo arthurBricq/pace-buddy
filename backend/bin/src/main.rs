@@ -138,6 +138,8 @@ async fn main() -> std::io::Result<()> {
         strava_webhook_verify_token: cfg.strava_webhook_verify_token.clone(),
         admin_strava_athlete_id: cfg.admin_strava_athlete_id,
         quota_markup_ratio: cfg.quota_markup_ratio,
+        syncing_activity_users: Arc::new(tokio::sync::Mutex::new(std::collections::HashSet::new())),
+        activity_sync_statuses: Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new())),
     });
 
     // Background task: check/create Strava webhook subscription

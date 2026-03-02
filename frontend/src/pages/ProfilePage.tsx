@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { getProfile, getAiCostSummary, getQuotaStatus, requestQuota } from '../api/auth';
+import { syncActivities } from '../api/activities';
 import { getStravaStatus, getStravaLink, disconnectStrava } from '../api/strava';
 import type { ProfileResponse, RunningStats, StravaStatus, AiCostSummary, QuotaStatus } from '../types';
 import Navbar from '../components/Navbar';
@@ -73,6 +74,8 @@ export default function ProfilePage() {
   const [quotaStatus, setQuotaStatus] = useState<QuotaStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(searchParams.get('error') || '');
+  const [resyncing, setResyncing] = useState(false);
+  const [resyncNotice, setResyncNotice] = useState('');
 
   useEffect(() => {
     Promise.all([
@@ -107,6 +110,24 @@ export default function ProfilePage() {
       setStravaStatus({ linked: false });
     } catch (err: any) {
       setError(err.message);
+    }
+  };
+
+  const handleRequestResync = async () => {
+    setError('');
+    setResyncNotice('');
+    setResyncing(true);
+    try {
+      const result = await syncActivities();
+      if (result.already_running) {
+        setResyncNotice('A Strava sync is already running in the background.');
+      } else {
+        setResyncNotice(`Strava resync requested. ${result.synced} activity(ies) synchronized.`);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to request Strava resync');
+    } finally {
+      setResyncing(false);
     }
   };
 
@@ -155,6 +176,7 @@ export default function ProfilePage() {
         {/* Strava Connection Section */}
         <div className="card">
           {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
+          {resyncNotice && <p className="text-green-700 text-sm mb-2">{resyncNotice}</p>}
           {stravaStatus && stravaStatus.linked ? (
             <div className="space-y-3">
               <img src="/strava_pwrdby_horiz_orange.svg" alt="Powered by Strava" className="h-8" />
@@ -172,6 +194,14 @@ export default function ProfilePage() {
                   className="text-sm text-red-600 hover:text-red-800"
                 >
                   Disconnect
+                </button>
+                <button
+                  onClick={handleRequestResync}
+                  disabled={resyncing}
+                  title="Use this if your latest Strava activities are missing or outdated. It manually asks the backend to pull updates from Strava."
+                  className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {resyncing ? 'Requesting resync...' : 'Request Strava Resync'}
                 </button>
               </div>
             </div>
