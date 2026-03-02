@@ -59,6 +59,7 @@ export default function ActivityListPage() {
   const [editingTag, setEditingTag] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [tagFilter, setTagFilter] = useState<ActivityTag | 'all'>('all');
+  const [qualityOnly, setQualityOnly] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const limit = 50;
 
@@ -75,10 +76,24 @@ export default function ActivityListPage() {
     }
   };
 
-  const filteredActivities =
-    tagFilter === 'all'
-      ? activities
-      : activities.filter((a) => a.tag === tagFilter);
+  const filteredActivities = activities
+    .filter((a) => (tagFilter === 'all' ? true : a.tag === tagFilter))
+    .filter((a) => (qualityOnly ? a.tag === 'intervals' || a.tag === 'long_run' || a.tag === 'race' : true));
+
+  const qualityTooltip = 'Quality sessions are intervals, long runs, and races.';
+
+  const getHighlightClasses = (tag: ActivityTag) => {
+    if (tag === 'intervals') {
+      return 'bg-blue-50/60 border-blue-100';
+    }
+    if (tag === 'long_run') {
+      return 'bg-emerald-50/60 border-emerald-100';
+    }
+    if (tag === 'race') {
+      return 'bg-amber-50/60 border-amber-100';
+    }
+    return '';
+  };
 
   const calendarWeeks = useMemo(() => {
     if (filteredActivities.length === 0) return [];
@@ -183,9 +198,25 @@ export default function ActivityListPage() {
           <div className="button-row-wrap">
             <button
               onClick={() => setViewMode(viewMode === 'list' ? 'calendar' : 'list')}
-              className="w-full text-left text-sm text-blue-600 hover:text-blue-700 sm:w-auto sm:text-center"
+              className={`w-full sm:w-[18rem] whitespace-nowrap text-sm px-3 py-2 rounded-md border ${
+                viewMode === 'calendar'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
             >
               {viewMode === 'list' ? 'Switch to calendar view' : 'Switch to list view'}
+            </button>
+            <button
+              type="button"
+              title={qualityTooltip}
+              onClick={() => setQualityOnly((prev) => !prev)}
+              className={`w-full sm:w-[18rem] whitespace-nowrap text-sm px-3 py-2 rounded-md border ${
+                qualityOnly
+                  ? 'bg-purple-600 text-white border-purple-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              {qualityOnly ? 'Showing quality sessions only' : 'Filter only quality sessions'}
             </button>
             <button
               onClick={handleSync}
@@ -307,7 +338,7 @@ export default function ActivityListPage() {
               <>
                 <div className="space-y-3 sm:hidden">
                   {filteredActivities.map((a) => (
-                    <article key={a.id} className="rounded-lg bg-white p-4 shadow">
+                    <article key={a.id} className={`rounded-lg border bg-white p-4 shadow ${getHighlightClasses(a.tag)}`}>
                       <div className="mb-2 flex items-start justify-between gap-2">
                         <p className="text-xs text-gray-500">
                           {new Date(a.start_date).toLocaleDateString()}
@@ -368,7 +399,7 @@ export default function ActivityListPage() {
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {filteredActivities.map((a) => (
-                        <tr key={a.id} className="hover:bg-gray-50">
+                        <tr key={a.id} className={`hover:bg-gray-50 ${getHighlightClasses(a.tag)}`}>
                           <td className="px-4 py-3 text-gray-500">
                             {new Date(a.start_date).toLocaleDateString()}
                           </td>
