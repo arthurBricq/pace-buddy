@@ -114,7 +114,7 @@ export default function HelpPage() {
           </p>
         </section>
 
-        <section className="card">
+        <section id="llm-models-and-costs" className="card scroll-mt-24">
           <h2 className="text-lg font-semibold mb-3">LLM models and costs</h2>
           <p className="text-sm text-gray-700 mb-3">
             Some LLM models are more expensive than others. Model cost differences are already

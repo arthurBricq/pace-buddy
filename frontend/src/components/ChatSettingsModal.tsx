@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { listModels } from '../api/chats';
-import type { ModelInfo } from '../types';
+import { Link } from 'react-router-dom';
+import { getModelCostTiers, listModels } from '../api/chats';
+import type { ModelCostCategory, ModelCostTier, ModelInfo } from '../types';
 
 interface ChatSettingsModalProps {
   isOpen: boolean;
@@ -30,21 +31,59 @@ export default function ChatSettingsModal({
   confirmLabel = 'Continue to Chat',
 }: ChatSettingsModalProps) {
   const [models, setModels] = useState<ModelInfo[]>([]);
+  const [modelCostTiers, setModelCostTiers] = useState<ModelCostTier[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState(defaultModel);
   const [conversationLength, setConversationLength] = useState(defaultConversationLength);
 
+  const categoryByModelId = new Map(modelCostTiers.map((tier) => [tier.model_id, tier.category]));
+
+  const categoryStyle = (category?: ModelCostCategory) => {
+    switch (category) {
+      case 'economical':
+        return 'bg-green-100 text-green-800 border border-green-200';
+      case 'standard':
+        return 'bg-blue-100 text-blue-800 border border-blue-200';
+      case 'expensive':
+        return 'bg-amber-100 text-amber-800 border border-amber-200';
+      default:
+        return 'bg-gray-100 text-gray-700 border border-gray-200';
+    }
+  };
+
+  const categoryLabel = (category?: ModelCostCategory) => {
+    switch (category) {
+      case 'economical':
+        return 'Economical';
+      case 'standard':
+        return 'Standard';
+      case 'expensive':
+        return 'Expensive';
+      default:
+        return 'Unrated';
+    }
+  };
+
   useEffect(() => {
-    if (isOpen && !hideModelSelector && models.length === 0) {
+    if (isOpen && !hideModelSelector) {
       setLoading(true);
-      listModels()
-        .then(setModels)
+      Promise.all([
+        listModels(),
+        getModelCostTiers().catch((err) => {
+          console.warn('Failed to load model cost tiers:', err);
+          return [];
+        }),
+      ])
+        .then(([loadedModels, loadedTiers]) => {
+          setModels(loadedModels);
+          setModelCostTiers(loadedTiers);
+        })
         .catch((err) => {
           console.error('Failed to load models:', err);
         })
         .finally(() => setLoading(false));
     }
-  }, [isOpen, hideModelSelector, models.length]);
+  }, [isOpen, hideModelSelector]);
 
   useEffect(() => {
     if (isOpen) {
@@ -75,7 +114,7 @@ export default function ChatSettingsModal({
         <form onSubmit={handleSubmit} className="px-4 py-4 space-y-4 sm:px-6">
           {!hideModelSelector && (
             <div>
-              <label htmlFor="model" className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 LLM Model
               </label>
               {loading ? (
@@ -84,20 +123,41 @@ export default function ChatSettingsModal({
                   Loading models...
                 </div>
               ) : (
-                <select
-                  id="model"
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-                  required
-                >
+                <div className="max-h-64 overflow-y-auto space-y-2">
                   {models.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name}
-                    </option>
+                    <button
+                      key={model.id}
+                      type="button"
+                      onClick={() => setSelectedModel(model.id)}
+                      className={`w-full rounded-md border p-3 text-left transition-colors ${
+                        selectedModel === model.id
+                          ? 'border-purple-400 ring-2 ring-purple-200 bg-purple-50'
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{model.name}</p>
+                          <p className="text-xs text-gray-500 mt-1">{model.id}</p>
+                        </div>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded ${categoryStyle(categoryByModelId.get(model.id))}`}
+                        >
+                          {categoryLabel(categoryByModelId.get(model.id))}
+                        </span>
+                      </div>
+                    </button>
                   ))}
-                </select>
+                </div>
               )}
+              <div className="mt-2 flex justify-end">
+                <Link
+                  to="/help#llm-models-and-costs"
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  Learn about model cost categories
+                </Link>
+              </div>
             </div>
           )}
 
