@@ -1,10 +1,14 @@
 import type { ActivityTag } from '../types';
 
-const TAGS: ActivityTag[] = ['normal', 'intervals', 'race'];
+const TAGS: ActivityTag[] = ['normal', 'intervals', 'long_run', 'race'];
 
 interface Props {
   current: ActivityTag;
   onChange: (tag: ActivityTag) => void;
+}
+
+function label(tag: ActivityTag): string {
+  return tag.replace('_', ' ');
 }
 
 export default function TagSelector({ current, onChange }: Props) {
@@ -20,7 +24,7 @@ export default function TagSelector({ current, onChange }: Props) {
               : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
           }`}
         >
-          {tag}
+          {label(tag)}
         </button>
       ))}
     </div>

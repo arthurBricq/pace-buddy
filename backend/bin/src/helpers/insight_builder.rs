@@ -43,7 +43,29 @@ pub async fn build_insight_context(
     // Build interval descriptions for each activity
     let config = intervals::types::IntervalConfig::default();
     let mut interval_descriptions = Vec::new();
+    let mut long_run_descriptions = Vec::new();
     for activity in &training_activities {
+        if activity.tag == domain::ActivityTag::LongRun {
+            let dist_km = activity.distance / 1000.0;
+            let duration_min = activity.moving_time as f64 / 60.0;
+            let pace = if activity.distance > 0.0 {
+                let pace_s = activity.moving_time as f64 / (activity.distance / 1000.0);
+                let pm = pace_s as i32 / 60;
+                let ps = pace_s as i32 % 60;
+                format!("{}:{:02}/km", pm, ps)
+            } else {
+                "N/A".to_string()
+            };
+            long_run_descriptions.push(format!(
+                "- {} ({}): {:.1}km, {:.0}min, pace {}",
+                activity.name,
+                activity.start_date.format("%Y-%m-%d"),
+                dist_km,
+                duration_min,
+                pace,
+            ));
+        }
+
         let mut streams = state
             .storage
             .get_streams(activity.id)
@@ -194,6 +216,16 @@ pub async fn build_insight_context(
     if !interval_descriptions.is_empty() {
         user_prompt.push_str("\n## Interval Sessions\n");
         for desc in &interval_descriptions {
+            user_prompt.push_str(desc);
+            user_prompt.push('\n');
+        }
+    }
+
+    user_prompt.push_str("\n## Long Runs\n");
+    if long_run_descriptions.is_empty() {
+        user_prompt.push_str("- None recorded in this training.\n");
+    } else {
+        for desc in &long_run_descriptions {
             user_prompt.push_str(desc);
             user_prompt.push('\n');
         }

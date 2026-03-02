@@ -3,11 +3,12 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum ActivityTag {
     Normal,
     Intervals,
     Race,
+    LongRun,
 }
 
 impl ActivityTag {
@@ -16,6 +17,7 @@ impl ActivityTag {
     pub fn from_strava_workout_type(workout_type: Option<i32>) -> Self {
         match workout_type {
             Some(1) => ActivityTag::Race,
+            Some(2) => ActivityTag::LongRun,
             Some(3) => ActivityTag::Intervals,
             _ => ActivityTag::Normal,
         }
@@ -28,6 +30,7 @@ impl std::fmt::Display for ActivityTag {
             ActivityTag::Normal => write!(f, "normal"),
             ActivityTag::Intervals => write!(f, "intervals"),
             ActivityTag::Race => write!(f, "race"),
+            ActivityTag::LongRun => write!(f, "long_run"),
         }
     }
 }
@@ -40,6 +43,7 @@ impl std::str::FromStr for ActivityTag {
             "normal" => Ok(ActivityTag::Normal),
             "intervals" => Ok(ActivityTag::Intervals),
             "race" => Ok(ActivityTag::Race),
+            "long_run" => Ok(ActivityTag::LongRun),
             other => Err(format!("Unknown activity tag: {other}")),
         }
     }

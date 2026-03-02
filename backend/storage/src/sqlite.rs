@@ -1085,11 +1085,11 @@ impl Storage for SqliteStorage {
         // Verify training belongs to user
         let _training = self.get_training(training_id, user_id).await?;
 
-        // Verify activity belongs to user and is tagged as intervals
+        // Verify activity belongs to user and is tagged as interval or long run
         let activity = self.get_activity(activity_id, user_id).await?;
-        if activity.tag != ActivityTag::Intervals {
+        if !matches!(activity.tag, ActivityTag::Intervals | ActivityTag::LongRun) {
             return Err(DomainError::BadRequest(
-                "Only interval-tagged activities can be added to trainings".into(),
+                "Only interval or long-run tagged activities can be added to trainings".into(),
             ));
         }
 

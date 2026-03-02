@@ -59,16 +59,19 @@ pub async fn create_training(
 
     state.storage.create_training(&training).await?;
 
-    // Automatically add interval sessions within the training date range
+    // Automatically add interval and long-run sessions within the training date range
     if let (Some(start), Some(end)) = (training.start_date, training.end_date) {
         let activities = state
             .storage
             .get_activities_in_range(user.user_id, start, end)
             .await?;
 
-        // Filter for interval-tagged activities and add them to the training
+        // Filter for interval/long-run tagged activities and add them to the training
         for activity in activities {
-            if activity.tag == domain::ActivityTag::Intervals {
+            if matches!(
+                activity.tag,
+                domain::ActivityTag::Intervals | domain::ActivityTag::LongRun
+            ) {
                 if let Err(e) = state
                     .storage
                     .add_activity_to_training(training.id, activity.id, user.user_id)

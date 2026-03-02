@@ -199,6 +199,10 @@ async fn build_training_recap(
 ) -> Result<ContextResult, DomainError> {
     let training = storage.get_training(training_id, user_id).await?;
     let activities = storage.get_training_activities(training_id, user_id).await?;
+    let long_runs: Vec<&domain::Activity> = activities
+        .iter()
+        .filter(|a| a.tag == domain::ActivityTag::LongRun)
+        .collect();
     let label = format!("Training: {}", training.name);
 
     let mut content = format!("# Training: {}\n\n", training.name);
@@ -244,6 +248,32 @@ async fn build_training_recap(
             pace,
             hr,
         ));
+    }
+
+    content.push_str(&format!("\n## Long Runs ({} total)\n\n", long_runs.len()));
+    if long_runs.is_empty() {
+        content.push_str("- No long runs in this training.\n");
+    } else {
+        for a in long_runs {
+            let dist_km = a.distance / 1000.0;
+            let duration_min = a.moving_time as f64 / 60.0;
+            let pace = if a.distance > 0.0 {
+                let pace_s = a.moving_time as f64 / (a.distance / 1000.0);
+                let pm = pace_s as i32 / 60;
+                let ps = pace_s as i32 % 60;
+                format!("{}:{:02}/km", pm, ps)
+            } else {
+                "N/A".to_string()
+            };
+            content.push_str(&format!(
+                "- **{}** ({}): {:.1}km, {:.0}min, {}\n",
+                a.name,
+                a.start_date.format("%Y-%m-%d"),
+                dist_km,
+                duration_min,
+                pace,
+            ));
+        }
     }
 
     Ok(ContextResult { label, content })

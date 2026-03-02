@@ -23,7 +23,7 @@ export interface QuotaStatus {
   requests: QuotaRequestRecord[];
 }
 
-export type ActivityTag = 'normal' | 'intervals' | 'race';
+export type ActivityTag = 'normal' | 'intervals' | 'race' | 'long_run';
 
 export interface Activity {
   id: string;

@@ -175,6 +175,7 @@ export default function ActivityListPage() {
             >
               <option value="all">All Activities</option>
               <option value="intervals">Intervals</option>
+              <option value="long_run">Long run</option>
               <option value="race">Race</option>
               <option value="normal">Normal</option>
             </select>

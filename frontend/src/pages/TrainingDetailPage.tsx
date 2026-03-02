@@ -95,16 +95,16 @@ export default function TrainingDetailPage() {
       }
 
       const activityIds = new Set(currentActivities.map((a) => a.id));
-      const intervalActivities = allActivities.filter(
-        (a) => a.tag === 'intervals' && !activityIds.has(a.id),
+      const candidateActivities = allActivities.filter(
+        (a) => (a.tag === 'intervals' || a.tag === 'long_run') && !activityIds.has(a.id),
       );
 
-      intervalActivities.sort(
+      candidateActivities.sort(
         (a, b) =>
           new Date(b.start_date).getTime() - new Date(a.start_date).getTime(),
       );
 
-      setAvailableActivities(intervalActivities);
+      setAvailableActivities(candidateActivities);
     } catch (err: any) {
       console.error('Failed to load available activities:', err);
     } finally {
@@ -425,7 +425,7 @@ export default function TrainingDetailPage() {
                 <p className="text-gray-500 text-sm">Loading available activities...</p>
               ) : availableActivities.length === 0 ? (
                 <p className="text-gray-500 text-sm">
-                  No interval-tagged activities available to add. Make sure activities are tagged as "intervals".
+                  No interval or long-run tagged activities available to add.
                 </p>
               ) : (
                 <>
@@ -466,7 +466,7 @@ export default function TrainingDetailPage() {
 
           {activities.length === 0 && !showAddForm ? (
             <p className="text-gray-500">
-              No activities in this training yet. Click "Add Activity" to add interval-tagged activities.
+              No activities in this training yet. Click "Add Activity" to add interval or long-run tagged activities.
             </p>
           ) : activities.length > 0 ? (
             <div className="bg-white rounded-lg shadow overflow-hidden">
