@@ -265,6 +265,15 @@ pub async fn list_models(
     Ok(HttpResponse::Ok().json(models))
 }
 
+pub async fn list_model_cost_tiers(
+    state: web::Data<AppState>,
+    _user: AuthenticatedUser,
+) -> Result<HttpResponse, AppError> {
+    log::debug!("GET /chats/models/cost-tiers");
+    let tiers = state.storage.list_model_cost_tiers().await?;
+    Ok(HttpResponse::Ok().json(tiers))
+}
+
 // ---------------------------------------------------------------------------
 // Create from insight
 // ---------------------------------------------------------------------------

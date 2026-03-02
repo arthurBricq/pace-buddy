@@ -110,6 +110,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route("", web::get().to(chat_routes::list_chats))
                     .route("/models", web::get().to(chat_routes::list_models))
                     .route(
+                        "/models/cost-tiers",
+                        web::get().to(chat_routes::list_model_cost_tiers),
+                    )
+                    .route(
                         "/from-insight/{insight_id}",
                         web::post().to(chat_routes::create_from_insight),
                     )

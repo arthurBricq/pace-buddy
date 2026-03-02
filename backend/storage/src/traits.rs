@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use domain::{Activity, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError, QuotaRequest, QuotaRequestStatus, RunningStats, StravaToken, Training, TrainingInsight, User};
+use domain::{Activity, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError, ModelCostTier, QuotaRequest, QuotaRequestStatus, RunningStats, StravaToken, Training, TrainingInsight, User};
 use uuid::Uuid;
 
 #[async_trait]
@@ -12,6 +12,8 @@ pub trait Storage: Send + Sync {
     async fn get_user_by_email(&self, email: &str) -> Result<User, DomainError>;
     async fn list_users(&self) -> Result<Vec<User>, DomainError>;
     async fn update_user_mas(&self, user_id: Uuid, mas_mps: Option<f64>) -> Result<(), DomainError>;
+    async fn upsert_model_cost_tiers(&self, tiers: &[ModelCostTier]) -> Result<(), DomainError>;
+    async fn list_model_cost_tiers(&self) -> Result<Vec<ModelCostTier>, DomainError>;
 
     // Passkeys - store as JSON text
     async fn store_passkey(&self, user_id: Uuid, passkey_json: &str) -> Result<(), DomainError>;

@@ -1,5 +1,12 @@
 import { apiFetch } from './client';
-import type { AiChat, AiChatMessage, ChatResponse, ChatListItem, ModelInfo } from '../types';
+import type {
+  AiChat,
+  AiChatMessage,
+  ChatResponse,
+  ChatListItem,
+  ModelCostTier,
+  ModelInfo,
+} from '../types';
 
 export async function createChat(title: string, model?: string, trainingId?: string) {
   return apiFetch<AiChat>('/chats', {
@@ -40,6 +47,10 @@ export async function sendMessage(chatId: string, content: string) {
 
 export async function listModels() {
   return apiFetch<ModelInfo[]>('/chats/models');
+}
+
+export async function getModelCostTiers() {
+  return apiFetch<ModelCostTier[]>('/chats/models/cost-tiers');
 }
 
 export type ContextRequest =

@@ -1,6 +1,7 @@
 pub mod activity;
 pub mod ai_chat;
 pub mod error;
+pub mod model_cost;
 pub mod quota;
 pub mod stats;
 pub mod strava_token;
@@ -12,6 +13,7 @@ pub mod user;
 pub use activity::{Activity, ActivityTag};
 pub use ai_chat::{AiChat, AiChatMessage};
 pub use error::DomainError;
+pub use model_cost::{ModelCostCategory, ModelCostTier};
 pub use quota::{QuotaRequest, QuotaRequestStatus};
 pub use stats::RunningStats;
 pub use strava_token::StravaToken;

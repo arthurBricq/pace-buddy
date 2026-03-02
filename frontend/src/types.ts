@@ -193,6 +193,15 @@ export interface ModelInfo {
   context_length?: number | null;
 }
 
+export type ModelCostCategory = 'economical' | 'standard' | 'expensive';
+
+export interface ModelCostTier {
+  model_id: string;
+  model_name: string;
+  category: ModelCostCategory;
+  computed_at: string;
+}
+
 export interface AiChat {
   id: string;
   user_id: string;

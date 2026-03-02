@@ -16,6 +16,7 @@ use storage::SqliteStorage;
 use strava_client::StravaClient;
 
 use crate::config::Config;
+use crate::helpers::model_cost_helper::recompute_model_cost_tiers;
 use crate::state::AppState;
 
 #[derive(Parser)]
@@ -141,6 +142,23 @@ async fn main() -> std::io::Result<()> {
         syncing_activity_users: Arc::new(tokio::sync::Mutex::new(std::collections::HashSet::new())),
         activity_sync_statuses: Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new())),
     });
+
+    // Background task: recompute model cost tiers on startup and every 24 hours
+    if app_state.llm_client.is_some() {
+        let app_state_for_task = app_state.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(24 * 60 * 60));
+            loop {
+                match recompute_model_cost_tiers(&app_state_for_task).await {
+                    Ok(count) => log::info!("Recomputed model cost tiers for {count} model(s)"),
+                    Err(e) => log::warn!("Failed to recompute model cost tiers: {e}"),
+                }
+                interval.tick().await;
+            }
+        });
+    } else {
+        log::info!("LLM not configured, model cost tier computation disabled");
+    }
 
     // Background task: check/create Strava webhook subscription
     if let (Some(base_url), Some(verify_token)) = (&cfg.base_url, &cfg.strava_webhook_verify_token)

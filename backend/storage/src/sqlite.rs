@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use domain::{
-    Activity, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError, QuotaRequest,
-    QuotaRequestStatus, RunningStats, StravaToken, Training, TrainingInsight, User,
+    Activity, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError, ModelCostCategory,
+    ModelCostTier, QuotaRequest, QuotaRequestStatus, RunningStats, StravaToken, Training,
+    TrainingInsight, User,
 };
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow};
 use sqlx::Row;
@@ -234,6 +235,20 @@ impl SqliteStorage {
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create quota_requests table: {e}")))?;
 
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS model_cost_tiers (
+                model_id TEXT PRIMARY KEY NOT NULL,
+                model_name TEXT NOT NULL,
+                category TEXT NOT NULL,
+                computed_at TEXT NOT NULL
+            )",
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to create model_cost_tiers table: {e}"))
+        })?;
+
         Ok(Self { pool })
     }
 }
@@ -298,6 +313,23 @@ fn row_to_quota_request(row: &SqliteRow) -> Result<QuotaRequest, DomainError> {
         requested_at: parse_datetime(&requested_at)?,
         resolved_at: resolved_at.as_deref().map(parse_datetime).transpose()?,
         granted_amount_usd,
+    })
+}
+
+fn row_to_model_cost_tier(row: &SqliteRow) -> Result<ModelCostTier, DomainError> {
+    let model_id: String = row.get("model_id");
+    let model_name: String = row.get("model_name");
+    let category: String = row.get("category");
+    let computed_at: String = row.get("computed_at");
+    let parsed_category = category
+        .parse::<ModelCostCategory>()
+        .map_err(|e| DomainError::Storage(e.to_string()))?;
+
+    Ok(ModelCostTier {
+        model_id,
+        model_name,
+        category: parsed_category,
+        computed_at: parse_datetime(&computed_at)?,
     })
 }
 
@@ -1205,6 +1237,51 @@ impl Storage for SqliteStorage {
             .map_err(|e| DomainError::Storage(format!("Failed to update user MAS: {e}")))?;
 
         Ok(())
+    }
+
+    async fn upsert_model_cost_tiers(&self, tiers: &[ModelCostTier]) -> Result<(), DomainError> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to start transaction: {e}")))?;
+
+        sqlx::query("DELETE FROM model_cost_tiers")
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to clear model cost tiers: {e}")))?;
+
+        for tier in tiers {
+            sqlx::query(
+                "INSERT INTO model_cost_tiers (model_id, model_name, category, computed_at) VALUES (?, ?, ?, ?)",
+            )
+            .bind(&tier.model_id)
+            .bind(&tier.model_name)
+            .bind(tier.category.as_str())
+            .bind(tier.computed_at.to_rfc3339())
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to upsert model cost tier: {e}")))?;
+        }
+
+        tx.commit()
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to commit transaction: {e}")))?;
+
+        Ok(())
+    }
+
+    async fn list_model_cost_tiers(&self) -> Result<Vec<ModelCostTier>, DomainError> {
+        let rows = sqlx::query(
+            "SELECT model_id, model_name, category, computed_at
+             FROM model_cost_tiers
+             ORDER BY category, model_name",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to list model cost tiers: {e}")))?;
+
+        rows.iter().map(row_to_model_cost_tier).collect()
     }
 
     // -----------------------------------------------------------------------

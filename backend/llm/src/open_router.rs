@@ -4,6 +4,8 @@ use crate::{
     LlmError, LlmUsage, ModelInfo, ReasoningConfig,
 };
 use reqwest::Client;
+use serde::Deserialize;
+use std::collections::{HashMap, HashSet};
 
 /// OpenRouter API client
 #[derive(Clone)]
@@ -41,19 +43,91 @@ const ALLOWED_MODELS: &[&str] = &[
     "openai/gpt-5-mini",
 ];
 
+fn fallback_allowed_models() -> Vec<ModelInfo> {
+    ALLOWED_MODELS
+        .iter()
+        .map(|id| ModelInfo {
+            id: id.to_string(),
+            name: id.to_string(),
+            description: None,
+            pricing: None,
+            context_length: None,
+        })
+        .collect()
+}
+
+#[derive(Debug, Deserialize)]
+struct ModelsResponse {
+    #[serde(default)]
+    data: Vec<ModelInfo>,
+}
+
 #[async_trait]
 impl LlmClient for OpenRouterClient {
     async fn list_models(&self) -> Result<Vec<ModelInfo>, LlmError> {
-        Ok(ALLOWED_MODELS
+        let allowed_set = ALLOWED_MODELS.iter().copied().collect::<HashSet<_>>();
+
+        let response = match self
+            .client
+            .get(format!("{}/models", self.base_url))
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Content-Type", "application/json")
+            .send()
+            .await
+        {
+            Ok(resp) => resp,
+            Err(err) => {
+                log::warn!(
+                    "OpenRouter model list request failed, using fallback model list: {}",
+                    err
+                );
+                return Ok(fallback_allowed_models());
+            }
+        };
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            log::warn!(
+                "OpenRouter model list returned non-success status {}, using fallback list. Body: {}",
+                status,
+                body
+            );
+            return Ok(fallback_allowed_models());
+        }
+
+        let parsed: ModelsResponse = match response.json().await {
+            Ok(models) => models,
+            Err(err) => {
+                log::warn!(
+                    "OpenRouter model list parsing failed, using fallback model list: {}",
+                    err
+                );
+                return Ok(fallback_allowed_models());
+            }
+        };
+
+        let mut by_id = parsed
+            .data
+            .into_iter()
+            .filter(|m| allowed_set.contains(m.id.as_str()))
+            .map(|m| (m.id.clone(), m))
+            .collect::<HashMap<_, _>>();
+
+        let ordered_models = ALLOWED_MODELS
             .iter()
-            .map(|id| ModelInfo {
-                id: id.to_string(),
-                name: id.to_string(),
-                description: None,
-                pricing: None,
-                context_length: None,
+            .map(|id| {
+                by_id.remove(*id).unwrap_or(ModelInfo {
+                    id: id.to_string(),
+                    name: id.to_string(),
+                    description: None,
+                    pricing: None,
+                    context_length: None,
+                })
             })
-            .collect())
+            .collect::<Vec<_>>();
+
+        Ok(ordered_models)
     }
 
     async fn chat_completion(
