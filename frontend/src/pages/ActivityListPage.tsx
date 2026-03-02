@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { listActivities, syncActivities, updateActivityTag } from '../api/activities';
+import {
+  isActivitiesSyncInProgress,
+  listActivities,
+  subscribeActivitiesSync,
+  syncActivities,
+  updateActivityTag,
+} from '../api/activities';
 import { getStravaStatus } from '../api/strava';
 import type { Activity, ActivityTag } from '../types';
 import TagBadge from '../components/TagBadge';
@@ -52,7 +58,7 @@ function addDays(date: Date, days: number): Date {
 export default function ActivityListPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
+  const [syncing, setSyncing] = useState(() => isActivitiesSyncInProgress());
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [stravaLinked, setStravaLinked] = useState(true);
   const [error, setError] = useState('');
@@ -149,8 +155,11 @@ export default function ActivityListPage() {
     getStravaStatus().then((s) => setStravaLinked(s.linked)).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    return subscribeActivitiesSync(setSyncing);
+  }, []);
+
   const handleSync = async () => {
-    setSyncing(true);
     setError('');
     setSyncResult(null);
     try {
@@ -159,8 +168,6 @@ export default function ActivityListPage() {
       load();
     } catch (err: any) {
       setError(err.message);
-    } finally {
-      setSyncing(false);
     }
   };
 

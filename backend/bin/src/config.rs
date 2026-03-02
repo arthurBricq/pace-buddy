@@ -38,7 +38,7 @@ pub struct Config {
     /// `None` disables the admin dashboard for all users.
     pub admin_strava_athlete_id: Option<i64>,
     /// Markup ratio applied to LLM costs when deducting from user quota.
-    /// Env: `QUOTA_MARKUP_RATIO`. Default: `2.0` (user pays 2x the raw LLM cost).
+    /// Env: `QUOTA_MARKUP_RATIO`. Default: `4.0` (user pays 4x the raw LLM cost).
     pub quota_markup_ratio: f64,
 }
 
@@ -105,7 +105,7 @@ impl Config {
             quota_markup_ratio: env::var("QUOTA_MARKUP_RATIO")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(2.0),
+                .unwrap_or(4.0),
         }
     }
 }
