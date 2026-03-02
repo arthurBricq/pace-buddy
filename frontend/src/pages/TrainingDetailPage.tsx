@@ -107,9 +107,9 @@ export default function TrainingDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="app-shell">
         <Navbar/>
-        <div className="max-w-6xl mx-auto px-4 py-6">
+        <div className="page-container-wide">
           <p className="text-gray-500">Loading training...</p>
         </div>
       </div>
@@ -118,9 +118,9 @@ export default function TrainingDetailPage() {
 
   if (error || !training) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="app-shell">
         <Navbar/>
-        <div className="max-w-6xl mx-auto px-4 py-6">
+        <div className="page-container-wide">
           <p className="text-red-600">{error || 'Training not found'}</p>
           <Link to="/trainings" className="text-blue-600 hover:underline text-sm mt-2 inline-block">
             Back to trainings
@@ -134,9 +134,9 @@ export default function TrainingDetailPage() {
   const longRunActivities = activities.filter((a) => a.tag === 'long_run');
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="app-shell">
       <Navbar/>
-      <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+      <div className="page-container-wide section-stack">
         <div>
           <Link to="/trainings" className="text-sm text-gray-500 hover:text-gray-700">
             &larr; Back to Trainings
@@ -160,9 +160,9 @@ export default function TrainingDetailPage() {
         </div>
 
         {/* LLM Insights Section */}
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="card-compact">
           <h2 className="text-lg font-semibold mb-4">AI Insights</h2>
-          <div className="flex gap-3 mb-4">
+          <div className="button-row-wrap mb-4">
             <button
               onClick={() => {
                 setPendingPromptType('overview');
@@ -230,7 +230,7 @@ export default function TrainingDetailPage() {
         {/* Insight Modal */}
         {(insightResult || insightLoading || insightError) && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+            <div className="modal-card max-w-2xl max-h-[80vh] flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b">
                 <h3 className="text-lg font-semibold">AI Insight</h3>
                 <button
@@ -358,8 +358,8 @@ export default function TrainingDetailPage() {
                 {intervalActivities.length === 0 ? (
                   <p className="text-sm text-gray-500">No interval activities in this training range.</p>
                 ) : (
-                  <div className="bg-white rounded-lg shadow overflow-hidden">
-                    <table className="w-full text-sm">
+                  <div className="data-table-wrap">
+                    <table className="data-table-wide">
                       <thead className="bg-gray-50 text-gray-600">
                       <tr>
                         <th className="text-left px-4 py-3">Date</th>
@@ -411,8 +411,8 @@ export default function TrainingDetailPage() {
                 {longRunActivities.length === 0 ? (
                   <p className="text-sm text-gray-500">No long runs in this training range.</p>
                 ) : (
-                  <div className="bg-white rounded-lg shadow overflow-hidden">
-                    <table className="w-full text-sm">
+                  <div className="data-table-wrap">
+                    <table className="data-table-wide">
                       <thead className="bg-gray-50 text-gray-600">
                       <tr>
                         <th className="text-left px-4 py-3">Date</th>

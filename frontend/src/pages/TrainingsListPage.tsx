@@ -91,10 +91,10 @@ export default function TrainingsListPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="app-shell">
       <Navbar />
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-4">
+      <div className="page-container-wide">
+        <div className="page-title-row">
           <h1 className="text-xl font-bold">Trainings</h1>
           <button
             onClick={() => setShowCreateForm(!showCreateForm)}
@@ -105,7 +105,7 @@ export default function TrainingsListPage() {
         </div>
 
         {showCreateForm && (
-          <div className="bg-white rounded-lg shadow p-4 mb-4">
+          <div className="card-compact mb-4">
             <form onSubmit={handleCreate}>
               <div className="mb-3">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -132,7 +132,7 @@ export default function TrainingsListPage() {
                   rows={3}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3 mb-3">
+              <div className="form-grid-2 mb-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Start Date *
@@ -198,7 +198,7 @@ export default function TrainingsListPage() {
                   rows={3}
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="button-row-wrap">
                 <button
                   type="submit"
                   disabled={creating}
@@ -236,8 +236,8 @@ export default function TrainingsListPage() {
             No trainings yet. Create one to get started.
           </p>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="data-table-wrap">
+            <table className="data-table">
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
                   <th className="text-left px-4 py-3">Name</th>

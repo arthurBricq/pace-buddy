@@ -155,9 +155,9 @@ export default function AiChatPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="app-shell">
         <Navbar />
-        <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="page-container-narrow">
           <p className="text-gray-500">Loading chat...</p>
         </div>
       </div>
@@ -166,9 +166,9 @@ export default function AiChatPage() {
 
   if (error && !chat) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="app-shell">
         <Navbar />
-        <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="page-container-narrow">
           <p className="text-red-600">{error}</p>
           <Link to="/chats" className="text-blue-600 hover:underline text-sm mt-2 inline-block">
             Back to chats
@@ -182,13 +182,13 @@ export default function AiChatPage() {
   const visibleMessages = messages.filter((m) => m.role !== 'system');
 
   return (
-    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+    <div className="app-shell-chat">
       <div className="shrink-0 z-50">
         <Navbar />
         {/* Header bar */}
         <div className="bg-white border-b px-4 py-3">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="chat-header-row">
+          <div className="flex min-w-0 items-center gap-3">
             <Link to="/chats" className="text-sm text-gray-500 hover:text-gray-700">
               &larr; Chats
             </Link>
@@ -201,19 +201,19 @@ export default function AiChatPage() {
                 onBlur={handleTitleSave}
                 onKeyDown={handleTitleKeyDown}
                 disabled={updatingTitle}
-                className="text-lg font-semibold bg-white border border-purple-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-purple-500 min-w-[200px]"
+                className="text-lg font-semibold bg-white border border-purple-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-purple-500 min-w-[160px] sm:min-w-[200px]"
               />
             ) : (
               <h1
                 onClick={handleTitleClick}
-                className="text-lg font-semibold cursor-pointer hover:text-purple-600 transition-colors"
+                className="text-lg font-semibold cursor-pointer hover:text-purple-600 transition-colors truncate"
                 title="Click to rename"
               >
                 {chat?.title}
               </h1>
             )}
           </div>
-          <div className="flex items-center gap-4 text-xs text-gray-500">
+          <div className="chat-meta">
             <span className="font-mono">{chat?.model.split('/').pop()}</span>
             <span>{totalTokens.toLocaleString()} tokens</span>
             <span>{formatCost(totalCost)}</span>
@@ -233,7 +233,7 @@ export default function AiChatPage() {
       </div>
 
       {/* Main content area with optional side panel */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="relative flex flex-1 overflow-hidden">
         {/* Chat column */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Messages */}
@@ -292,7 +292,7 @@ export default function AiChatPage() {
 
           {/* Input */}
           <div className="bg-white border-t px-4 py-3">
-            <div className="max-w-4xl mx-auto flex gap-3">
+            <div className="chat-input-row">
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -305,7 +305,7 @@ export default function AiChatPage() {
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || sending}
-                className="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm self-end"
+                className="chat-send-btn bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 Send
               </button>
@@ -316,7 +316,15 @@ export default function AiChatPage() {
 
         {/* Context panel */}
         {showContext && id && (
-          <ContextPanel chatId={id} onContextAdded={loadChat} />
+          <>
+            <button
+              type="button"
+              className="chat-context-overlay"
+              aria-label="Close context panel"
+              onClick={() => setShowContext(false)}
+            />
+            <ContextPanel chatId={id} onContextAdded={loadChat} onClose={() => setShowContext(false)} />
+          </>
         )}
       </div>
     </div>

@@ -26,7 +26,7 @@ function formatPace(speedMps: number | null): string {
 
 function StatsCard({ title, stats }: { title: string; stats: RunningStats }) {
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="card">
       <h3 className="text-lg font-semibold mb-4">{title}</h3>
       <div className="space-y-3">
         <div className="flex justify-between">
@@ -112,9 +112,9 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="app-shell">
         <Navbar />
-        <div className="max-w-6xl mx-auto px-4 py-6">
+        <div className="page-container-wide">
           <p className="text-gray-500">Loading profile...</p>
         </div>
       </div>
@@ -123,9 +123,9 @@ export default function ProfilePage() {
 
   if (error || !profile) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="app-shell">
         <Navbar />
-        <div className="max-w-6xl mx-auto px-4 py-6">
+        <div className="page-container-wide">
           <p className="text-red-600">{error || 'Failed to load profile'}</p>
         </div>
       </div>
@@ -135,10 +135,10 @@ export default function ProfilePage() {
   const { user, stats } = profile;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="app-shell">
       <Navbar />
-      <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-        <div className="bg-white rounded-lg shadow p-6">
+      <div className="page-container-wide section-stack">
+        <div className="card">
           <h1 className="text-2xl font-bold">{user.display_name}</h1>
           <p className="text-sm text-gray-500 mt-1">@{user.username}</p>
           <p className="text-sm text-gray-400 mt-1">
@@ -146,19 +146,19 @@ export default function ProfilePage() {
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <StatsCard title="Year to Date" stats={stats.ytd} />
           <StatsCard title="Last Year" stats={stats.last_year} />
           <StatsCard title="All Time" stats={stats.all_time} />
         </div>
 
         {/* Strava Connection Section */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card">
           {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
           {stravaStatus && stravaStatus.linked ? (
             <div className="space-y-3">
               <img src="/strava_pwrdby_horiz_orange.svg" alt="Powered by Strava" className="h-8" />
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <a
                   href="https://www.strava.com/settings/apps"
                   target="_blank"
@@ -189,13 +189,13 @@ export default function ProfilePage() {
 
         {/* AI Cost Summary Section */}
         {aiCostSummary && (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card">
             <h2 className="text-lg font-semibold mb-4">AI Usage</h2>
 
             {/* Quota */}
             {quotaStatus && (
               <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <span className="text-sm text-gray-500">AI Budget Remaining:</span>
                     <span className="ml-2 text-lg font-bold text-green-600">
@@ -241,7 +241,7 @@ export default function ProfilePage() {
                   {aiCostSummary.expensive_requests.slice(0, 10).map((req) => (
                     <div
                       key={req.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
+                      className="flex flex-col gap-2 p-3 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
@@ -289,7 +289,7 @@ export default function ProfilePage() {
                           </span>
                         </div>
                       </div>
-                      <div className="text-sm font-semibold text-gray-700 ml-4">
+                      <div className="text-sm font-semibold text-gray-700 sm:ml-4">
                         {formatCost(req.cost)}
                       </div>
                     </div>

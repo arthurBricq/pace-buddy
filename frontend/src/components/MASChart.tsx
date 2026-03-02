@@ -36,7 +36,7 @@ function CustomDot(props: any) {
 export default function MASChart({ estimates }: MASChartProps) {
   if (estimates.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="card">
         <p className="text-gray-500 text-center">No race data available</p>
       </div>
     );
@@ -61,9 +61,9 @@ export default function MASChart({ estimates }: MASChartProps) {
   });
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="card">
       <h3 className="text-lg font-semibold mb-4">MAS Estimate Over Time</h3>
-      <ResponsiveContainer width="100%" height={400}>
+      <ResponsiveContainer width="100%" height={320}>
         <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis

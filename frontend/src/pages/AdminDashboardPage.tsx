@@ -68,9 +68,9 @@ export default function AdminDashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="app-shell">
       <Navbar />
-      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+      <div className="page-container-narrow section-stack">
         <h1 className="text-2xl font-bold">Admin Dashboard</h1>
 
         {error && (
@@ -85,7 +85,7 @@ export default function AdminDashboardPage() {
         )}
 
         {stats && (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card">
             <h3 className="text-lg font-semibold mb-4">Platform Stats</h3>
             <div className="flex justify-between">
               <span className="text-sm text-gray-500">Registered users</span>
@@ -94,14 +94,14 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card">
           <h3 className="text-lg font-semibold mb-4">Pending Quota Requests</h3>
           {requests.length === 0 ? (
             <p className="text-sm text-gray-500">No pending requests.</p>
           ) : (
             <div className="space-y-3">
               {requests.map((req) => (
-                <div key={req.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+                <div key={req.id} className="flex flex-col gap-3 p-3 bg-gray-50 rounded-md sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-800">
                       User: <span className="font-mono text-xs">{req.user_id.slice(0, 8)}...</span>
@@ -113,7 +113,7 @@ export default function AdminDashboardPage() {
                       })}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="button-row-wrap">
                     <span className="text-sm text-gray-500">$</span>
                     <input
                       type="number"
@@ -143,7 +143,7 @@ export default function AdminDashboardPage() {
           )}
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6 border border-red-200">
+        <div className="card border border-red-200">
           <h3 className="text-lg font-semibold text-red-700 mb-2">Danger Zone</h3>
           <p className="text-sm text-gray-600 mb-4">
             Delete all data in the database (users, activities, trainings, chats, quota requests).

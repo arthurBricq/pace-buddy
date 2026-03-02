@@ -44,10 +44,10 @@ export default function AiChatsListPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="app-shell">
       <Navbar />
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-4">
+      <div className="page-container-wide">
+        <div className="page-title-row">
           <h1 className="text-xl font-bold">AI Chats</h1>
           <button
             onClick={() => setShowNewChat(true)}
@@ -66,8 +66,8 @@ export default function AiChatsListPage() {
             No AI chats yet. Click "+ New Chat" to start one, or generate an insight from a training.
           </p>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="data-table-wrap">
+            <table className="data-table">
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
                   <th className="text-left px-4 py-3">Title</th>

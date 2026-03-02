@@ -50,7 +50,7 @@ export default function IntervalRecap({ intervals, masCurrent }: Props) {
 
       {reps.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="text-left text-gray-500 border-b">
                 <th className="pb-2 pr-4">#</th>

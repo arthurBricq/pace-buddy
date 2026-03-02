@@ -7,11 +7,12 @@ import type { Activity, Training } from '../types';
 interface ContextPanelProps {
   chatId: string;
   onContextAdded: () => void;
+  onClose?: () => void;
 }
 
 type PanelSection = 'last_activities' | 'activity_detail' | 'weekly_stats' | 'training_recap' | null;
 
-export default function ContextPanel({ chatId, onContextAdded }: ContextPanelProps) {
+export default function ContextPanel({ chatId, onContextAdded, onClose }: ContextPanelProps) {
   const [activeSection, setActiveSection] = useState<PanelSection>(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
@@ -54,9 +55,18 @@ export default function ContextPanel({ chatId, onContextAdded }: ContextPanelPro
   };
 
   return (
-    <div className="w-72 border-l bg-white flex flex-col shrink-0 overflow-y-auto">
-      <div className="px-4 py-3 border-b">
+    <div className="chat-context-drawer shrink-0 overflow-y-auto">
+      <div className="px-4 py-3 border-b flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-700">Add Context</h3>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-2 py-1 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-800 lg:hidden"
+          >
+            Close
+          </button>
+        )}
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {/* Last N activities */}

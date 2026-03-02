@@ -27,9 +27,10 @@ export default function LinkStravaPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="app-shell">
       <Navbar />
-      <div className="max-w-lg mx-auto mt-12 bg-white rounded-lg shadow p-8">
+      <div className="page-container-compact mt-6 sm:mt-12">
+        <div className="card">
         <h1 className="text-xl font-bold mb-4">Strava Connection</h1>
 
         {loading && <p className="text-gray-500">Checking status...</p>}
@@ -55,6 +56,7 @@ export default function LinkStravaPage() {
             </button>
           </div>
         ) : null}
+        </div>
       </div>
     </div>
   );

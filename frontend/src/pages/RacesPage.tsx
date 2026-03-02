@@ -165,9 +165,9 @@ export default function RacesPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="app-shell">
         <Navbar />
-        <div className="max-w-6xl mx-auto px-4 py-6">
+        <div className="page-container-wide">
           <p className="text-gray-500">Loading races...</p>
         </div>
       </div>
@@ -175,9 +175,9 @@ export default function RacesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="app-shell">
       <Navbar />
-      <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+      <div className="page-container-wide section-stack">
         <div>
           <h1 className="text-2xl font-bold">Races (estimators)</h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -188,15 +188,15 @@ export default function RacesPage() {
         {error && <p className="text-red-600 text-sm">{error}</p>}
 
         {/* Current MAS Display */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
+        <div className="card">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold">Current MAS Estimate</h2>
               <p className="text-sm text-gray-500 mt-1">
                 Maximum Aerobic Speed used for performance analysis
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="button-row-wrap">
               <button
                 onClick={handleRecomputeMAS}
                 disabled={updatingMAS || activities.length === 0}
@@ -255,7 +255,7 @@ export default function RacesPage() {
                   No MAS estimate set. Click "Recompute" to calculate from your latest race.
                 </p>
               ) : (
-                <div className="flex items-baseline gap-4">
+                <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-baseline sm:gap-4">
                   <div>
                     <span className="text-sm text-gray-600">MAS:</span>
                     <span className="text-2xl font-bold text-blue-600 ml-2">
@@ -280,7 +280,7 @@ export default function RacesPage() {
 
         {/* Activities Section */}
         <div>
-          <div className="flex items-center justify-between mb-3">
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-lg font-semibold">
               Race Activities ({activities.length})
             </h2>
@@ -295,7 +295,7 @@ export default function RacesPage() {
           </div>
 
           {showAddForm && (
-            <div className="bg-white rounded-lg shadow p-4 mb-4">
+            <div className="card-compact mb-4">
               <h3 className="text-md font-medium mb-3">Add Activity as Race</h3>
               {availableActivities.length === 0 ? (
                 <p className="text-gray-500 text-sm">
@@ -335,8 +335,8 @@ export default function RacesPage() {
               No race activities yet. Tag activities as "race" to use them for MAS estimation.
             </p>
           ) : (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="data-table-wrap">
+              <table className="data-table-wide">
                 <thead className="bg-gray-50 text-gray-600">
                   <tr>
                     <th className="text-left px-4 py-3">Date</th>

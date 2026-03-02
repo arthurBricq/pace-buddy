@@ -59,9 +59,9 @@ export default function ActivityDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="app-shell">
         <Navbar />
-        <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="page-container-narrow">
           <p className="text-gray-500">Loading activity...</p>
         </div>
       </div>
@@ -70,9 +70,9 @@ export default function ActivityDetailPage() {
 
   if (error || !detail) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="app-shell">
         <Navbar />
-        <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="page-container-narrow">
           <p className="text-red-600">{error || 'Activity not found'}</p>
           <Link to="/activities" className="text-blue-600 hover:underline text-sm mt-2 inline-block">
             Back to activities
@@ -87,10 +87,10 @@ export default function ActivityDetailPage() {
   const timeStream = streams.find((s) => s.stream_type === 'time');
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="app-shell">
       <Navbar />
-      <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="page-container-narrow section-stack">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <Link to="/activities" className="text-sm text-gray-500 hover:text-gray-700">
               &larr; Back

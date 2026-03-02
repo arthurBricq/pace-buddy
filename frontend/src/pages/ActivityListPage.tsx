@@ -162,16 +162,16 @@ export default function ActivityListPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="app-shell">
       <Navbar />
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-4">
+      <div className="page-container-wide">
+        <div className="page-title-row">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4">
             <h1 className="text-xl font-bold">Activities</h1>
             <select
               value={tagFilter}
               onChange={(e) => setTagFilter(e.target.value as ActivityTag | 'all')}
-              className="px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full sm:w-auto px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             >
               <option value="all">All Activities</option>
               <option value="intervals">Intervals</option>
@@ -180,10 +180,10 @@ export default function ActivityListPage() {
               <option value="normal">Normal</option>
             </select>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="button-row-wrap">
             <button
               onClick={() => setViewMode(viewMode === 'list' ? 'calendar' : 'list')}
-              className="text-sm text-blue-600 hover:text-blue-700"
+              className="w-full text-left text-sm text-blue-600 hover:text-blue-700 sm:w-auto sm:text-center"
             >
               {viewMode === 'list' ? 'Switch to calendar view' : 'Switch to list view'}
             </button>
@@ -191,7 +191,7 @@ export default function ActivityListPage() {
               onClick={handleSync}
               disabled={syncing || !stravaLinked}
               title={!stravaLinked ? 'Connect Strava in the Profile page first' : undefined}
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center gap-2"
+              className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center justify-center gap-2 sm:w-auto"
             >
               {syncing && (
                 <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none">
@@ -238,7 +238,7 @@ export default function ActivityListPage() {
                   key={dateKey(week.weekStart)}
                   className="bg-white/70 border border-gray-200 rounded-xl p-3"
                 >
-                  <div className="grid grid-cols-8 gap-3 items-stretch">
+                  <div className="calendar-week-grid grid gap-3 items-stretch">
                   <div className="bg-white rounded-lg shadow p-4 flex flex-col justify-between">
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wide">Weekly recap</p>
@@ -301,78 +301,135 @@ export default function ActivityListPage() {
           )
         ) : (
           <>
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-gray-600">
-                  <tr>
-                    <th className="text-left px-4 py-3">Date</th>
-                    <th className="text-left px-4 py-3">Name</th>
-                    <th className="text-left px-4 py-3">Type</th>
-                    <th className="text-right px-4 py-3">Distance</th>
-                    <th className="text-right px-4 py-3">Duration</th>
-                    <th className="text-right px-4 py-3">Pace</th>
-                    <th className="text-center px-4 py-3">Tag</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
+            {filteredActivities.length === 0 ? (
+              <p className="text-gray-500">No activities for this filter.</p>
+            ) : (
+              <>
+                <div className="space-y-3 sm:hidden">
                   {filteredActivities.map((a) => (
-                    <tr key={a.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-500">
-                        {new Date(a.start_date).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link
-                          to={`/activities/${a.id}`}
-                          className="text-blue-600 hover:underline"
-                        >
-                          {a.name}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-gray-500">{a.sport_type}</td>
-                      <td className="px-4 py-3 text-right">
-                        {formatDistance(a.distance)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {formatDuration(a.moving_time)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {formatPace(a.average_speed)}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {editingTag === a.id ? (
-                          <TagSelector
-                            current={a.tag}
-                            onChange={(tag) => handleTagChange(a.id, tag)}
-                          />
-                        ) : (
-                          <button onClick={() => setEditingTag(a.id)}>
-                            <TagBadge tag={a.tag} />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
+                    <article key={a.id} className="rounded-lg bg-white p-4 shadow">
+                      <div className="mb-2 flex items-start justify-between gap-2">
+                        <p className="text-xs text-gray-500">
+                          {new Date(a.start_date).toLocaleDateString()}
+                        </p>
+                        <div>
+                          {editingTag === a.id ? (
+                            <TagSelector
+                              current={a.tag}
+                              onChange={(tag) => handleTagChange(a.id, tag)}
+                            />
+                          ) : (
+                            <button onClick={() => setEditingTag(a.id)}>
+                              <TagBadge tag={a.tag} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <Link
+                        to={`/activities/${a.id}`}
+                        className="mb-3 block text-base font-medium text-blue-600 hover:underline"
+                      >
+                        {a.name}
+                      </Link>
+                      <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                        <div>
+                          <dt className="text-xs uppercase tracking-wide text-gray-500">Type</dt>
+                          <dd className="text-gray-700">{a.sport_type}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs uppercase tracking-wide text-gray-500">Distance</dt>
+                          <dd className="text-gray-900 font-medium">{formatDistance(a.distance)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs uppercase tracking-wide text-gray-500">Duration</dt>
+                          <dd className="text-gray-700">{formatDuration(a.moving_time)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs uppercase tracking-wide text-gray-500">Pace</dt>
+                          <dd className="text-gray-700">{formatPace(a.average_speed)}</dd>
+                        </div>
+                      </dl>
+                    </article>
                   ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex justify-between mt-4">
-              <button
-                onClick={() => load(Math.max(0, offset - limit))}
-                disabled={offset === 0}
-                className="text-sm text-blue-600 disabled:text-gray-400"
-              >
-                Previous
-              </button>
-              <span className="text-sm text-gray-500">
+                </div>
+
+                <div className="hidden sm:block data-table-wrap">
+                  <table className="data-table">
+                    <thead className="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th className="text-left px-4 py-3">Date</th>
+                        <th className="text-left px-4 py-3">Name</th>
+                        <th className="text-left px-4 py-3">Type</th>
+                        <th className="text-right px-4 py-3">Distance</th>
+                        <th className="text-right px-4 py-3">Duration</th>
+                        <th className="text-right px-4 py-3">Pace</th>
+                        <th className="text-center px-4 py-3">Tag</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {filteredActivities.map((a) => (
+                        <tr key={a.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-gray-500">
+                            {new Date(a.start_date).toLocaleDateString()}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Link
+                              to={`/activities/${a.id}`}
+                              className="text-blue-600 hover:underline"
+                            >
+                              {a.name}
+                            </Link>
+                          </td>
+                          <td className="px-4 py-3 text-gray-500">{a.sport_type}</td>
+                          <td className="px-4 py-3 text-right">
+                            {formatDistance(a.distance)}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {formatDuration(a.moving_time)}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {formatPace(a.average_speed)}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {editingTag === a.id ? (
+                              <TagSelector
+                                current={a.tag}
+                                onChange={(tag) => handleTagChange(a.id, tag)}
+                              />
+                            ) : (
+                              <button onClick={() => setEditingTag(a.id)}>
+                                <TagBadge tag={a.tag} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+              <div className="flex items-center justify-between gap-3 sm:contents">
+                <button
+                  onClick={() => load(Math.max(0, offset - limit))}
+                  disabled={offset === 0}
+                  className="text-sm text-blue-600 disabled:text-gray-400"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => load(offset + limit)}
+                  disabled={activities.length < limit}
+                  className="text-sm text-blue-600 disabled:text-gray-400"
+                >
+                  Next
+                </button>
+              </div>
+              <span className="text-sm text-gray-500 sm:order-none">
                 Showing {filteredActivities.length} of {activities.length}
               </span>
-              <button
-                onClick={() => load(offset + limit)}
-                disabled={activities.length < limit}
-                className="text-sm text-blue-600 disabled:text-gray-400"
-              >
-                Next
-              </button>
             </div>
           </>
         )}
