@@ -10,7 +10,17 @@ interface ContextPanelProps {
   onClose?: () => void;
 }
 
-type PanelSection = 'last_activities' | 'activity_detail' | 'weekly_stats' | 'training_recap' | null;
+type PanelSection =
+  | 'last_activities'
+  | 'last_long_runs'
+  | 'last_race_efforts'
+  | 'last_days_summary'
+  | 'this_week_vs_last_week'
+  | 'this_month_vs_last_month'
+  | 'activity_detail'
+  | 'weekly_stats'
+  | 'training_recap'
+  | null;
 
 export default function ContextPanel({ chatId, onContextAdded, onClose }: ContextPanelProps) {
   const [activeSection, setActiveSection] = useState<PanelSection>(null);
@@ -19,6 +29,9 @@ export default function ContextPanel({ chatId, onContextAdded, onClose }: Contex
 
   // Form state
   const [count, setCount] = useState(5);
+  const [longRunCount, setLongRunCount] = useState(5);
+  const [raceEffortCount, setRaceEffortCount] = useState(5);
+  const [daysSummaryCount, setDaysSummaryCount] = useState(7);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedActivityId, setSelectedActivityId] = useState('');
   const [trainings, setTrainings] = useState<Training[]>([]);
@@ -90,6 +103,146 @@ export default function ContextPanel({ chatId, onContextAdded, onClose }: Contex
               />
               <button
                 onClick={() => handleAdd({ context_type: 'last_activities', count })}
+                disabled={adding}
+                className="w-full bg-purple-600 text-white py-1 rounded text-sm hover:bg-purple-700 disabled:opacity-50"
+              >
+                {adding ? 'Adding...' : 'Add'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Last N long runs */}
+        <div>
+          <button
+            onClick={() => toggle('last_long_runs')}
+            className="w-full text-left px-3 py-2 rounded-md text-sm bg-gray-50 hover:bg-gray-100 font-medium text-gray-700"
+          >
+            Last N long runs
+          </button>
+          {activeSection === 'last_long_runs' && (
+            <div className="mt-2 px-3 space-y-2">
+              <label className="text-xs text-gray-500">Count</label>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={longRunCount}
+                onChange={(e) => setLongRunCount(parseInt(e.target.value) || 5)}
+                className="w-full px-2 py-1 border rounded text-sm"
+              />
+              <button
+                onClick={() => handleAdd({ context_type: 'last_long_runs', count: longRunCount })}
+                disabled={adding}
+                className="w-full bg-purple-600 text-white py-1 rounded text-sm hover:bg-purple-700 disabled:opacity-50"
+              >
+                {adding ? 'Adding...' : 'Add'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Last N race efforts */}
+        <div>
+          <button
+            onClick={() => toggle('last_race_efforts')}
+            className="w-full text-left px-3 py-2 rounded-md text-sm bg-gray-50 hover:bg-gray-100 font-medium text-gray-700"
+          >
+            Last N race efforts
+          </button>
+          {activeSection === 'last_race_efforts' && (
+            <div className="mt-2 px-3 space-y-2">
+              <label className="text-xs text-gray-500">Count</label>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={raceEffortCount}
+                onChange={(e) => setRaceEffortCount(parseInt(e.target.value) || 5)}
+                className="w-full px-2 py-1 border rounded text-sm"
+              />
+              <button
+                onClick={() =>
+                  handleAdd({ context_type: 'last_race_efforts', count: raceEffortCount })
+                }
+                disabled={adding}
+                className="w-full bg-purple-600 text-white py-1 rounded text-sm hover:bg-purple-700 disabled:opacity-50"
+              >
+                {adding ? 'Adding...' : 'Add'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Last N days summary */}
+        <div>
+          <button
+            onClick={() => toggle('last_days_summary')}
+            className="w-full text-left px-3 py-2 rounded-md text-sm bg-gray-50 hover:bg-gray-100 font-medium text-gray-700"
+          >
+            Last N days summary
+          </button>
+          {activeSection === 'last_days_summary' && (
+            <div className="mt-2 px-3 space-y-2">
+              <label className="text-xs text-gray-500">Days</label>
+              <input
+                type="number"
+                min={1}
+                max={120}
+                value={daysSummaryCount}
+                onChange={(e) => setDaysSummaryCount(parseInt(e.target.value) || 7)}
+                className="w-full px-2 py-1 border rounded text-sm"
+              />
+              <button
+                onClick={() =>
+                  handleAdd({ context_type: 'last_days_summary', days: daysSummaryCount })
+                }
+                disabled={adding}
+                className="w-full bg-purple-600 text-white py-1 rounded text-sm hover:bg-purple-700 disabled:opacity-50"
+              >
+                {adding ? 'Adding...' : 'Add'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* This week vs last week */}
+        <div>
+          <button
+            onClick={() => toggle('this_week_vs_last_week')}
+            className="w-full text-left px-3 py-2 rounded-md text-sm bg-gray-50 hover:bg-gray-100 font-medium text-gray-700"
+          >
+            This week vs last week
+          </button>
+          {activeSection === 'this_week_vs_last_week' && (
+            <div className="mt-2 px-3 space-y-2">
+              <p className="text-xs text-gray-500">Compare week-to-date with the same days last week.</p>
+              <button
+                onClick={() => handleAdd({ context_type: 'this_week_vs_last_week' })}
+                disabled={adding}
+                className="w-full bg-purple-600 text-white py-1 rounded text-sm hover:bg-purple-700 disabled:opacity-50"
+              >
+                {adding ? 'Adding...' : 'Add'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* This month vs last month */}
+        <div>
+          <button
+            onClick={() => toggle('this_month_vs_last_month')}
+            className="w-full text-left px-3 py-2 rounded-md text-sm bg-gray-50 hover:bg-gray-100 font-medium text-gray-700"
+          >
+            This month vs last month
+          </button>
+          {activeSection === 'this_month_vs_last_month' && (
+            <div className="mt-2 px-3 space-y-2">
+              <p className="text-xs text-gray-500">
+                Compare month-to-date with the same number of days in last month.
+              </p>
+              <button
+                onClick={() => handleAdd({ context_type: 'this_month_vs_last_month' })}
                 disabled={adding}
                 className="w-full bg-purple-600 text-white py-1 rounded text-sm hover:bg-purple-700 disabled:opacity-50"
               >
