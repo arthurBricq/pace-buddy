@@ -63,9 +63,17 @@ export default function LoginPage() {
           type="button"
           onClick={handleStravaLogin}
           disabled={loading || stravaLoading}
-          className="w-full border border-orange-500 text-orange-700 py-2 rounded-md hover:bg-orange-50 disabled:opacity-50"
+          className="w-full flex items-center justify-center disabled:opacity-50 hover:opacity-80 transition-opacity"
         >
-          {stravaLoading ? 'Redirecting to Strava...' : 'Log in with Strava'}
+          {stravaLoading ? (
+            <span className="text-sm text-gray-600">Redirecting to Strava...</span>
+          ) : (
+            <img
+              src="/btn_strava_connect_with_orange.svg"
+              alt="Connect with Strava"
+              className="h-12"
+            />
+          )}
         </button>
         <p className="mt-4 text-center text-sm text-gray-500">
           No account?{' '}
