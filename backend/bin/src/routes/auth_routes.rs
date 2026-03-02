@@ -48,16 +48,8 @@ pub async fn register_start(
         }
     }
 
-    let user_id = Uuid::new_v4();
-    let user = domain::User {
-        id: user_id,
-        username: username.to_string(),
-        display_name: username.to_string(),
-        email,
-        created_at: chrono::Utc::now(),
-        mas_current: None,
-        quota_balance_usd: 0.0,
-    };
+    let user = domain::User::new(username.to_string(), username.to_string(), email);
+    let user_id = user.id;
 
     state.storage.create_user(&user).await?;
 

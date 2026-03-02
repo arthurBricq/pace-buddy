@@ -1,0 +1,151 @@
+@layer components {
+  .app-shell {
+    @apply min-h-screen bg-gray-50;
+  }
+
+  .app-shell-chat {
+    @apply h-screen bg-gray-50 flex flex-col overflow-hidden;
+  }
+
+  .page-container-wide {
+    @apply mx-auto w-full max-w-6xl px-4 py-4 sm:py-6;
+  }
+
+  .page-container-narrow {
+    @apply mx-auto w-full max-w-4xl px-4 py-4 sm:py-6;
+  }
+
+  .page-container-compact {
+    @apply mx-auto w-full max-w-lg px-4 py-4 sm:py-6;
+  }
+
+  .section-stack {
+    @apply space-y-4 sm:space-y-6;
+  }
+
+  .page-title-row {
+    @apply mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between;
+  }
+
+  .button-row-wrap {
+    @apply flex flex-wrap items-center gap-2 sm:gap-3;
+  }
+
+  .card {
+    @apply rounded-lg bg-white p-4 shadow sm:p-6;
+  }
+
+  .card-compact {
+    @apply rounded-lg bg-white p-4 shadow;
+  }
+
+  .form-grid-2 {
+    @apply grid grid-cols-1 gap-3 sm:grid-cols-2;
+  }
+
+  .data-table-wrap {
+    @apply overflow-x-auto rounded-lg bg-white shadow;
+  }
+
+  .data-table {
+    @apply w-full min-w-[680px] text-sm;
+  }
+
+  .data-table-wide {
+    @apply w-full min-w-[780px] text-sm;
+  }
+
+  .auth-shell {
+    @apply flex min-h-screen items-center justify-center bg-gray-50 px-4 py-8;
+  }
+
+  .auth-card {
+    @apply w-full max-w-md rounded-lg bg-white p-5 shadow sm:p-8;
+  }
+
+  .navbar-root {
+    @apply sticky top-0 z-50 border-b border-gray-200 bg-white;
+  }
+
+  .navbar-inner {
+    @apply mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3;
+  }
+
+  .navbar-brand {
+    @apply text-lg font-bold text-gray-900;
+  }
+
+  .navbar-links-desktop {
+    @apply hidden items-center gap-6 lg:flex;
+  }
+
+  .navbar-actions-desktop {
+    @apply hidden items-center gap-4 lg:flex;
+  }
+
+  .navbar-mobile-toggle {
+    @apply inline-flex items-center justify-center rounded-md border border-gray-300 p-2 text-gray-600 lg:hidden;
+  }
+
+  .navbar-mobile-panel {
+    @apply border-t border-gray-200 px-4 pb-3 pt-2 lg:hidden;
+  }
+
+  .navbar-mobile-links {
+    @apply flex flex-col gap-2;
+  }
+
+  .nav-link {
+    @apply text-sm text-gray-500 hover:text-gray-900;
+  }
+
+  .nav-link-active {
+    @apply text-sm font-semibold text-gray-900;
+  }
+
+  .chat-header-row {
+    @apply mx-auto flex w-full max-w-4xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between;
+  }
+
+  .chat-meta {
+    @apply flex flex-wrap items-center gap-3 text-xs text-gray-500;
+  }
+
+  .chat-input-row {
+    @apply mx-auto flex w-full max-w-4xl flex-col gap-3 sm:flex-row;
+  }
+
+  .chat-send-btn {
+    @apply w-full self-stretch sm:w-auto sm:self-end;
+  }
+
+  .modal-card {
+    @apply w-full rounded-xl bg-white shadow-2xl;
+  }
+
+  .chat-context-overlay {
+    @apply fixed inset-0 z-40 bg-black/40 lg:hidden;
+  }
+
+  .chat-context-drawer {
+    @apply fixed inset-y-0 right-0 z-50 flex w-[85vw] max-w-sm flex-col border-l bg-white shadow-xl lg:static lg:z-auto lg:w-72 lg:max-w-none lg:border-l lg:shadow-none;
+  }
+}
+
+@media (max-width: 639px) {
+  .calendar-week-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .calendar-week-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .calendar-week-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+}

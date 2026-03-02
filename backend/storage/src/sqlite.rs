@@ -1,6 +1,9 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use domain::{Activity, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError, QuotaRequest, QuotaRequestStatus, RunningStats, StravaToken, Training, TrainingInsight, User};
+use domain::{
+    Activity, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError, QuotaRequest,
+    QuotaRequestStatus, RunningStats, StravaToken, Training, TrainingInsight, User,
+};
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow};
 use sqlx::Row;
 use uuid::Uuid;
@@ -29,7 +32,7 @@ impl SqliteStorage {
                 created_at TEXT NOT NULL,
                 mas_current REAL,
                 quota_balance_usd REAL NOT NULL DEFAULT 0.0
-            )"
+            )",
         )
         .execute(&pool)
         .await
@@ -41,7 +44,7 @@ impl SqliteStorage {
                 user_id TEXT NOT NULL REFERENCES users(id),
                 passkey_json TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
-            )"
+            )",
         )
         .execute(&pool)
         .await
@@ -54,7 +57,7 @@ impl SqliteStorage {
                 access_token TEXT NOT NULL,
                 refresh_token TEXT NOT NULL,
                 expires_at TEXT NOT NULL
-            )"
+            )",
         )
         .execute(&pool)
         .await
@@ -85,7 +88,7 @@ impl SqliteStorage {
                 streams_loaded INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 UNIQUE(user_id, strava_id)
-            )"
+            )",
         )
         .execute(&pool)
         .await
@@ -104,11 +107,13 @@ impl SqliteStorage {
                 stream_type TEXT NOT NULL,
                 data_json TEXT NOT NULL,
                 PRIMARY KEY (activity_id, stream_type)
-            )"
+            )",
         )
         .execute(&pool)
         .await
-        .map_err(|e| DomainError::Storage(format!("Failed to create activity_streams table: {e}")))?;
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to create activity_streams table: {e}"))
+        })?;
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS trainings (
@@ -121,18 +126,16 @@ impl SqliteStorage {
                 race_goal TEXT,
                 race_objectif TEXT,
                 created_at TEXT NOT NULL
-            )"
+            )",
         )
         .execute(&pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create trainings table: {e}")))?;
 
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_trainings_user ON trainings(user_id)"
-        )
-        .execute(&pool)
-        .await
-        .map_err(|e| DomainError::Storage(format!("Failed to create trainings index: {e}")))?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_trainings_user ON trainings(user_id)")
+            .execute(&pool)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to create trainings index: {e}")))?;
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS training_insights (
@@ -146,11 +149,13 @@ impl SqliteStorage {
                 model TEXT,
                 cost REAL,
                 created_at TEXT NOT NULL
-            )"
+            )",
         )
         .execute(&pool)
         .await
-        .map_err(|e| DomainError::Storage(format!("Failed to create training_insights table: {e}")))?;
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to create training_insights table: {e}"))
+        })?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_training_insights_training ON training_insights(training_id, user_id)"
@@ -169,26 +174,24 @@ impl SqliteStorage {
                 model TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
-            )"
+            )",
         )
         .execute(&pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create ai_chats table: {e}")))?;
 
         sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_ai_chats_user ON ai_chats(user_id, updated_at DESC)"
+            "CREATE INDEX IF NOT EXISTS idx_ai_chats_user ON ai_chats(user_id, updated_at DESC)",
         )
         .execute(&pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create ai_chats index: {e}")))?;
 
         // Add conversation_length column if it doesn't exist (migration)
-        sqlx::query(
-            "ALTER TABLE ai_chats ADD COLUMN conversation_length INTEGER"
-        )
-        .execute(&pool)
-        .await
-        .ok(); // Ignore error if column already exists
+        sqlx::query("ALTER TABLE ai_chats ADD COLUMN conversation_length INTEGER")
+            .execute(&pool)
+            .await
+            .ok(); // Ignore error if column already exists
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS ai_chat_messages (
@@ -202,11 +205,13 @@ impl SqliteStorage {
                 cost REAL NOT NULL DEFAULT 0.0,
                 context_label TEXT,
                 created_at TEXT NOT NULL
-            )"
+            )",
         )
         .execute(&pool)
         .await
-        .map_err(|e| DomainError::Storage(format!("Failed to create ai_chat_messages table: {e}")))?;
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to create ai_chat_messages table: {e}"))
+        })?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_ai_chat_messages_chat ON ai_chat_messages(chat_id, created_at ASC)"
@@ -223,7 +228,7 @@ impl SqliteStorage {
                 requested_at TEXT NOT NULL,
                 resolved_at TEXT,
                 granted_amount_usd REAL
-            )"
+            )",
         )
         .execute(&pool)
         .await
@@ -441,7 +446,8 @@ fn row_to_ai_chat(row: &SqliteRow) -> Result<AiChat, DomainError> {
     let source_insight_id: Option<String> = row.get("source_insight_id");
     let title: String = row.get("title");
     let model: String = row.get("model");
-    let conversation_length: Option<i32> = row.try_get::<Option<i32>, _>("conversation_length")
+    let conversation_length: Option<i32> = row
+        .try_get::<Option<i32>, _>("conversation_length")
         .unwrap_or(None);
     let created_at: String = row.get("created_at");
     let updated_at: String = row.get("updated_at");
@@ -495,7 +501,7 @@ impl Storage for SqliteStorage {
     // -----------------------------------------------------------------------
     async fn create_user(&self, user: &User) -> Result<(), DomainError> {
         sqlx::query(
-            "INSERT INTO users (id, username, display_name, email, created_at, mas_current) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO users (id, username, display_name, email, created_at, mas_current, quota_balance_usd) VALUES (?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(user.id.to_string())
         .bind(&user.username)
@@ -503,6 +509,7 @@ impl Storage for SqliteStorage {
         .bind(&user.email)
         .bind(user.created_at.to_rfc3339())
         .bind(user.mas_current)
+        .bind(user.quota_balance_usd)
         .execute(&self.pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create user: {e}")))?;
@@ -511,7 +518,7 @@ impl Storage for SqliteStorage {
     }
 
     async fn get_user_by_id(&self, id: Uuid) -> Result<User, DomainError> {
-        let row = sqlx::query("SELECT id, username, display_name, email, created_at, mas_current FROM users WHERE id = ?")
+        let row = sqlx::query("SELECT id, username, display_name, email, created_at, mas_current, quota_balance_usd FROM users WHERE id = ?")
             .bind(id.to_string())
             .fetch_optional(&self.pool)
             .await
@@ -522,7 +529,7 @@ impl Storage for SqliteStorage {
     }
 
     async fn list_users(&self) -> Result<Vec<User>, DomainError> {
-        let rows = sqlx::query("SELECT id, username, display_name, email, created_at, mas_current FROM users ORDER BY created_at")
+        let rows = sqlx::query("SELECT id, username, display_name, email, created_at, mas_current, quota_balance_usd FROM users ORDER BY created_at")
             .fetch_all(&self.pool)
             .await
             .map_err(|e| DomainError::Storage(format!("Failed to list users: {e}")))?;
@@ -532,7 +539,7 @@ impl Storage for SqliteStorage {
 
     async fn get_user_by_username(&self, username: &str) -> Result<User, DomainError> {
         let row = sqlx::query(
-            "SELECT id, username, display_name, email, created_at, mas_current FROM users WHERE username = ?",
+            "SELECT id, username, display_name, email, created_at, mas_current, quota_balance_usd FROM users WHERE username = ?",
         )
         .bind(username)
         .fetch_optional(&self.pool)
@@ -545,7 +552,7 @@ impl Storage for SqliteStorage {
 
     async fn get_user_by_email(&self, email: &str) -> Result<User, DomainError> {
         let row = sqlx::query(
-            "SELECT id, username, display_name, email, created_at, mas_current FROM users WHERE email = ?",
+            "SELECT id, username, display_name, email, created_at, mas_current, quota_balance_usd FROM users WHERE email = ?",
         )
         .bind(email)
         .fetch_optional(&self.pool)
@@ -622,7 +629,10 @@ impl Storage for SqliteStorage {
         row_to_strava_token(&row)
     }
 
-    async fn get_strava_token_by_athlete_id(&self, athlete_id: i64) -> Result<StravaToken, DomainError> {
+    async fn get_strava_token_by_athlete_id(
+        &self,
+        athlete_id: i64,
+    ) -> Result<StravaToken, DomainError> {
         let row = sqlx::query(
             "SELECT user_id, strava_athlete_id, access_token, refresh_token, expires_at
              FROM strava_tokens WHERE strava_athlete_id = ?",
@@ -630,7 +640,9 @@ impl Storage for SqliteStorage {
         .bind(athlete_id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(|e| DomainError::Storage(format!("Failed to get strava token by athlete id: {e}")))?
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to get strava token by athlete id: {e}"))
+        })?
         .ok_or_else(|| {
             DomainError::NotFound(format!("Strava token for athlete {athlete_id} not found"))
         })?;
@@ -638,18 +650,23 @@ impl Storage for SqliteStorage {
         row_to_strava_token(&row)
     }
 
-    async fn delete_activity_by_strava_id(&self, strava_id: i64, user_id: Uuid) -> Result<(), DomainError> {
+    async fn delete_activity_by_strava_id(
+        &self,
+        strava_id: i64,
+        user_id: Uuid,
+    ) -> Result<(), DomainError> {
         let uid = user_id.to_string();
 
         // Find the activity's internal id
-        let row: Option<(String,)> = sqlx::query_as(
-            "SELECT id FROM activities WHERE strava_id = ? AND user_id = ?",
-        )
-        .bind(strava_id)
-        .bind(&uid)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| DomainError::Storage(format!("Failed to find activity by strava_id: {e}")))?;
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT id FROM activities WHERE strava_id = ? AND user_id = ?")
+                .bind(strava_id)
+                .bind(&uid)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(|e| {
+                    DomainError::Storage(format!("Failed to find activity by strava_id: {e}"))
+                })?;
 
         let activity_id = match row {
             Some((id,)) => id,
@@ -759,7 +776,12 @@ impl Storage for SqliteStorage {
             .bind(activity.tag.to_string())
             .bind(Option::<String>::None) // Never persist GPS polyline
             .bind(activity.workout_type)
-            .bind(activity.streams_fetched_at.map(|dt| dt.timestamp()).unwrap_or(0i64))
+            .bind(
+                activity
+                    .streams_fetched_at
+                    .map(|dt| dt.timestamp())
+                    .unwrap_or(0i64),
+            )
             .bind(activity.created_at.to_rfc3339())
             .execute(&mut *tx)
             .await
@@ -865,15 +887,12 @@ impl Storage for SqliteStorage {
     }
 
     async fn mark_streams_fetched(&self, activity_id: Uuid) -> Result<(), DomainError> {
-        let result =
-            sqlx::query("UPDATE activities SET streams_loaded = ? WHERE id = ?")
-                .bind(Utc::now().timestamp())
-                .bind(activity_id.to_string())
-                .execute(&self.pool)
-                .await
-                .map_err(|e| {
-                    DomainError::Storage(format!("Failed to mark streams fetched: {e}"))
-                })?;
+        let result = sqlx::query("UPDATE activities SET streams_loaded = ? WHERE id = ?")
+            .bind(Utc::now().timestamp())
+            .bind(activity_id.to_string())
+            .execute(&self.pool)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to mark streams fetched: {e}")))?;
 
         if result.rows_affected() == 0 {
             return Err(DomainError::NotFound(format!(
@@ -1062,9 +1081,7 @@ impl Storage for SqliteStorage {
         .bind(training.end_date.map(|d| d.to_rfc3339()))
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| {
-            DomainError::Storage(format!("Failed to get training activities: {e}"))
-        })?;
+        .map_err(|e| DomainError::Storage(format!("Failed to get training activities: {e}")))?;
 
         rows.iter().map(row_to_activity).collect()
     }
@@ -1175,7 +1192,11 @@ impl Storage for SqliteStorage {
     // -----------------------------------------------------------------------
     // User MAS
     // -----------------------------------------------------------------------
-    async fn update_user_mas(&self, user_id: Uuid, mas_mps: Option<f64>) -> Result<(), DomainError> {
+    async fn update_user_mas(
+        &self,
+        user_id: Uuid,
+        mas_mps: Option<f64>,
+    ) -> Result<(), DomainError> {
         sqlx::query("UPDATE users SET mas_current = ? WHERE id = ?")
             .bind(mas_mps)
             .bind(user_id.to_string())
@@ -1253,15 +1274,22 @@ impl Storage for SqliteStorage {
         Ok(())
     }
 
-    async fn update_ai_chat_title(&self, id: Uuid, user_id: Uuid, title: &str) -> Result<(), DomainError> {
-        let result = sqlx::query("UPDATE ai_chats SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?")
-            .bind(title)
-            .bind(Utc::now().to_rfc3339())
-            .bind(id.to_string())
-            .bind(user_id.to_string())
-            .execute(&self.pool)
-            .await
-            .map_err(|e| DomainError::Storage(format!("Failed to update ai chat title: {e}")))?;
+    async fn update_ai_chat_title(
+        &self,
+        id: Uuid,
+        user_id: Uuid,
+        title: &str,
+    ) -> Result<(), DomainError> {
+        let result = sqlx::query(
+            "UPDATE ai_chats SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+        )
+        .bind(title)
+        .bind(Utc::now().to_rfc3339())
+        .bind(id.to_string())
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to update ai chat title: {e}")))?;
 
         if result.rows_affected() == 0 {
             return Err(DomainError::NotFound(format!("AI chat {id} not found")));
@@ -1322,7 +1350,11 @@ impl Storage for SqliteStorage {
     // -----------------------------------------------------------------------
     // Insight lookup
     // -----------------------------------------------------------------------
-    async fn get_training_insight_by_id(&self, id: Uuid, user_id: Uuid) -> Result<TrainingInsight, DomainError> {
+    async fn get_training_insight_by_id(
+        &self,
+        id: Uuid,
+        user_id: Uuid,
+    ) -> Result<TrainingInsight, DomainError> {
         let row = sqlx::query(
             "SELECT id, training_id, user_id, prompt_type, display_label, full_prompt, response, model, cost, created_at
              FROM training_insights WHERE id = ? AND user_id = ?",
@@ -1433,13 +1465,11 @@ impl Storage for SqliteStorage {
     // -----------------------------------------------------------------------
 
     async fn get_user_quota(&self, user_id: Uuid) -> Result<f64, DomainError> {
-        let row = sqlx::query(
-            "SELECT quota_balance_usd FROM users WHERE id = ?"
-        )
-        .bind(user_id.to_string())
-        .fetch_one(&self.pool)
-        .await
-        .map_err(|e| DomainError::NotFound(format!("User not found: {e}")))?;
+        let row = sqlx::query("SELECT quota_balance_usd FROM users WHERE id = ?")
+            .bind(user_id.to_string())
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| DomainError::NotFound(format!("User not found: {e}")))?;
 
         Ok(row.get("quota_balance_usd"))
     }
@@ -1456,20 +1486,20 @@ impl Storage for SqliteStorage {
         .map_err(|e| DomainError::Storage(format!("Failed to deduct quota: {e}")))?;
 
         if result.rows_affected() == 0 {
-            return Err(DomainError::QuotaExhausted("Insufficient quota balance".into()));
+            return Err(DomainError::QuotaExhausted(
+                "Insufficient quota balance".into(),
+            ));
         }
         Ok(())
     }
 
     async fn add_quota(&self, user_id: Uuid, amount: f64) -> Result<(), DomainError> {
-        sqlx::query(
-            "UPDATE users SET quota_balance_usd = quota_balance_usd + ? WHERE id = ?"
-        )
-        .bind(amount)
-        .bind(user_id.to_string())
-        .execute(&self.pool)
-        .await
-        .map_err(|e| DomainError::Storage(format!("Failed to add quota: {e}")))?;
+        sqlx::query("UPDATE users SET quota_balance_usd = quota_balance_usd + ? WHERE id = ?")
+            .bind(amount)
+            .bind(user_id.to_string())
+            .execute(&self.pool)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to add quota: {e}")))?;
 
         Ok(())
     }
@@ -1499,7 +1529,7 @@ impl Storage for SqliteStorage {
     async fn get_quota_request(&self, id: Uuid) -> Result<QuotaRequest, DomainError> {
         let row = sqlx::query(
             "SELECT id, user_id, status, requested_at, resolved_at, granted_amount_usd
-             FROM quota_requests WHERE id = ?"
+             FROM quota_requests WHERE id = ?",
         )
         .bind(id.to_string())
         .fetch_one(&self.pool)
@@ -1512,7 +1542,7 @@ impl Storage for SqliteStorage {
     async fn get_pending_quota_requests(&self) -> Result<Vec<QuotaRequest>, DomainError> {
         let rows = sqlx::query(
             "SELECT id, user_id, status, requested_at, resolved_at, granted_amount_usd
-             FROM quota_requests WHERE status = 'pending' ORDER BY requested_at ASC"
+             FROM quota_requests WHERE status = 'pending' ORDER BY requested_at ASC",
         )
         .fetch_all(&self.pool)
         .await
@@ -1521,10 +1551,13 @@ impl Storage for SqliteStorage {
         rows.iter().map(row_to_quota_request).collect()
     }
 
-    async fn get_user_quota_requests(&self, user_id: Uuid) -> Result<Vec<QuotaRequest>, DomainError> {
+    async fn get_user_quota_requests(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<QuotaRequest>, DomainError> {
         let rows = sqlx::query(
             "SELECT id, user_id, status, requested_at, resolved_at, granted_amount_usd
-             FROM quota_requests WHERE user_id = ? ORDER BY requested_at DESC"
+             FROM quota_requests WHERE user_id = ? ORDER BY requested_at DESC",
         )
         .bind(user_id.to_string())
         .fetch_all(&self.pool)

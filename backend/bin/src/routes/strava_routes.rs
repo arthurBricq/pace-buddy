@@ -173,15 +173,7 @@ async fn handle_strava_login_callback(
                 Ok(u) => u,
                 Err(e) => return redirect_with_error(frontend, &format!("Failed to create user: {e}")),
             };
-            let user = domain::User {
-                id: Uuid::new_v4(),
-                username: username.clone(),
-                display_name: username,
-                email: None,
-                created_at: Utc::now(),
-                mas_current: None,
-                quota_balance_usd: 0.0,
-            };
+            let user = domain::User::new(username.clone(), username, None);
             if let Err(e) = app.storage.create_user(&user).await {
                 return redirect_with_error(frontend, &format!("Failed to create user: {e}"));
             }
