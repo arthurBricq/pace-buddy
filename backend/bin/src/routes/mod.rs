@@ -75,14 +75,6 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         web::get().to(training_routes::get_training_activities),
                     )
                     .route(
-                        "/{id}/activities/{activity_id}",
-                        web::post().to(training_routes::add_activity_to_training),
-                    )
-                    .route(
-                        "/{id}/activities/{activity_id}",
-                        web::delete().to(training_routes::remove_activity_from_training),
-                    )
-                    .route(
                         "/{id}/insight",
                         web::post().to(training_routes::training_insight),
                     )

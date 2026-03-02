@@ -32,62 +32,40 @@ pub async fn create_training(
 ) -> Result<HttpResponse, AppError> {
     log::info!("POST /trainings user={} name={}", user.user_id, body.name);
 
-    let start_date = body
-        .start_date
-        .as_deref()
-        .map(parse_date)
-        .transpose()
+    let start_date_raw = body.start_date.as_deref().ok_or_else(|| {
+        AppError(domain::DomainError::BadRequest(
+            "start_date is required for trainings".into(),
+        ))
+    })?;
+    let end_date_raw = body.end_date.as_deref().ok_or_else(|| {
+        AppError(domain::DomainError::BadRequest(
+            "end_date is required for trainings".into(),
+        ))
+    })?;
+
+    let start_date = parse_date(start_date_raw)
         .map_err(|e| AppError(domain::DomainError::BadRequest(e)))?;
-    let end_date = body
-        .end_date
-        .as_deref()
-        .map(parse_date)
-        .transpose()
+    let end_date = parse_date(end_date_raw)
         .map_err(|e| AppError(domain::DomainError::BadRequest(e)))?;
+    if start_date >= end_date {
+        return Err(AppError(domain::DomainError::BadRequest(
+            "start_date must be before end_date".into(),
+        )));
+    }
 
     let training = Training {
         id: Uuid::new_v4(),
         user_id: user.user_id,
         name: body.name.clone(),
         description: body.description.clone(),
-        start_date,
-        end_date,
+        start_date: Some(start_date),
+        end_date: Some(end_date),
         race_goal: body.race_goal.clone(),
         race_objectif: body.race_objectif.clone(),
         created_at: Utc::now(),
     };
 
     state.storage.create_training(&training).await?;
-
-    // Automatically add interval and long-run sessions within the training date range
-    if let (Some(start), Some(end)) = (training.start_date, training.end_date) {
-        let activities = state
-            .storage
-            .get_activities_in_range(user.user_id, start, end)
-            .await?;
-
-        // Filter for interval/long-run tagged activities and add them to the training
-        for activity in activities {
-            if matches!(
-                activity.tag,
-                domain::ActivityTag::Intervals | domain::ActivityTag::LongRun
-            ) {
-                if let Err(e) = state
-                    .storage
-                    .add_activity_to_training(training.id, activity.id, user.user_id)
-                    .await
-                {
-                    // Log error but don't fail the request
-                    log::warn!(
-                        "Failed to auto-add activity {} to training {}: {}",
-                        activity.id,
-                        training.id,
-                        e
-                    );
-                }
-            }
-        }
-    }
 
     Ok(HttpResponse::Created().json(training))
 }
@@ -186,48 +164,6 @@ pub async fn delete_training(
     state
         .storage
         .delete_training(training_id, user.user_id)
-        .await?;
-
-    Ok(HttpResponse::Ok().json(serde_json::json!({
-        "status": "ok",
-    })))
-}
-
-pub async fn add_activity_to_training(
-    state: web::Data<AppState>,
-    user: AuthenticatedUser,
-    path: web::Path<(Uuid, Uuid)>,
-) -> Result<HttpResponse, AppError> {
-    let (training_id, activity_id) = path.into_inner();
-    log::info!(
-        "POST /trainings/{training_id}/activities/{activity_id} user={}",
-        user.user_id
-    );
-
-    state
-        .storage
-        .add_activity_to_training(training_id, activity_id, user.user_id)
-        .await?;
-
-    Ok(HttpResponse::Ok().json(serde_json::json!({
-        "status": "ok",
-    })))
-}
-
-pub async fn remove_activity_from_training(
-    state: web::Data<AppState>,
-    user: AuthenticatedUser,
-    path: web::Path<(Uuid, Uuid)>,
-) -> Result<HttpResponse, AppError> {
-    let (training_id, activity_id) = path.into_inner();
-    log::info!(
-        "DELETE /trainings/{training_id}/activities/{activity_id} user={}",
-        user.user_id
-    );
-
-    state
-        .storage
-        .remove_activity_from_training(training_id, activity_id, user.user_id)
         .await?;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({

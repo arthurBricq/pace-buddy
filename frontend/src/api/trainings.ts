@@ -52,27 +52,6 @@ export async function deleteTraining(id: string) {
   });
 }
 
-export async function addActivityToTraining(trainingId: string, activityId: string) {
-  return apiFetch<{ status: string }>(
-    `/trainings/${trainingId}/activities/${activityId}`,
-    {
-      method: 'POST',
-    },
-  );
-}
-
-export async function removeActivityFromTraining(
-  trainingId: string,
-  activityId: string,
-) {
-  return apiFetch<{ status: string }>(
-    `/trainings/${trainingId}/activities/${activityId}`,
-    {
-      method: 'DELETE',
-    },
-  );
-}
-
 export async function getTrainingActivities(trainingId: string) {
   return apiFetch<Activity[]>(`/trainings/${trainingId}/activities`);
 }

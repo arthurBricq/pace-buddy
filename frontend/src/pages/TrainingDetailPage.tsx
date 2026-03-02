@@ -1,19 +1,16 @@
-import { useEffect, useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import {useEffect, useState} from 'react';
+import {useParams, Link, useNavigate} from 'react-router-dom';
 import {
   getTraining,
   getTrainingActivities,
-  removeActivityFromTraining,
-  addActivityToTraining,
   getTrainingInsight,
   listTrainingInsights,
 } from '../api/trainings';
-import { listActivities } from '../api/activities';
-import type { Training, Activity, TrainingInsightResponse, TrainingInsightRecord } from '../types';
+import type {Training, Activity, TrainingInsightResponse, TrainingInsightRecord} from '../types';
 import ReactMarkdown from 'react-markdown';
 import Navbar from '../components/Navbar';
 import TagBadge from '../components/TagBadge';
-import { createChatFromInsight } from '../api/chats';
+import {createChatFromInsight} from '../api/chats';
 import ChatSettingsModal from '../components/ChatSettingsModal';
 
 function formatDuration(seconds: number): string {
@@ -42,16 +39,12 @@ function formatCost(cost: number | null | undefined): string {
 }
 
 export default function TrainingDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const {id} = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [training, setTraining] = useState<Training | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [availableActivities, setAvailableActivities] = useState<Activity[]>([]);
-  const [loadingActivities, setLoadingActivities] = useState(false);
-  const [selectedActivityId, setSelectedActivityId] = useState('');
 
   // LLM Insight state
   const [insightLoading, setInsightLoading] = useState(false);
@@ -78,75 +71,6 @@ export default function TrainingDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const loadAvailableActivities = async (currentActivities: Activity[] = activities) => {
-    if (!id) return;
-    setLoadingActivities(true);
-    try {
-      const allActivities: Activity[] = [];
-      let offset = 0;
-      const limit = 100;
-
-      for (let i = 0; i < 5; i++) {
-        const page = await listActivities(limit, offset);
-        if (page.length === 0) break;
-        allActivities.push(...page);
-        offset += limit;
-        if (page.length < limit) break;
-      }
-
-      const activityIds = new Set(currentActivities.map((a) => a.id));
-      const candidateActivities = allActivities.filter(
-        (a) => (a.tag === 'intervals' || a.tag === 'long_run') && !activityIds.has(a.id),
-      );
-
-      candidateActivities.sort(
-        (a, b) =>
-          new Date(b.start_date).getTime() - new Date(a.start_date).getTime(),
-      );
-
-      setAvailableActivities(candidateActivities);
-    } catch (err: any) {
-      console.error('Failed to load available activities:', err);
-    } finally {
-      setLoadingActivities(false);
-    }
-  };
-
-  useEffect(() => {
-    if (showAddForm && !loadingActivities) {
-      loadAvailableActivities(activities);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showAddForm, activities.length]);
-
-  const handleRemoveActivity = async (activityId: string) => {
-    if (!id || !confirm('Remove this activity from the training?')) {
-      return;
-    }
-
-    try {
-      await removeActivityFromTraining(id, activityId);
-      const updated = await getTrainingActivities(id!);
-      setActivities(updated);
-    } catch (err: any) {
-      setError(err.message);
-    }
-  };
-
-  const handleAddActivity = async () => {
-    if (!id || !selectedActivityId) return;
-
-    try {
-      await addActivityToTraining(id, selectedActivityId);
-      const updated = await getTrainingActivities(id);
-      setActivities(updated);
-      setSelectedActivityId('');
-      loadAvailableActivities(updated);
-    } catch (err: any) {
-      setError(err.message);
-    }
-  };
-
   const handleInsight = async (promptType: 'overview' | 'suggestions', model: string) => {
     if (!id) return;
     setInsightLoading(true);
@@ -159,7 +83,8 @@ export default function TrainingDetailPage() {
       setCurrentInsightId(result.id);
       setCurrentInsightModel(model);
       // Refresh history to include the newly persisted insight
-      listTrainingInsights(id).then(setInsightHistory).catch(() => {});
+      listTrainingInsights(id).then(setInsightHistory).catch(() => {
+      });
     } catch (err: any) {
       setInsightError(err.message || 'Failed to get insight');
     } finally {
@@ -183,7 +108,7 @@ export default function TrainingDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Navbar />
+        <Navbar/>
         <div className="max-w-6xl mx-auto px-4 py-6">
           <p className="text-gray-500">Loading training...</p>
         </div>
@@ -194,7 +119,7 @@ export default function TrainingDetailPage() {
   if (error || !training) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Navbar />
+        <Navbar/>
         <div className="max-w-6xl mx-auto px-4 py-6">
           <p className="text-red-600">{error || 'Training not found'}</p>
           <Link to="/trainings" className="text-blue-600 hover:underline text-sm mt-2 inline-block">
@@ -205,9 +130,12 @@ export default function TrainingDetailPage() {
     );
   }
 
+  const intervalActivities = activities.filter((a) => a.tag === 'intervals');
+  const longRunActivities = activities.filter((a) => a.tag === 'long_run');
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar />
+      <Navbar/>
       <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
         <div>
           <Link to="/trainings" className="text-sm text-gray-500 hover:text-gray-700">
@@ -236,14 +164,20 @@ export default function TrainingDetailPage() {
           <h2 className="text-lg font-semibold mb-4">AI Insights</h2>
           <div className="flex gap-3 mb-4">
             <button
-              onClick={() => { setPendingPromptType('overview'); setShowInsightSettings(true); }}
+              onClick={() => {
+                setPendingPromptType('overview');
+                setShowInsightSettings(true);
+              }}
               disabled={insightLoading}
               className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
               {insightLoading ? 'Thinking...' : 'Critical Overview'}
             </button>
             <button
-              onClick={() => { setPendingPromptType('suggestions'); setShowInsightSettings(true); }}
+              onClick={() => {
+                setPendingPromptType('suggestions');
+                setShowInsightSettings(true);
+              }}
               disabled={insightLoading}
               className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
@@ -312,7 +246,7 @@ export default function TrainingDetailPage() {
               <div className="px-6 py-4 overflow-y-auto flex-1 space-y-4">
                 {insightLoading && (
                   <div className="flex items-center gap-3 text-gray-500">
-                    <div className="animate-spin h-5 w-5 border-2 border-purple-600 border-t-transparent rounded-full" />
+                    <div className="animate-spin h-5 w-5 border-2 border-purple-600 border-t-transparent rounded-full"/>
                     <span>Generating insight...</span>
                   </div>
                 )}
@@ -336,7 +270,8 @@ export default function TrainingDetailPage() {
                           {showPrompt ? 'Hide full prompt' : 'Show full prompt'}
                         </button>
                         {showPrompt && (
-                          <pre className="mt-2 text-xs bg-purple-50 p-3 rounded overflow-x-auto whitespace-pre-wrap max-h-60 overflow-y-auto">
+                          <pre
+                            className="mt-2 text-xs bg-purple-50 p-3 rounded overflow-x-auto whitespace-pre-wrap max-h-60 overflow-y-auto">
                             {insightResult.full_prompt}
                           </pre>
                         )}
@@ -345,7 +280,8 @@ export default function TrainingDetailPage() {
 
                     {/* Assistant message */}
                     <div className="flex justify-start">
-                      <div className="bg-gray-100 text-gray-900 rounded-lg px-4 py-3 max-w-[90%] prose prose-sm max-w-none">
+                      <div
+                        className="bg-gray-100 text-gray-900 rounded-lg px-4 py-3 max-w-[90%] prose prose-sm max-w-none">
                         <ReactMarkdown>{insightResult.response}</ReactMarkdown>
                       </div>
                     </div>
@@ -406,122 +342,122 @@ export default function TrainingDetailPage() {
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold">
-              Activities ({activities.length})
+              Intervals and Workouts
             </h2>
-            {!showAddForm && (
-              <button
-                onClick={() => setShowAddForm(true)}
-                className="text-sm bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700"
-              >
-                Add Activity
-              </button>
-            )}
           </div>
 
-          {showAddForm && (
-            <div className="bg-white rounded-lg shadow p-4 mb-4">
-              <h3 className="text-md font-medium mb-3">Add Activity to Training</h3>
-              {loadingActivities ? (
-                <p className="text-gray-500 text-sm">Loading available activities...</p>
-              ) : availableActivities.length === 0 ? (
-                <p className="text-gray-500 text-sm">
-                  No interval or long-run tagged activities available to add.
-                </p>
-              ) : (
-                <>
-                  <select
-                    value={selectedActivityId}
-                    onChange={(e) => setSelectedActivityId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
-                  >
-                    <option value="">Select an activity...</option>
-                    {availableActivities.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {new Date(a.start_date).toLocaleDateString()} - {a.name} ({formatDistance(a.distance)})
-                      </option>
-                    ))}
-                  </select>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleAddActivity}
-                      disabled={!selectedActivityId}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                    >
-                      Add
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowAddForm(false);
-                        setSelectedActivityId('');
-                      }}
-                      className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {activities.length === 0 && !showAddForm ? (
+          {activities.length === 0 ? (
             <p className="text-gray-500">
-              No activities in this training yet. Click "Add Activity" to add interval or long-run tagged activities.
+              No quality activities in this training range yet. Activities are derived from the
+              training time window and quality tags (intervals + long runs).
             </p>
           ) : activities.length > 0 ? (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-gray-600">
-                  <tr>
-                    <th className="text-left px-4 py-3">Date</th>
-                    <th className="text-left px-4 py-3">Name</th>
-                    <th className="text-left px-4 py-3">Type</th>
-                    <th className="text-right px-4 py-3">Distance</th>
-                    <th className="text-right px-4 py-3">Duration</th>
-                    <th className="text-right px-4 py-3">Pace</th>
-                    <th className="text-center px-4 py-3">Tag</th>
-                    <th className="text-right px-4 py-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {activities.map((a) => (
-                    <tr key={a.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-500">
-                        {new Date(a.start_date).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link
-                          to={`/activities/${a.id}`}
-                          className="text-blue-600 hover:underline"
-                        >
-                          {a.name}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-gray-500">{a.sport_type}</td>
-                      <td className="px-4 py-3 text-right">
-                        {formatDistance(a.distance)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {formatDuration(a.moving_time)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {formatPace(a.average_speed)}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <TagBadge tag={a.tag} />
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => handleRemoveActivity(a.id)}
-                          className="text-red-600 hover:text-red-800 text-sm"
-                        >
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-md font-semibold mb-2">Intervals ({intervalActivities.length})</h3>
+                {intervalActivities.length === 0 ? (
+                  <p className="text-sm text-gray-500">No interval activities in this training range.</p>
+                ) : (
+                  <div className="bg-white rounded-lg shadow overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th className="text-left px-4 py-3">Date</th>
+                        <th className="text-left px-4 py-3">Name</th>
+                        <th className="text-left px-4 py-3">Type</th>
+                        <th className="text-right px-4 py-3">Distance</th>
+                        <th className="text-right px-4 py-3">Duration</th>
+                        <th className="text-right px-4 py-3">Pace</th>
+                        <th className="text-center px-4 py-3">Tag</th>
+                      </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                      {intervalActivities.map((a) => (
+                        <tr key={a.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-gray-500">
+                            {new Date(a.start_date).toLocaleDateString()}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Link
+                              to={`/activities/${a.id}`}
+                              className="text-blue-600 hover:underline"
+                            >
+                              {a.name}
+                            </Link>
+                          </td>
+                          <td className="px-4 py-3 text-gray-500">{a.sport_type}</td>
+                          <td className="px-4 py-3 text-right">
+                            {formatDistance(a.distance)}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {formatDuration(a.moving_time)}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {formatPace(a.average_speed)}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <TagBadge tag={a.tag}/>
+                          </td>
+                        </tr>
+                      ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h3 className="text-md font-semibold mb-2">Long Runs</h3>
+                {longRunActivities.length === 0 ? (
+                  <p className="text-sm text-gray-500">No long runs in this training range.</p>
+                ) : (
+                  <div className="bg-white rounded-lg shadow overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th className="text-left px-4 py-3">Date</th>
+                        <th className="text-left px-4 py-3">Name</th>
+                        <th className="text-left px-4 py-3">Type</th>
+                        <th className="text-right px-4 py-3">Distance</th>
+                        <th className="text-right px-4 py-3">Duration</th>
+                        <th className="text-right px-4 py-3">Pace</th>
+                        <th className="text-center px-4 py-3">Tag</th>
+                      </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                      {longRunActivities.map((a) => (
+                        <tr key={a.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-gray-500">
+                            {new Date(a.start_date).toLocaleDateString()}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Link
+                              to={`/activities/${a.id}`}
+                              className="text-blue-600 hover:underline"
+                            >
+                              {a.name}
+                            </Link>
+                          </td>
+                          <td className="px-4 py-3 text-gray-500">{a.sport_type}</td>
+                          <td className="px-4 py-3 text-right">
+                            {formatDistance(a.distance)}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {formatDuration(a.moving_time)}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {formatPace(a.average_speed)}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <TagBadge tag={a.tag}/>
+                          </td>
+                        </tr>
+                      ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           ) : null}
         </div>

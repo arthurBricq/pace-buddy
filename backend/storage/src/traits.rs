@@ -64,18 +64,6 @@ pub trait Storage: Send + Sync {
         race_goal: Option<String>,
     ) -> Result<(), DomainError>;
     async fn delete_training(&self, id: Uuid, user_id: Uuid) -> Result<(), DomainError>;
-    async fn add_activity_to_training(
-        &self,
-        training_id: Uuid,
-        activity_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<(), DomainError>;
-    async fn remove_activity_from_training(
-        &self,
-        training_id: Uuid,
-        activity_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<(), DomainError>;
     async fn get_training_activities(
         &self,
         training_id: Uuid,

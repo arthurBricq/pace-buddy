@@ -135,31 +135,6 @@ impl SqliteStorage {
         .map_err(|e| DomainError::Storage(format!("Failed to create trainings index: {e}")))?;
 
         sqlx::query(
-            "CREATE TABLE IF NOT EXISTS training_activities (
-                training_id TEXT NOT NULL REFERENCES trainings(id) ON DELETE CASCADE,
-                activity_id TEXT NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
-                PRIMARY KEY (training_id, activity_id)
-            )"
-        )
-        .execute(&pool)
-        .await
-        .map_err(|e| DomainError::Storage(format!("Failed to create training_activities table: {e}")))?;
-
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_training_activities_training ON training_activities(training_id)"
-        )
-        .execute(&pool)
-        .await
-        .map_err(|e| DomainError::Storage(format!("Failed to create training_activities index: {e}")))?;
-
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_training_activities_activity ON training_activities(activity_id)"
-        )
-        .execute(&pool)
-        .await
-        .map_err(|e| DomainError::Storage(format!("Failed to create training_activities index: {e}")))?;
-
-        sqlx::query(
             "CREATE TABLE IF NOT EXISTS training_insights (
                 id TEXT PRIMARY KEY NOT NULL,
                 training_id TEXT NOT NULL REFERENCES trainings(id) ON DELETE CASCADE,
@@ -688,13 +663,6 @@ impl Storage for SqliteStorage {
             .await
             .map_err(|e| DomainError::Storage(format!("Failed to delete streams: {e}")))?;
 
-        // Delete training-activity links
-        sqlx::query("DELETE FROM training_activities WHERE activity_id = ?")
-            .bind(&activity_id)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| DomainError::Storage(format!("Failed to delete training_activities: {e}")))?;
-
         // Delete the activity
         sqlx::query("DELETE FROM activities WHERE id = ?")
             .bind(&activity_id)
@@ -716,15 +684,6 @@ impl Storage for SqliteStorage {
         .execute(&self.pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to delete streams: {e}")))?;
-
-        // Remove training-activity links for this user's activities
-        sqlx::query(
-            "DELETE FROM training_activities WHERE activity_id IN (SELECT id FROM activities WHERE user_id = ?)",
-        )
-        .bind(&uid)
-        .execute(&self.pool)
-        .await
-        .map_err(|e| DomainError::Storage(format!("Failed to delete training_activities: {e}")))?;
 
         // Delete activities
         sqlx::query("DELETE FROM activities WHERE user_id = ?")
@@ -1076,76 +1035,12 @@ impl Storage for SqliteStorage {
         Ok(())
     }
 
-    async fn add_activity_to_training(
-        &self,
-        training_id: Uuid,
-        activity_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<(), DomainError> {
-        // Verify training belongs to user
-        let _training = self.get_training(training_id, user_id).await?;
-
-        // Verify activity belongs to user and is tagged as interval or long run
-        let activity = self.get_activity(activity_id, user_id).await?;
-        if !matches!(activity.tag, ActivityTag::Intervals | ActivityTag::LongRun) {
-            return Err(DomainError::BadRequest(
-                "Only interval or long-run tagged activities can be added to trainings".into(),
-            ));
-        }
-
-        sqlx::query(
-            "INSERT INTO training_activities (training_id, activity_id)
-             VALUES (?, ?)
-             ON CONFLICT(training_id, activity_id) DO NOTHING",
-        )
-        .bind(training_id.to_string())
-        .bind(activity_id.to_string())
-        .execute(&self.pool)
-        .await
-        .map_err(|e| {
-            DomainError::Storage(format!("Failed to add activity to training: {e}"))
-        })?;
-
-        Ok(())
-    }
-
-    async fn remove_activity_from_training(
-        &self,
-        training_id: Uuid,
-        activity_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<(), DomainError> {
-        // Verify training belongs to user
-        let _training = self.get_training(training_id, user_id).await?;
-
-        let result = sqlx::query(
-            "DELETE FROM training_activities
-             WHERE training_id = ? AND activity_id = ?",
-        )
-        .bind(training_id.to_string())
-        .bind(activity_id.to_string())
-        .execute(&self.pool)
-        .await
-        .map_err(|e| {
-            DomainError::Storage(format!("Failed to remove activity from training: {e}"))
-        })?;
-
-        if result.rows_affected() == 0 {
-            return Err(DomainError::NotFound(
-                "Activity not found in training".into(),
-            ));
-        }
-
-        Ok(())
-    }
-
     async fn get_training_activities(
         &self,
         training_id: Uuid,
         user_id: Uuid,
     ) -> Result<Vec<Activity>, DomainError> {
-        // Verify training belongs to user
-        let _training = self.get_training(training_id, user_id).await?;
+        let training = self.get_training(training_id, user_id).await?;
 
         let rows = sqlx::query(
             "SELECT a.id, a.user_id, a.strava_id, a.name, a.sport_type, a.start_date,
@@ -1154,12 +1049,17 @@ impl Storage for SqliteStorage {
                     a.average_cadence, a.average_watts, a.calories, a.tag, a.summary_polyline,
                     a.workout_type, a.streams_loaded, a.created_at
              FROM activities a
-             INNER JOIN training_activities ta ON a.id = ta.activity_id
-             WHERE ta.training_id = ? AND a.user_id = ?
+             WHERE a.user_id = ?
+               AND a.tag IN ('intervals', 'long_run')
+               AND (? IS NULL OR a.start_date >= ?)
+               AND (? IS NULL OR a.start_date < ?)
              ORDER BY a.start_date DESC",
         )
-        .bind(training_id.to_string())
         .bind(user_id.to_string())
+        .bind(training.start_date.map(|d| d.to_rfc3339()))
+        .bind(training.start_date.map(|d| d.to_rfc3339()))
+        .bind(training.end_date.map(|d| d.to_rfc3339()))
+        .bind(training.end_date.map(|d| d.to_rfc3339()))
         .fetch_all(&self.pool)
         .await
         .map_err(|e| {
@@ -1174,18 +1074,24 @@ impl Storage for SqliteStorage {
         activity_id: Uuid,
         user_id: Uuid,
     ) -> Result<Vec<Training>, DomainError> {
-        // Verify activity belongs to user
-        let _activity = self.get_activity(activity_id, user_id).await?;
+        let activity = self.get_activity(activity_id, user_id).await?;
+        if !matches!(activity.tag, ActivityTag::Intervals | ActivityTag::LongRun) {
+            return Ok(vec![]);
+        }
 
         let rows = sqlx::query(
-            "SELECT t.id, t.user_id, t.name, t.description, t.start_date, t.end_date, t.race_goal, t.created_at
+            "SELECT t.id, t.user_id, t.name, t.description, t.start_date, t.end_date, t.race_goal, t.race_objectif, t.created_at
              FROM trainings t
-             INNER JOIN training_activities ta ON t.id = ta.training_id
-             WHERE ta.activity_id = ? AND t.user_id = ?
+             WHERE t.user_id = ?
+               AND (? IS NULL OR t.start_date IS NULL OR ? >= t.start_date)
+               AND (? IS NULL OR t.end_date IS NULL OR ? < t.end_date)
              ORDER BY t.created_at DESC",
         )
-        .bind(activity_id.to_string())
         .bind(user_id.to_string())
+        .bind(Some(activity.start_date.to_rfc3339()))
+        .bind(Some(activity.start_date.to_rfc3339()))
+        .bind(Some(activity.start_date.to_rfc3339()))
+        .bind(Some(activity.start_date.to_rfc3339()))
         .fetch_all(&self.pool)
         .await
         .map_err(|e| {
@@ -1702,7 +1608,6 @@ impl SqliteStorage {
             "ai_chat_messages",
             "ai_chats",
             "training_insights",
-            "training_activities",
             "activity_streams",
             "activities",
             "trainings",

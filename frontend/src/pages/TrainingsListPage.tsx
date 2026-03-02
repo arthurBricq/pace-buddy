@@ -40,6 +40,14 @@ export default function TrainingsListPage() {
       setError('Name is required');
       return;
     }
+    if (!newStartDate || !newEndDate) {
+      setError('Start date and end date are required');
+      return;
+    }
+    if (new Date(newStartDate) >= new Date(newEndDate)) {
+      setError('Start date must be before end date');
+      return;
+    }
 
     setCreating(true);
     setError('');
@@ -127,24 +135,26 @@ export default function TrainingsListPage() {
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Start Date
+                    Start Date *
                   </label>
                   <input
                     type="date"
                     value={newStartDate}
                     onChange={(e) => setNewStartDate(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    End Date
+                    End Date *
                   </label>
                   <input
                     type="date"
                     value={newEndDate}
                     onChange={(e) => setNewEndDate(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
                   />
                 </div>
               </div>
