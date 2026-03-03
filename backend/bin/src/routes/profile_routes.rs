@@ -1,8 +1,6 @@
 use crate::errors::AppError;
 use crate::helpers::conversation_manager;
-use crate::helpers::mas_estimator::{
-    build_race_mas_estimates, list_race_activities, MasEstimator,
-};
+use crate::helpers::mas_estimator::{build_race_mas_estimates, list_race_activities};
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
 use actix_web::{web, HttpResponse};
@@ -52,14 +50,10 @@ pub async fn recompute_mas(
     user: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
     log::info!("POST /auth/mas/recompute user_id={}", user.user_id);
-    let races = list_race_activities(state.storage.as_ref(), user.user_id).await?;
-    let mas_mps = MasEstimator::estimate(state.mas_estimator.as_ref(), &races)
+    let mas_mps = state
+        .recompute_user_mas_from_races(user.user_id)
+        .await?
         .ok_or_else(|| DomainError::BadRequest("No races available to compute MAS".into()))?;
-
-    state
-        .storage
-        .update_user_mas(user.user_id, Some(mas_mps))
-        .await?;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "status": "ok",

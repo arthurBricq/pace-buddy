@@ -1,10 +1,11 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use crate::helpers::mas_estimator::LastRaceEstimator;
+use crate::helpers::mas_estimator::{list_race_activities, LastRaceEstimator, MasEstimator};
 use auth::{JwtService, WebAuthnService};
+use domain::DomainError;
 use llm::open_router::OpenRouterClient;
-use storage::SqliteStorage;
+use storage::{SqliteStorage, Storage};
 use strava_client::StravaClient;
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -35,6 +36,20 @@ impl AppState {
     /// Computes the cost in user quotas
     pub(crate) fn cost_to_user_quota(&self, real: f64) -> f64 {
         real * self.quota_markup_ratio
+    }
+
+    /// Recompute MAS from current race-tagged activities and persist it.
+    /// Returns the new MAS value when one can be estimated.
+    pub async fn recompute_user_mas_from_races(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<f64>, DomainError> {
+        let races = list_race_activities(self.storage.as_ref(), user_id).await?;
+        let mas_mps = MasEstimator::estimate(self.mas_estimator.as_ref(), &races);
+        if let Some(mas_mps) = mas_mps {
+            self.storage.update_user_mas(user_id, Some(mas_mps)).await?;
+        }
+        Ok(mas_mps)
     }
 
     pub async fn try_begin_activities_sync(&self, user_id: Uuid) -> bool {

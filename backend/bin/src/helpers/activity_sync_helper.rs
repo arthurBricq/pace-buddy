@@ -1,7 +1,6 @@
 use storage::Storage;
 use uuid::Uuid;
 
-use crate::helpers::mas_estimator::{list_race_activities, MasEstimator};
 use crate::helpers::strava_token_helper::get_valid_access_token;
 use crate::state::AppState;
 use domain::DomainError;
@@ -69,12 +68,7 @@ pub async fn sync_user_activities(
     let total = all_activities.len();
     state.storage.upsert_activities(&all_activities).await?;
 
-    let races = list_race_activities(state.storage.as_ref(), user_id).await?;
-    if let Some(mas_mps) = MasEstimator::estimate(state.mas_estimator.as_ref(), &races) {
-        state
-            .storage
-            .update_user_mas(user_id, Some(mas_mps))
-            .await?;
+    if let Some(mas_mps) = state.recompute_user_mas_from_races(user_id).await? {
         log::info!(
             "Updated MAS after sync user={} mas_mps={:.4}",
             user_id,

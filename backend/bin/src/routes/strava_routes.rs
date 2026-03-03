@@ -3,7 +3,6 @@ use actix_web::{web, HttpResponse};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::sync::Arc;
 use storage::Storage;
 use uuid::Uuid;
 
@@ -386,11 +385,10 @@ pub async fn webhook_event(
     );
 
     let event = body.into_inner();
-    let storage = Arc::clone(&state.storage);
-    let strava_client = Arc::clone(&state.strava_client);
+    let app = state.clone();
 
     tokio::spawn(async move {
-        if let Err(e) = handle_webhook_event(event, storage, strava_client).await {
+        if let Err(e) = handle_webhook_event(event, app).await {
             log::error!("Webhook event handler error: {e}");
         }
     });
@@ -400,11 +398,11 @@ pub async fn webhook_event(
 
 async fn handle_webhook_event(
     event: WebhookEvent,
-    storage: Arc<storage::SqliteStorage>,
-    strava_client: Arc<strava_client::StravaClient>,
+    app: web::Data<AppState>,
 ) -> Result<(), DomainError> {
     // Look up the user by Strava athlete id
-    let token = storage
+    let token = app
+        .storage
         .get_strava_token_by_athlete_id(event.owner_id)
         .await?;
     let user_id = token.user_id;
@@ -416,12 +414,21 @@ async fn handle_webhook_event(
                 event.object_id,
                 user_id
             );
-            let access_token = get_valid_access_token(&storage, &strava_client, user_id).await?;
-            let strava_activity = strava_client
+            let access_token =
+                get_valid_access_token(&app.storage, &app.strava_client, user_id).await?;
+            let strava_activity = app
+                .strava_client
                 .get_activity(&access_token, event.object_id)
                 .await?;
             let domain_activity = strava_activity_to_domain(&strava_activity, user_id);
-            storage.upsert_activities(&[domain_activity]).await?;
+            app.storage.upsert_activities(&[domain_activity]).await?;
+            if let Some(mas_mps) = app.recompute_user_mas_from_races(user_id).await? {
+                log::info!(
+                    "Webhook: recomputed MAS after activity upsert user={} mas_mps={:.4}",
+                    user_id,
+                    mas_mps
+                );
+            }
             log::info!(
                 "Webhook: activity {} synced for user {}",
                 event.object_id,
@@ -434,9 +441,16 @@ async fn handle_webhook_event(
                 event.object_id,
                 user_id
             );
-            storage
+            app.storage
                 .delete_activity_by_strava_id(event.object_id, user_id)
                 .await?;
+            if let Some(mas_mps) = app.recompute_user_mas_from_races(user_id).await? {
+                log::info!(
+                    "Webhook: recomputed MAS after activity delete user={} mas_mps={:.4}",
+                    user_id,
+                    mas_mps
+                );
+            }
             log::info!(
                 "Webhook: activity {} deleted for user {}",
                 event.object_id,
@@ -451,7 +465,7 @@ async fn handle_webhook_event(
                     event.owner_id,
                     user_id
                 );
-                storage.delete_strava_data(user_id).await?;
+                app.storage.delete_strava_data(user_id).await?;
                 log::info!("Webhook: strava data deleted for user {}", user_id);
             }
         }
