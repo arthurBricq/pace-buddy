@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   getAdminStats,
   getQuotaRequests,
@@ -71,7 +72,12 @@ export default function AdminDashboardPage() {
     <div className="app-shell">
       <Navbar />
       <div className="page-container-narrow section-stack">
-        <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+          <Link to="/admin/users" className="text-sm text-blue-600 hover:underline">
+            Users by quota spent
+          </Link>
+        </div>
 
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">

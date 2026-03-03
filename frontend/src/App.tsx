@@ -12,6 +12,7 @@ import ProfilePage from './pages/ProfilePage';
 import AiChatsListPage from './pages/AiChatsListPage';
 import AiChatPage from './pages/AiChatPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import AdminUsersPage from './pages/AdminUsersPage';
 import HelpPage from './pages/HelpPage';
 
 function App() {
@@ -91,6 +92,14 @@ function App() {
             element={
               <AuthGuard>
                 <AdminDashboardPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <AuthGuard>
+                <AdminUsersPage />
               </AuthGuard>
             }
           />

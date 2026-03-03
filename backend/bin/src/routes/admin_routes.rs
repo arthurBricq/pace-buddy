@@ -12,6 +12,18 @@ struct AdminStats {
     user_count: usize,
 }
 
+#[derive(Serialize)]
+pub struct AdminUserQuotaSpending {
+    user_id: String,
+    username: String,
+    display_name: String,
+    email: Option<String>,
+    created_at: String,
+    quota_balance_usd: f64,
+    total_granted_usd: f64,
+    total_spent_usd: f64,
+}
+
 /// Verify the authenticated user is the admin by checking their Strava athlete ID.
 async fn verify_admin(
     state: &web::Data<AppState>,
@@ -47,6 +59,49 @@ pub async fn stats(
     Ok(HttpResponse::Ok().json(AdminStats {
         user_count: users.len(),
     }))
+}
+
+pub async fn users_by_quota_spent(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+) -> Result<HttpResponse, AppError> {
+    verify_admin(&state, &user).await?;
+
+    let users = state.storage.list_users().await?;
+    let mut leaderboard = Vec::with_capacity(users.len());
+
+    for u in users {
+        let requests = state.storage.get_user_quota_requests(u.id).await?;
+        let total_granted_usd: f64 = requests
+            .iter()
+            .filter(|r| r.status == domain::QuotaRequestStatus::Approved)
+            .map(|r| r.granted_amount_usd.unwrap_or(0.0))
+            .sum();
+
+        let total_spent_usd = (domain::user::DEFAULT_INITIAL_USER_QUOTA_USD + total_granted_usd
+            - u.quota_balance_usd)
+            .max(0.0);
+
+        leaderboard.push(AdminUserQuotaSpending {
+            user_id: u.id.to_string(),
+            username: u.username,
+            display_name: u.display_name,
+            email: u.email,
+            created_at: u.created_at.to_rfc3339(),
+            quota_balance_usd: u.quota_balance_usd,
+            total_granted_usd,
+            total_spent_usd,
+        });
+    }
+
+    leaderboard.sort_by(|a, b| {
+        b.total_spent_usd
+            .partial_cmp(&a.total_spent_usd)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.username.cmp(&b.username))
+    });
+
+    Ok(HttpResponse::Ok().json(leaderboard))
 }
 
 pub async fn list_quota_requests(

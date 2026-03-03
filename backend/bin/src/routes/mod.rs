@@ -98,6 +98,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .service(
                 web::scope("/admin")
                     .route("/stats", web::get().to(admin_routes::stats))
+                    .route("/users", web::get().to(admin_routes::users_by_quota_spent))
                     .route(
                         "/quota-requests",
                         web::get().to(admin_routes::list_quota_requests),

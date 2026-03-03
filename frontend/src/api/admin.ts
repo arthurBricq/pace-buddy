@@ -5,8 +5,23 @@ export interface AdminStats {
   user_count: number;
 }
 
+export interface AdminUserQuotaSpending {
+  user_id: string;
+  username: string;
+  display_name: string;
+  email: string | null;
+  created_at: string;
+  quota_balance_usd: number;
+  total_granted_usd: number;
+  total_spent_usd: number;
+}
+
 export function getAdminStats(): Promise<AdminStats> {
   return apiFetch<AdminStats>('/admin/stats');
+}
+
+export function getAdminUsersByQuotaSpent(): Promise<AdminUserQuotaSpending[]> {
+  return apiFetch<AdminUserQuotaSpending[]>('/admin/users');
 }
 
 export function getQuotaRequests(): Promise<QuotaRequestRecord[]> {
