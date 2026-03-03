@@ -16,6 +16,7 @@ use storage::SqliteStorage;
 use strava_client::StravaClient;
 
 use crate::config::Config;
+use crate::helpers::mas_estimator::LastRaceEstimator;
 use crate::helpers::model_cost_helper::recompute_model_cost_tiers;
 use crate::state::AppState;
 
@@ -139,6 +140,7 @@ async fn main() -> std::io::Result<()> {
         strava_webhook_verify_token: cfg.strava_webhook_verify_token.clone(),
         admin_strava_athlete_id: cfg.admin_strava_athlete_id,
         quota_markup_ratio: cfg.quota_markup_ratio,
+        mas_estimator: Arc::new(LastRaceEstimator),
         syncing_activity_users: Arc::new(tokio::sync::Mutex::new(std::collections::HashSet::new())),
         activity_sync_statuses: Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new())),
     });

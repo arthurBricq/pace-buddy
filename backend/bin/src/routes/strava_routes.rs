@@ -46,11 +46,11 @@ pub struct CallbackQuery {
 /// This is a direct browser navigation (not a fetch), so on error
 /// we redirect to the frontend with an error query param instead of
 /// returning JSON that would show as a raw page.
-pub async fn callback(
-    app: web::Data<AppState>,
-    query: web::Query<CallbackQuery>,
-) -> HttpResponse {
-    log::info!("GET /strava/callback code=<redacted> state={:?}", query.state);
+pub async fn callback(app: web::Data<AppState>, query: web::Query<CallbackQuery>) -> HttpResponse {
+    log::info!(
+        "GET /strava/callback code=<redacted> state={:?}",
+        query.state
+    );
     let frontend = &app.frontend_url;
 
     let state_raw = match query.state.as_deref() {
@@ -113,17 +113,19 @@ pub async fn callback(
                 return redirect_with_error(frontend, &format!("Failed to save token: {e}"));
             }
 
-            let should_start_initial_sync = match app.storage.get_latest_activity_start(user_id).await {
-                Ok(None) => true,
-                Ok(Some(_)) => false,
-                Err(e) => {
-                    log::warn!(
-                        "Could not determine if initial sync should start for user {}: {}",
-                        user_id, e
-                    );
-                    false
-                }
-            };
+            let should_start_initial_sync =
+                match app.storage.get_latest_activity_start(user_id).await {
+                    Ok(None) => true,
+                    Ok(Some(_)) => false,
+                    Err(e) => {
+                        log::warn!(
+                            "Could not determine if initial sync should start for user {}: {}",
+                            user_id,
+                            e
+                        );
+                        false
+                    }
+                };
             if should_start_initial_sync {
                 start_background_initial_sync(app.clone(), user_id);
             }
@@ -171,7 +173,9 @@ async fn handle_strava_login_callback(
         Err(_) => {
             let username = match generate_unique_strava_username(app, athlete_id).await {
                 Ok(u) => u,
-                Err(e) => return redirect_with_error(frontend, &format!("Failed to create user: {e}")),
+                Err(e) => {
+                    return redirect_with_error(frontend, &format!("Failed to create user: {e}"))
+                }
             };
             let user = domain::User::new(username.clone(), username, None);
             if let Err(e) = app.storage.create_user(&user).await {
@@ -201,7 +205,9 @@ async fn handle_strava_login_callback(
 
     let jwt = match app.jwt.create_token(user_id) {
         Ok(v) => v,
-        Err(e) => return redirect_with_error(frontend, &format!("Failed to create session token: {e}")),
+        Err(e) => {
+            return redirect_with_error(frontend, &format!("Failed to create session token: {e}"))
+        }
     };
 
     HttpResponse::Found()
@@ -222,7 +228,10 @@ fn build_session_cookie(token: &str) -> Cookie<'static> {
 fn redirect_with_error(frontend_url: &str, message: &str) -> HttpResponse {
     let encoded = urlencoding::encode(message);
     HttpResponse::Found()
-        .append_header(("Location", format!("{frontend_url}/profile?error={encoded}")))
+        .append_header((
+            "Location",
+            format!("{frontend_url}/profile?error={encoded}"),
+        ))
         .finish()
 }
 
@@ -236,7 +245,10 @@ fn start_background_initial_sync(app: web::Data<AppState>, user_id: Uuid) {
             return;
         }
 
-        log::info!("Starting initial background Strava sync for user {}", user_id);
+        log::info!(
+            "Starting initial background Strava sync for user {}",
+            user_id
+        );
         let result = sync_user_activities(&app, user_id, None, None).await;
 
         match result {
@@ -249,7 +261,8 @@ fn start_background_initial_sync(app: web::Data<AppState>, user_id: Uuid) {
                 );
             }
             Err(e) => {
-                app.mark_activities_sync_failed(user_id, e.to_string()).await;
+                app.mark_activities_sync_failed(user_id, e.to_string())
+                    .await;
                 log::error!(
                     "Initial background Strava sync failed for user {}: {}",
                     user_id,
@@ -288,7 +301,11 @@ pub async fn status(
     log::debug!("GET /strava/status user={}", user.user_id);
     match state.storage.get_strava_token(user.user_id).await {
         Ok(token) => {
-            log::debug!("Strava linked for user {}, athlete_id={}", user.user_id, token.strava_athlete_id);
+            log::debug!(
+                "Strava linked for user {}, athlete_id={}",
+                user.user_id,
+                token.strava_athlete_id
+            );
             Ok(HttpResponse::Ok().json(serde_json::json!({
                 "linked": true,
                 "athlete_id": token.strava_athlete_id,
@@ -344,10 +361,10 @@ pub async fn webhook_validate(
 
 #[derive(Debug, Deserialize)]
 pub struct WebhookEvent {
-    pub aspect_type: String,     // "create", "update", "delete"
-    pub object_id: i64,          // activity id or athlete id
-    pub object_type: String,     // "activity" or "athlete"
-    pub owner_id: i64,           // athlete id
+    pub aspect_type: String, // "create", "update", "delete"
+    pub object_id: i64,      // activity id or athlete id
+    pub object_type: String, // "activity" or "athlete"
+    pub owner_id: i64,       // athlete id
     #[allow(dead_code)]
     pub subscription_id: i64,
     #[allow(dead_code)]
@@ -362,7 +379,10 @@ pub async fn webhook_event(
 ) -> HttpResponse {
     log::info!(
         "POST /strava/webhook object_type={} aspect_type={} object_id={} owner_id={}",
-        body.object_type, body.aspect_type, body.object_id, body.owner_id
+        body.object_type,
+        body.aspect_type,
+        body.object_id,
+        body.owner_id
     );
 
     let event = body.into_inner();
@@ -384,33 +404,63 @@ async fn handle_webhook_event(
     strava_client: Arc<strava_client::StravaClient>,
 ) -> Result<(), DomainError> {
     // Look up the user by Strava athlete id
-    let token = storage.get_strava_token_by_athlete_id(event.owner_id).await?;
+    let token = storage
+        .get_strava_token_by_athlete_id(event.owner_id)
+        .await?;
     let user_id = token.user_id;
 
     match (event.object_type.as_str(), event.aspect_type.as_str()) {
         ("activity", "create") | ("activity", "update") => {
-            log::info!("Webhook: syncing activity {} for user {}", event.object_id, user_id);
+            log::info!(
+                "Webhook: syncing activity {} for user {}",
+                event.object_id,
+                user_id
+            );
             let access_token = get_valid_access_token(&storage, &strava_client, user_id).await?;
-            let strava_activity = strava_client.get_activity(&access_token, event.object_id).await?;
+            let strava_activity = strava_client
+                .get_activity(&access_token, event.object_id)
+                .await?;
             let domain_activity = strava_activity_to_domain(&strava_activity, user_id);
             storage.upsert_activities(&[domain_activity]).await?;
-            log::info!("Webhook: activity {} synced for user {}", event.object_id, user_id);
+            log::info!(
+                "Webhook: activity {} synced for user {}",
+                event.object_id,
+                user_id
+            );
         }
         ("activity", "delete") => {
-            log::info!("Webhook: deleting activity {} for user {}", event.object_id, user_id);
-            storage.delete_activity_by_strava_id(event.object_id, user_id).await?;
-            log::info!("Webhook: activity {} deleted for user {}", event.object_id, user_id);
+            log::info!(
+                "Webhook: deleting activity {} for user {}",
+                event.object_id,
+                user_id
+            );
+            storage
+                .delete_activity_by_strava_id(event.object_id, user_id)
+                .await?;
+            log::info!(
+                "Webhook: activity {} deleted for user {}",
+                event.object_id,
+                user_id
+            );
         }
         ("athlete", "update") => {
             // Check if this is a deauthorization event
             if event.updates.get("authorized").and_then(|v| v.as_str()) == Some("false") {
-                log::info!("Webhook: athlete {} deauthorized, cleaning up user {}", event.owner_id, user_id);
+                log::info!(
+                    "Webhook: athlete {} deauthorized, cleaning up user {}",
+                    event.owner_id,
+                    user_id
+                );
                 storage.delete_strava_data(user_id).await?;
                 log::info!("Webhook: strava data deleted for user {}", user_id);
             }
         }
         _ => {
-            log::debug!("Webhook: ignoring event {}:{}", event.object_type, event.aspect_type);
+            log::debug!(
+                "Webhook: ignoring event {}:{}",
+                event.object_type,
+                event.aspect_type
+            );
         }
     }
 

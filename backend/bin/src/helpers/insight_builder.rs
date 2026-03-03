@@ -13,7 +13,8 @@ use crate::state::AppState;
 
 pub const DEFAULT_LLM_MODEL: &str = "google/gemini-2.5-flash";
 
-const SYSTEM_PROMPT: &str = "You are an experienced running coach analyzing a runner's training plan. \
+const SYSTEM_PROMPT: &str =
+    "You are an experienced running coach analyzing a runner's training plan. \
     Provide specific, actionable advice based on the data provided. \
     Use metric units (km, min/km pace). Be concise but remain precise.";
 

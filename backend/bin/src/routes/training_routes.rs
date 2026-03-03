@@ -43,10 +43,10 @@ pub async fn create_training(
         ))
     })?;
 
-    let start_date = parse_date(start_date_raw)
-        .map_err(|e| AppError(domain::DomainError::BadRequest(e)))?;
-    let end_date = parse_date(end_date_raw)
-        .map_err(|e| AppError(domain::DomainError::BadRequest(e)))?;
+    let start_date =
+        parse_date(start_date_raw).map_err(|e| AppError(domain::DomainError::BadRequest(e)))?;
+    let end_date =
+        parse_date(end_date_raw).map_err(|e| AppError(domain::DomainError::BadRequest(e)))?;
     if start_date >= end_date {
         return Err(AppError(domain::DomainError::BadRequest(
             "start_date must be before end_date".into(),

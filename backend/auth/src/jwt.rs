@@ -82,15 +82,22 @@ impl JwtService {
 
     /// Verify an OAuth state token and return claims.
     pub fn verify_oauth_state(&self, token: &str) -> Result<OAuthStateClaims, DomainError> {
-        let token_data = decode::<OAuthStateClaims>(token, &self.decoding_key, &Validation::default())
-            .map_err(|e| DomainError::Auth(format!("OAuth state decode error: {e}")))?;
+        let token_data =
+            decode::<OAuthStateClaims>(token, &self.decoding_key, &Validation::default())
+                .map_err(|e| DomainError::Auth(format!("OAuth state decode error: {e}")))?;
         Ok(token_data.claims)
     }
 
-    fn create_oauth_state(&self, purpose: &str, user_id: Option<Uuid>) -> Result<String, DomainError> {
+    fn create_oauth_state(
+        &self,
+        purpose: &str,
+        user_id: Option<Uuid>,
+    ) -> Result<String, DomainError> {
         let expiration = Utc::now()
             .checked_add_signed(Duration::minutes(10))
-            .ok_or_else(|| DomainError::Auth("Failed to compute oauth state expiration".to_string()))?;
+            .ok_or_else(|| {
+                DomainError::Auth("Failed to compute oauth state expiration".to_string())
+            })?;
 
         let claims = OAuthStateClaims {
             purpose: purpose.to_string(),

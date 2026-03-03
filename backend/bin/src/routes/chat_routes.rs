@@ -128,8 +128,9 @@ pub async fn get_chat(
     let chat = state.storage.get_ai_chat(chat_id, user.user_id).await?;
     let mut messages = state.storage.get_ai_chat_messages(chat_id).await?;
 
-    let total_cost =
-        state.cost_to_user_quota(conversation_manager::effective_chat_cost_raw(&chat, &messages));
+    let total_cost = state.cost_to_user_quota(conversation_manager::effective_chat_cost_raw(
+        &chat, &messages,
+    ));
 
     // Apply cost conversion so displayed message-level costs reflect what users are charged
     for msg in &mut messages {

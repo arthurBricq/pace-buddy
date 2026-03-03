@@ -111,7 +111,9 @@ impl StravaClient {
     }
 
     /// View existing webhook subscriptions for this application.
-    pub async fn view_webhook_subscriptions(&self) -> Result<Vec<WebhookSubscriptionResponse>, DomainError> {
+    pub async fn view_webhook_subscriptions(
+        &self,
+    ) -> Result<Vec<WebhookSubscriptionResponse>, DomainError> {
         let url = format!(
             "https://www.strava.com/api/v3/push_subscriptions?client_id={}&client_secret={}",
             self.client_id, self.client_secret

@@ -160,7 +160,12 @@ fn labels_to_segments(labels: &[Label], data: &PreprocessedData) -> Vec<Segment>
         }
     }
     // Last segment
-    segments.push(build_segment(current_label, start_idx, labels.len() - 1, data));
+    segments.push(build_segment(
+        current_label,
+        start_idx,
+        labels.len() - 1,
+        data,
+    ));
 
     segments
 }
@@ -284,8 +289,16 @@ fn absorb_short_pauses(segments: &mut Vec<Segment>, config: &IntervalConfig) {
             continue;
         }
         // Look at neighbors to decide what kind to assign
-        let prev_kind = if i > 0 { Some(segments[i - 1].kind) } else { None };
-        let next_kind = if i + 1 < n { Some(segments[i + 1].kind) } else { None };
+        let prev_kind = if i > 0 {
+            Some(segments[i - 1].kind)
+        } else {
+            None
+        };
+        let next_kind = if i + 1 < n {
+            Some(segments[i + 1].kind)
+        } else {
+            None
+        };
 
         let new_kind = match (prev_kind, next_kind) {
             // Both neighbors same kind → adopt it
@@ -312,8 +325,16 @@ fn absorb_short_recoveries(segments: &mut Vec<Segment>, config: &IntervalConfig)
             continue;
         }
         // Look at neighbors
-        let prev_kind = if i > 0 { Some(segments[i - 1].kind) } else { None };
-        let next_kind = if i + 1 < n { Some(segments[i + 1].kind) } else { None };
+        let prev_kind = if i > 0 {
+            Some(segments[i - 1].kind)
+        } else {
+            None
+        };
+        let next_kind = if i + 1 < n {
+            Some(segments[i + 1].kind)
+        } else {
+            None
+        };
 
         let new_kind = match (prev_kind, next_kind) {
             (Some(a), Some(b)) if a == b => a,
@@ -415,8 +436,14 @@ mod tests {
 
         // Should have recovery-work-recovery pattern
         let kinds: Vec<SegmentKind> = result.segments.iter().map(|s| s.kind).collect();
-        assert!(kinds.contains(&SegmentKind::Work), "Expected work segment, got: {kinds:?}");
-        assert!(kinds.contains(&SegmentKind::Recovery), "Expected recovery segment, got: {kinds:?}");
+        assert!(
+            kinds.contains(&SegmentKind::Work),
+            "Expected work segment, got: {kinds:?}"
+        );
+        assert!(
+            kinds.contains(&SegmentKind::Recovery),
+            "Expected recovery segment, got: {kinds:?}"
+        );
     }
 
     #[test]
@@ -481,8 +508,15 @@ mod tests {
 
         // 3s pause (< 2 * 3.0 = 6s threshold) should be absorbed into Recovery
         let has_pause = result.segments.iter().any(|s| s.kind == SegmentKind::Pause);
-        assert!(!has_pause, "Short pause should be absorbed, got: {:?}",
-            result.segments.iter().map(|s| (s.kind, s.duration_s)).collect::<Vec<_>>());
+        assert!(
+            !has_pause,
+            "Short pause should be absorbed, got: {:?}",
+            result
+                .segments
+                .iter()
+                .map(|s| (s.kind, s.duration_s))
+                .collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -524,6 +558,9 @@ mod tests {
             .iter()
             .filter(|s| s.kind == SegmentKind::Work)
             .collect();
-        assert!(work_segs.is_empty(), "Short work segments should be cleaned up, got: {work_segs:?}");
+        assert!(
+            work_segs.is_empty(),
+            "Short work segments should be cleaned up, got: {work_segs:?}"
+        );
     }
 }

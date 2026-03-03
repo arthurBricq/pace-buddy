@@ -53,10 +53,7 @@ pub async fn register_start(
 
     state.storage.create_user(&user).await?;
 
-    let ccr = state
-        .webauthn
-        .start_registration(user_id, username)
-        .await?;
+    let ccr = state.webauthn.start_registration(user_id, username).await?;
 
     log::info!("Registration challenge created for user {user_id}");
 
@@ -191,7 +188,8 @@ pub async fn strava_auth_start(state: web::Data<AppState>) -> Result<HttpRespons
     let url = state.strava_client.authorize_url(&oauth_state);
     log::info!(
         "Strava auth start: issuing signed oauth state token state={} authorize_url={}",
-        oauth_state, url
+        oauth_state,
+        url
     );
 
     Ok(HttpResponse::Ok().json(serde_json::json!({ "url": url })))

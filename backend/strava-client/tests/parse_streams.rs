@@ -11,7 +11,10 @@ fn test_parse_keyed_stream_response() {
     let types: Vec<&str> = streams.iter().map(|s| s.stream_type.as_str()).collect();
     assert!(types.contains(&"time"), "missing time stream");
     assert!(types.contains(&"distance"), "missing distance stream");
-    assert!(types.contains(&"velocity_smooth"), "missing velocity_smooth stream");
+    assert!(
+        types.contains(&"velocity_smooth"),
+        "missing velocity_smooth stream"
+    );
     assert!(types.contains(&"heartrate"), "missing heartrate stream");
     assert!(types.contains(&"altitude"), "missing altitude stream");
     assert!(types.contains(&"moving"), "missing moving stream");
@@ -26,7 +29,10 @@ fn test_parse_keyed_stream_response() {
     assert_eq!(time_data[9], 9);
 
     // Check that parsed_type works for known types
-    let velocity = streams.iter().find(|s| s.stream_type == "velocity_smooth").unwrap();
+    let velocity = streams
+        .iter()
+        .find(|s| s.stream_type == "velocity_smooth")
+        .unwrap();
     assert!(velocity.parsed_type().is_some());
 
     // latlng should parse to a known type too

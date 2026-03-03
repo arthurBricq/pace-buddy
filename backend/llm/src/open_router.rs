@@ -1,8 +1,8 @@
-use async_trait::async_trait;
 use crate::{
     ChatCompletionRequest, ChatCompletionResponse, ChatCompletionResult, ChatMessage, LlmClient,
     LlmError, LlmUsage, ModelInfo, ReasoningConfig,
 };
+use async_trait::async_trait;
 use reqwest::Client;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
@@ -152,7 +152,6 @@ impl LlmClient for OpenRouterClient {
             temperature: Some(0.7),
             reasoning,
         };
-
 
         let response = self
             .client

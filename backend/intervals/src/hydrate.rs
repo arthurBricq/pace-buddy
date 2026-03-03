@@ -54,8 +54,8 @@ pub fn hydrate(streams: &[ActivityStream]) -> Result<HydratedStreams, IntervalEr
         streams.iter().find(|s| s.stream_type == st)
     };
 
-    let time_stream = find(StreamType::Time)
-        .ok_or_else(|| IntervalError::MissingStream("time".into()))?;
+    let time_stream =
+        find(StreamType::Time).ok_or_else(|| IntervalError::MissingStream("time".into()))?;
     let distance_stream = find(StreamType::Distance)
         .ok_or_else(|| IntervalError::MissingStream("distance".into()))?;
     let velocity_stream = find(StreamType::VelocitySmooth)

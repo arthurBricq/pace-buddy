@@ -205,10 +205,12 @@ impl SqliteStorage {
             .execute(&pool)
             .await
             .ok(); // Ignore error if column already exists
-        sqlx::query("ALTER TABLE ai_chats ADD COLUMN source_insight_cost REAL NOT NULL DEFAULT 0.0")
-            .execute(&pool)
-            .await
-            .ok(); // Ignore error if column already exists
+        sqlx::query(
+            "ALTER TABLE ai_chats ADD COLUMN source_insight_cost REAL NOT NULL DEFAULT 0.0",
+        )
+        .execute(&pool)
+        .await
+        .ok(); // Ignore error if column already exists
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS ai_chat_messages (

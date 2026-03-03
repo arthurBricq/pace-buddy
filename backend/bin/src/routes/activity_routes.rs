@@ -31,7 +31,10 @@ pub async fn sync_activities(
     );
 
     if !state.try_begin_activities_sync(user.user_id).await {
-        log::info!("Sync already running for user {}, returning early", user.user_id);
+        log::info!(
+            "Sync already running for user {}, returning early",
+            user.user_id
+        );
         return Ok(HttpResponse::Ok().json(serde_json::json!({
             "synced": 0,
             "already_running": true,

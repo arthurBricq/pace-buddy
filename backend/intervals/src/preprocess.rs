@@ -99,7 +99,11 @@ mod tests {
     use super::*;
     use crate::hydrate::HydratedStreams;
 
-    fn make_streams(time: Vec<f64>, velocity: Vec<f64>, moving: Option<Vec<bool>>) -> HydratedStreams {
+    fn make_streams(
+        time: Vec<f64>,
+        velocity: Vec<f64>,
+        moving: Option<Vec<bool>>,
+    ) -> HydratedStreams {
         let distance: Vec<f64> = time.iter().map(|&t| t * 3.0).collect(); // fake distance
         HydratedStreams {
             time,
@@ -177,11 +181,7 @@ mod tests {
     #[test]
     fn test_short_pause_not_detected() {
         // 1 second of slow speed - too short to be pause
-        let streams = make_streams(
-            vec![0.0, 1.0, 2.0, 3.0],
-            vec![4.0, 0.1, 4.0, 4.0],
-            None,
-        );
+        let streams = make_streams(vec![0.0, 1.0, 2.0, 3.0], vec![4.0, 0.1, 4.0, 4.0], None);
         let config = IntervalConfig::default();
         let pp = preprocess(&streams, &config);
         // Only 1s slow → not a pause

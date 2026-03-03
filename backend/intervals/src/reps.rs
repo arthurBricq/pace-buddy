@@ -33,13 +33,7 @@ pub fn build_reps(
                 0.0
             };
 
-            let pct_mas = mas_mps.map(|mas| {
-                if mas > 0.0 {
-                    avg_speed_mps / mas
-                } else {
-                    0.0
-                }
-            });
+            let pct_mas = mas_mps.map(|mas| if mas > 0.0 { avg_speed_mps / mas } else { 0.0 });
 
             // Recovery = time from end of this work to start of next work
             let recovery_duration_s = work_segments
@@ -256,7 +250,10 @@ mod tests {
     #[test]
     fn test_work_segments_collected() {
         let segments = make_segments();
-        let work_count = segments.iter().filter(|s| s.kind == SegmentKind::Work).count();
+        let work_count = segments
+            .iter()
+            .filter(|s| s.kind == SegmentKind::Work)
+            .count();
         assert_eq!(work_count, 2);
     }
 

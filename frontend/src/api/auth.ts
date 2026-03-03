@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { User, ProfileResponse, QuotaStatus, QuotaRequestRecord } from '../types';
+import type { User, ProfileResponse, QuotaStatus, QuotaRequestRecord, MASEstimate } from '../types';
 
 export async function registerStart(username: string, email?: string) {
   return apiFetch<{ user_id: string; options: PublicKeyCredentialCreationOptions }>(
@@ -56,6 +56,16 @@ export async function updateMAS(mas_mps: number | null) {
     method: 'PATCH',
     body: JSON.stringify({ mas_mps }),
   });
+}
+
+export async function recomputeMAS() {
+  return apiFetch<{ status: string; mas_mps: number }>('/auth/mas/recompute', {
+    method: 'POST',
+  });
+}
+
+export async function getMASEstimates() {
+  return apiFetch<MASEstimate[]>('/auth/mas/estimates');
 }
 
 export async function getProfile() {

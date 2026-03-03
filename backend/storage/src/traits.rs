@@ -1,6 +1,9 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use domain::{Activity, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError, ModelCostTier, QuotaRequest, QuotaRequestStatus, RunningStats, StravaToken, Training, TrainingInsight, User};
+use domain::{
+    Activity, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError, ModelCostTier,
+    QuotaRequest, QuotaRequestStatus, RunningStats, StravaToken, Training, TrainingInsight, User,
+};
 use uuid::Uuid;
 
 #[async_trait]
@@ -11,7 +14,8 @@ pub trait Storage: Send + Sync {
     async fn get_user_by_username(&self, username: &str) -> Result<User, DomainError>;
     async fn get_user_by_email(&self, email: &str) -> Result<User, DomainError>;
     async fn list_users(&self) -> Result<Vec<User>, DomainError>;
-    async fn update_user_mas(&self, user_id: Uuid, mas_mps: Option<f64>) -> Result<(), DomainError>;
+    async fn update_user_mas(&self, user_id: Uuid, mas_mps: Option<f64>)
+        -> Result<(), DomainError>;
     async fn upsert_model_cost_tiers(&self, tiers: &[ModelCostTier]) -> Result<(), DomainError>;
     async fn list_model_cost_tiers(&self) -> Result<Vec<ModelCostTier>, DomainError>;
 
@@ -22,9 +26,16 @@ pub trait Storage: Send + Sync {
     // Strava tokens
     async fn upsert_strava_token(&self, token: &StravaToken) -> Result<(), DomainError>;
     async fn get_strava_token(&self, user_id: Uuid) -> Result<StravaToken, DomainError>;
-    async fn get_strava_token_by_athlete_id(&self, athlete_id: i64) -> Result<StravaToken, DomainError>;
+    async fn get_strava_token_by_athlete_id(
+        &self,
+        athlete_id: i64,
+    ) -> Result<StravaToken, DomainError>;
     async fn delete_strava_data(&self, user_id: Uuid) -> Result<(), DomainError>;
-    async fn delete_activity_by_strava_id(&self, strava_id: i64, user_id: Uuid) -> Result<(), DomainError>;
+    async fn delete_activity_by_strava_id(
+        &self,
+        strava_id: i64,
+        user_id: Uuid,
+    ) -> Result<(), DomainError>;
 
     // Activities
     async fn upsert_activities(&self, activities: &[Activity]) -> Result<(), DomainError>;
@@ -101,7 +112,12 @@ pub trait Storage: Send + Sync {
         insight_id: Uuid,
     ) -> Result<Option<AiChat>, DomainError>;
     async fn list_ai_chats(&self, user_id: Uuid) -> Result<Vec<AiChat>, DomainError>;
-    async fn update_ai_chat_title(&self, id: Uuid, user_id: Uuid, title: &str) -> Result<(), DomainError>;
+    async fn update_ai_chat_title(
+        &self,
+        id: Uuid,
+        user_id: Uuid,
+        title: &str,
+    ) -> Result<(), DomainError>;
     async fn delete_ai_chat(&self, id: Uuid, user_id: Uuid) -> Result<(), DomainError>;
     async fn touch_ai_chat(&self, id: Uuid) -> Result<(), DomainError>;
 
@@ -110,7 +126,11 @@ pub trait Storage: Send + Sync {
     async fn get_ai_chat_messages(&self, chat_id: Uuid) -> Result<Vec<AiChatMessage>, DomainError>;
 
     // Insight lookup
-    async fn get_training_insight_by_id(&self, id: Uuid, user_id: Uuid) -> Result<TrainingInsight, DomainError>;
+    async fn get_training_insight_by_id(
+        &self,
+        id: Uuid,
+        user_id: Uuid,
+    ) -> Result<TrainingInsight, DomainError>;
 
     // Quota
     async fn get_user_quota(&self, user_id: Uuid) -> Result<f64, DomainError>;
@@ -121,7 +141,10 @@ pub trait Storage: Send + Sync {
     async fn create_quota_request(&self, req: &QuotaRequest) -> Result<(), DomainError>;
     async fn get_quota_request(&self, id: Uuid) -> Result<QuotaRequest, DomainError>;
     async fn get_pending_quota_requests(&self) -> Result<Vec<QuotaRequest>, DomainError>;
-    async fn get_user_quota_requests(&self, user_id: Uuid) -> Result<Vec<QuotaRequest>, DomainError>;
+    async fn get_user_quota_requests(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<QuotaRequest>, DomainError>;
     async fn resolve_quota_request(
         &self,
         id: Uuid,

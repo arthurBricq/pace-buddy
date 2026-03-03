@@ -73,8 +73,8 @@ impl StravaStream {
 /// Strava returns a map keyed by stream type:
 /// `{"time": {"data": [0,1,2,...]}, "heartrate": {"data": [120,121,...]}, ...}`
 pub fn parse_streams_response(body: &str) -> Result<Vec<StravaStream>, String> {
-    let map: std::collections::HashMap<String, StravaStreamEntry> =
-        serde_json::from_str(body).map_err(|e| {
+    let map: std::collections::HashMap<String, StravaStreamEntry> = serde_json::from_str(body)
+        .map_err(|e| {
             let preview = if body.len() > 500 {
                 format!("{}...", &body[..500])
             } else {

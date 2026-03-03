@@ -1,13 +1,16 @@
 use crate::errors::AppError;
 use crate::helpers::conversation_manager;
+use crate::helpers::mas_estimator::{
+    build_race_mas_estimates, list_race_activities, MasEstimator,
+};
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
 use actix_web::{web, HttpResponse};
 use chrono::Datelike;
 use domain::DomainError;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use storage::Storage;
+use uuid::Uuid;
 
 pub async fn get_mas(
     state: web::Data<AppState>,
@@ -42,6 +45,36 @@ pub async fn update_mas(
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "status": "ok",
     })))
+}
+
+pub async fn recompute_mas(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+) -> Result<HttpResponse, AppError> {
+    log::info!("POST /auth/mas/recompute user_id={}", user.user_id);
+    let races = list_race_activities(state.storage.as_ref(), user.user_id).await?;
+    let mas_mps = MasEstimator::estimate(state.mas_estimator.as_ref(), &races)
+        .ok_or_else(|| DomainError::BadRequest("No races available to compute MAS".into()))?;
+
+    state
+        .storage
+        .update_user_mas(user.user_id, Some(mas_mps))
+        .await?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "status": "ok",
+        "mas_mps": mas_mps,
+    })))
+}
+
+pub async fn mas_estimates(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+) -> Result<HttpResponse, AppError> {
+    log::debug!("GET /auth/mas/estimates user_id={}", user.user_id);
+    let races = list_race_activities(state.storage.as_ref(), user.user_id).await?;
+    let estimates = build_race_mas_estimates(&races);
+    Ok(HttpResponse::Ok().json(estimates))
 }
 
 pub async fn profile(

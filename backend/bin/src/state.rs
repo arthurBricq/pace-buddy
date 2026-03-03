@@ -1,11 +1,12 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use crate::helpers::mas_estimator::LastRaceEstimator;
 use auth::{JwtService, WebAuthnService};
 use llm::open_router::OpenRouterClient;
 use storage::SqliteStorage;
-use tokio::sync::Mutex;
 use strava_client::StravaClient;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 #[derive(Clone, Debug)]
@@ -25,6 +26,7 @@ pub struct AppState {
     pub strava_webhook_verify_token: Option<String>,
     pub admin_strava_athlete_id: Option<i64>,
     pub quota_markup_ratio: f64,
+    pub mas_estimator: Arc<LastRaceEstimator>,
     pub syncing_activity_users: Arc<Mutex<HashSet<Uuid>>>,
     pub activity_sync_statuses: Arc<Mutex<HashMap<Uuid, ActivitiesSyncStatus>>>,
 }
@@ -82,5 +84,4 @@ impl AppState {
             None => ("idle".to_string(), None),
         }
     }
-
 }

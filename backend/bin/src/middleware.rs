@@ -1,5 +1,5 @@
-use actix_web::{FromRequest, HttpRequest, dev::Payload};
-use std::future::{Ready, ready};
+use actix_web::{dev::Payload, FromRequest, HttpRequest};
+use std::future::{ready, Ready};
 use uuid::Uuid;
 
 use crate::state::AppState;

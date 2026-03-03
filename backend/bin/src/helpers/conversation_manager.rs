@@ -38,9 +38,8 @@ pub async fn send_message(
     let mut llm_messages: Vec<ChatMessage> = Vec::new();
 
     // Separate system messages from other messages
-    let (system_messages, other_messages): (Vec<_>, Vec<_>) = existing_messages
-        .iter()
-        .partition(|m| m.role == "system");
+    let (system_messages, other_messages): (Vec<_>, Vec<_>) =
+        existing_messages.iter().partition(|m| m.role == "system");
 
     // Add system message if it exists, otherwise use default
     if let Some(system_msg) = system_messages.first() {
@@ -66,7 +65,9 @@ pub async fn send_message(
         .collect();
     if let Some(max_messages) = chat.conversation_length {
         if max_messages > 0 {
-            let start_idx = conversation_messages.len().saturating_sub(max_messages as usize);
+            let start_idx = conversation_messages
+                .len()
+                .saturating_sub(max_messages as usize);
             conversation_messages = conversation_messages[start_idx..].to_vec();
         }
     }

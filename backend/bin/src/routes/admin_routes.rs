@@ -17,9 +17,9 @@ async fn verify_admin(
     state: &web::Data<AppState>,
     user: &AuthenticatedUser,
 ) -> Result<(), AppError> {
-    let admin_id = state.admin_strava_athlete_id.ok_or_else(|| {
-        domain::DomainError::Forbidden("Admin access is not configured".into())
-    })?;
+    let admin_id = state
+        .admin_strava_athlete_id
+        .ok_or_else(|| domain::DomainError::Forbidden("Admin access is not configured".into()))?;
 
     let token = state
         .storage
@@ -86,7 +86,10 @@ pub async fn approve_quota_request(
         )
         .await?;
 
-    state.storage.add_quota(req.user_id, body.amount_usd).await?;
+    state
+        .storage
+        .add_quota(req.user_id, body.amount_usd)
+        .await?;
 
     log::info!(
         "Admin approved quota request {} for user {} amount=${:.2}",

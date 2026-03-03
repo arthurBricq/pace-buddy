@@ -43,8 +43,16 @@ pub async fn build_runner_profile_section(
     section.push_str(&format!("## {RUNNER_PROFILE_SECTION_TITLE}\n\n"));
     section.push_str("### Last 12 months running distance\n");
     for (year, month) in last_twelve_months_keys() {
-        let dist_m = distance_by_month.get(&(year, month)).copied().unwrap_or(0.0);
-        section.push_str(&format!("- {:04}-{:02}: {:.1} km\n", year, month, dist_m / 1000.0));
+        let dist_m = distance_by_month
+            .get(&(year, month))
+            .copied()
+            .unwrap_or(0.0);
+        section.push_str(&format!(
+            "- {:04}-{:02}: {:.1} km\n",
+            year,
+            month,
+            dist_m / 1000.0
+        ));
     }
 
     section.push_str("\n### Cumulative running distance (all time)\n");

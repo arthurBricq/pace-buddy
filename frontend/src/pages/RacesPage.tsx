@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listActivities, updateActivityTag } from '../api/activities';
-import { getMAS, updateMAS } from '../api/auth';
+import { getMAS, getMASEstimates, recomputeMAS, updateMAS } from '../api/auth';
 import type { Activity, MASEstimate } from '../types';
-import { calculateMAS, masToKmh } from '../utils/mas';
 import Navbar from '../components/Navbar';
 import MASChart from '../components/MASChart';
 
@@ -29,6 +28,7 @@ export default function RacesPage() {
   const [showManualOverride, setShowManualOverride] = useState(false);
   const [manualMAS, setManualMAS] = useState('');
   const [updatingMAS, setUpdatingMAS] = useState(false);
+  const [masEstimates, setMasEstimates] = useState<MASEstimate[]>([]);
 
   const loadRaces = async () => {
     setLoading(true);
@@ -60,6 +60,7 @@ export default function RacesPage() {
   useEffect(() => {
     loadRaces();
     loadCurrentMAS();
+    loadMasEstimates();
   }, []);
 
   const loadCurrentMAS = async () => {
@@ -71,6 +72,15 @@ export default function RacesPage() {
     }
   };
 
+  const loadMasEstimates = async () => {
+    try {
+      const estimates = await getMASEstimates();
+      setMasEstimates(estimates);
+    } catch (err: any) {
+      console.error('Failed to load MAS estimates:', err);
+    }
+  };
+
   const handleRemoveRace = async (activityId: string) => {
     if (!confirm('Remove this activity from races? It will be untagged as a race.')) {
       return;
@@ -78,7 +88,7 @@ export default function RacesPage() {
 
     try {
       await updateActivityTag(activityId, 'normal');
-      await loadRaces();
+      await Promise.all([loadRaces(), loadMasEstimates()]);
     } catch (err: any) {
       setError(err.message);
     }
@@ -87,7 +97,7 @@ export default function RacesPage() {
   const handleAddRace = async (activityId: string) => {
     try {
       await updateActivityTag(activityId, 'race');
-      await loadRaces();
+      await Promise.all([loadRaces(), loadMasEstimates()]);
       setShowAddForm(false);
     } catch (err: any) {
       setError(err.message);
@@ -102,14 +112,9 @@ export default function RacesPage() {
 
     setUpdatingMAS(true);
     try {
-      // Get the latest race (most recent by date)
-      const latestRace = [...activities].sort(
-        (a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime(),
-      )[0];
-
-      const mas_ms = calculateMAS(latestRace.distance, latestRace.moving_time);
-      await updateMAS(mas_ms);
-      setCurrentMAS(mas_ms);
+      const response = await recomputeMAS();
+      setCurrentMAS(response.mas_mps);
+      await loadMasEstimates();
       setError('');
     } catch (err: any) {
       setError(err.message);
@@ -139,22 +144,10 @@ export default function RacesPage() {
     }
   };
 
-  // Calculate MAS estimates
-  const masEstimates: MASEstimate[] = activities
-    .map((activity) => {
-      const mas_ms = calculateMAS(activity.distance, activity.moving_time);
-      const mas_kmh = masToKmh(mas_ms);
-      return {
-        date: activity.start_date,
-        mas_ms,
-        mas_kmh,
-        activity_id: activity.id,
-        activity_name: activity.name,
-        distance_m: activity.distance,
-        time_s: activity.moving_time,
-      };
-    })
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const estimatesByActivityId = useMemo(
+    () => new Map(masEstimates.map((e) => [e.activity_id, e])),
+    [masEstimates],
+  );
 
   // Get available activities to add (not already tagged as race)
   const availableActivities = allActivities.filter(
@@ -259,7 +252,7 @@ export default function RacesPage() {
                   <div>
                     <span className="text-sm text-gray-600">MAS:</span>
                     <span className="text-2xl font-bold text-blue-600 ml-2">
-                      {masToKmh(currentMAS).toFixed(2)} km/h
+                      {(currentMAS * 3.6).toFixed(2)} km/h
                     </span>
                   </div>
                   <div>
@@ -352,8 +345,7 @@ export default function RacesPage() {
                   {activities
                     .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
                     .map((a) => {
-                      const mas_ms = calculateMAS(a.distance, a.moving_time);
-                      const mas_kmh = masToKmh(mas_ms);
+                      const estimate = estimatesByActivityId.get(a.id);
                       return (
                         <tr key={a.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3 text-gray-500">
@@ -372,10 +364,10 @@ export default function RacesPage() {
                             {formatDuration(a.moving_time)}
                           </td>
                           <td className="px-4 py-3 text-right font-medium text-blue-600">
-                            {mas_kmh.toFixed(2)}
+                            {estimate ? estimate.mas_kmh.toFixed(2) : '-'}
                           </td>
                           <td className="px-4 py-3 text-right text-gray-600">
-                            {mas_ms.toFixed(2)}
+                            {estimate ? estimate.mas_ms.toFixed(2) : '-'}
                           </td>
                           <td className="px-4 py-3 text-right">
                             <button

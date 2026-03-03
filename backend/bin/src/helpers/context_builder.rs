@@ -36,8 +36,12 @@ pub async fn build_context(
     request: ContextRequest,
 ) -> Result<ContextResult, DomainError> {
     match request {
-        ContextRequest::LastActivities { count } => build_last_activities(storage, user_id, count).await,
-        ContextRequest::LastLongRuns { count } => build_last_long_runs(storage, user_id, count).await,
+        ContextRequest::LastActivities { count } => {
+            build_last_activities(storage, user_id, count).await
+        }
+        ContextRequest::LastLongRuns { count } => {
+            build_last_long_runs(storage, user_id, count).await
+        }
         ContextRequest::LastRaceEfforts { count } => {
             build_last_race_efforts(storage, user_id, count).await
         }
@@ -57,7 +61,9 @@ pub async fn build_context(
                 .map_err(|e| DomainError::BadRequest(format!("Invalid activity_id: {e}")))?;
             build_activity_detail(storage, user_id, id).await
         }
-        ContextRequest::WeeklyStats { from, to } => build_weekly_stats(storage, user_id, &from, &to).await,
+        ContextRequest::WeeklyStats { from, to } => {
+            build_weekly_stats(storage, user_id, &from, &to).await
+        }
         ContextRequest::TrainingRecap { training_id } => {
             let id = training_id
                 .parse::<Uuid>()
@@ -197,7 +203,10 @@ async fn build_last_days_summary(
         "- **Runs**: {} ({} quality)\n",
         summary.run_count, summary.quality_count
     ));
-    content.push_str(&format!("- **Distance**: {:.1}km\n", summary.distance_m / 1000.0));
+    content.push_str(&format!(
+        "- **Distance**: {:.1}km\n",
+        summary.distance_m / 1000.0
+    ));
     content.push_str(&format!(
         "- **Duration**: {}h{:02}m\n\n",
         summary.moving_time_s / 3600,
@@ -206,7 +215,10 @@ async fn build_last_days_summary(
 
     let mut day_map: BTreeMap<NaiveDate, Vec<Activity>> = BTreeMap::new();
     for a in activities {
-        day_map.entry(a.start_date.date_naive()).or_default().push(a);
+        day_map
+            .entry(a.start_date.date_naive())
+            .or_default()
+            .push(a);
     }
 
     content.push_str("## Day by day\n\n");
@@ -254,12 +266,21 @@ async fn build_activity_detail(
     };
 
     let mut content = format!("# Activity: {}\n\n", a.name);
-    content.push_str(&format!("- **Date**: {}\n", a.start_date.format("%Y-%m-%d %H:%M")));
+    content.push_str(&format!(
+        "- **Date**: {}\n",
+        a.start_date.format("%Y-%m-%d %H:%M")
+    ));
     content.push_str(&format!("- **Sport**: {}\n", a.sport_type));
     content.push_str(&format!("- **Distance**: {:.2} km\n", dist_km));
-    content.push_str(&format!("- **Duration**: {}h{:02}m{:02}s\n", hours, mins, secs));
+    content.push_str(&format!(
+        "- **Duration**: {}h{:02}m{:02}s\n",
+        hours, mins, secs
+    ));
     content.push_str(&format!("- **Pace**: {}\n", pace));
-    content.push_str(&format!("- **Elevation**: {:.0} m\n", a.total_elevation_gain));
+    content.push_str(&format!(
+        "- **Elevation**: {:.0} m\n",
+        a.total_elevation_gain
+    ));
     if let Some(hr) = a.average_heartrate {
         content.push_str(&format!("- **Avg HR**: {:.0} bpm\n", hr));
     }
@@ -296,7 +317,9 @@ async fn build_weekly_stats(
         .ok_or_else(|| DomainError::BadRequest("Invalid 'to' date".to_string()))?
         .and_utc();
 
-    let activities = storage.get_activities_in_range(user_id, from_dt, to_dt).await?;
+    let activities = storage
+        .get_activities_in_range(user_id, from_dt, to_dt)
+        .await?;
     let label = format!("Weekly stats {} to {}", from, to);
 
     // Group by (year, week) -> sport_type -> (distance, time, count)
@@ -486,7 +509,9 @@ async fn build_training_recap(
     training_id: Uuid,
 ) -> Result<ContextResult, DomainError> {
     let training = storage.get_training(training_id, user_id).await?;
-    let activities = storage.get_training_activities(training_id, user_id).await?;
+    let activities = storage
+        .get_training_activities(training_id, user_id)
+        .await?;
     let long_runs: Vec<&domain::Activity> = activities
         .iter()
         .filter(|a| a.tag == domain::ActivityTag::LongRun)
@@ -582,11 +607,13 @@ fn is_run_activity(activity: &Activity) -> bool {
 }
 
 fn is_long_run_activity(activity: &Activity) -> bool {
-    is_run_activity(activity) && (activity.tag == ActivityTag::LongRun || activity.workout_type == Some(2))
+    is_run_activity(activity)
+        && (activity.tag == ActivityTag::LongRun || activity.workout_type == Some(2))
 }
 
 fn is_race_effort_activity(activity: &Activity) -> bool {
-    is_run_activity(activity) && (activity.tag == ActivityTag::Race || activity.workout_type == Some(1))
+    is_run_activity(activity)
+        && (activity.tag == ActivityTag::Race || activity.workout_type == Some(1))
 }
 
 fn is_quality_activity(activity: &Activity) -> bool {
