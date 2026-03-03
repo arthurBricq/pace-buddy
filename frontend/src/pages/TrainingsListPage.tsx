@@ -160,7 +160,7 @@ export default function TrainingsListPage() {
               </div>
               <div className="mb-3">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Race Goal
+                  Race Distance
                 </label>
                 <select
                   value={newRaceGoal}
@@ -242,7 +242,7 @@ export default function TrainingsListPage() {
                 <tr>
                   <th className="text-left px-4 py-3">Name</th>
                   <th className="text-left px-4 py-3">Description</th>
-                  <th className="text-left px-4 py-3">Goal</th>
+                  <th className="text-left px-4 py-3">Race Distance</th>
                   <th className="text-left px-4 py-3">Dates</th>
                   <th className="text-right px-4 py-3">Actions</th>
                 </tr>
@@ -262,7 +262,7 @@ export default function TrainingsListPage() {
                       {t.description || '-'}
                     </td>
                     <td className="px-4 py-3 text-gray-500">
-                      {t.race_goal || '-'}
+                      {t.race_distance || '-'}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-sm">
                       {t.start_date || t.end_date ? (

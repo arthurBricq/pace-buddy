@@ -21,7 +21,7 @@ pub struct CreateTrainingRequest {
     pub description: Option<String>,
     pub start_date: Option<String>,
     pub end_date: Option<String>,
-    pub race_goal: Option<String>,
+    pub race_distance: Option<String>,
     pub race_objectif: Option<String>,
 }
 
@@ -60,7 +60,7 @@ pub async fn create_training(
         description: body.description.clone(),
         start_date: Some(start_date),
         end_date: Some(end_date),
-        race_goal: body.race_goal.clone(),
+        race_distance: body.race_distance.clone(),
         race_objectif: body.race_objectif.clone(),
         created_at: Utc::now(),
     };
@@ -103,7 +103,7 @@ pub struct UpdateTrainingRequest {
     pub description: Option<String>,
     pub start_date: Option<String>,
     pub end_date: Option<String>,
-    pub race_goal: Option<String>,
+    pub race_distance: Option<String>,
 }
 
 pub async fn update_training(
@@ -130,7 +130,7 @@ pub async fn update_training(
         Some(s) => Some(parse_date(s).map_err(|e| AppError(domain::DomainError::BadRequest(e)))?),
         None => current.end_date,
     };
-    let race_goal = body.race_goal.clone().or(current.race_goal);
+    let race_distance = body.race_distance.clone().or(current.race_distance);
 
     state
         .storage
@@ -141,7 +141,7 @@ pub async fn update_training(
             description,
             start_date,
             end_date,
-            race_goal,
+            race_distance,
         )
         .await?;
 

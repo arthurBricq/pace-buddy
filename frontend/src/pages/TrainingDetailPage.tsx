@@ -146,8 +146,8 @@ export default function TrainingDetailPage() {
             <p className="text-gray-600 mt-2">{training.description}</p>
           )}
           <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-500">
-            {training.race_goal && (
-              <span>Goal: <span className="font-medium text-gray-700">{training.race_goal}</span></span>
+            {training.race_distance && (
+              <span>Race Distance: <span className="font-medium text-gray-700">{training.race_distance}</span></span>
             )}
             {training.start_date && (
               <span>From: {new Date(training.start_date).toLocaleDateString()}</span>

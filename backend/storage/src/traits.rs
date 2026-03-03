@@ -63,7 +63,7 @@ pub trait Storage: Send + Sync {
         description: Option<String>,
         start_date: Option<DateTime<Utc>>,
         end_date: Option<DateTime<Utc>>,
-        race_goal: Option<String>,
+        race_distance: Option<String>,
     ) -> Result<(), DomainError>;
     async fn delete_training(&self, id: Uuid, user_id: Uuid) -> Result<(), DomainError>;
     async fn get_training_activities(

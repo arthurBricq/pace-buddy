@@ -6,7 +6,7 @@ export async function createTraining(
   description?: string,
   start_date?: string,
   end_date?: string,
-  race_goal?: string,
+  race_distance?: string,
   race_objectif?: string,
 ) {
   return apiFetch<Training>('/trainings', {
@@ -16,7 +16,7 @@ export async function createTraining(
       description: description || null,
       start_date: start_date || null,
       end_date: end_date || null,
-      race_goal: race_goal || null,
+      race_distance: race_distance || null,
       race_objectif: race_objectif || null,
     }),
   });
@@ -37,7 +37,7 @@ export async function updateTraining(
     description?: string;
     start_date?: string;
     end_date?: string;
-    race_goal?: string;
+    race_distance?: string;
   },
 ) {
   return apiFetch<Training>(`/trainings/${id}`, {

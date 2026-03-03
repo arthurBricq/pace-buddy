@@ -503,8 +503,8 @@ async fn build_training_recap(
     if let Some(end) = training.end_date {
         content.push_str(&format!("**End**: {}\n", end.format("%Y-%m-%d")));
     }
-    if let Some(goal) = &training.race_goal {
-        content.push_str(&format!("**Race goal**: {}\n", goal));
+    if let Some(goal) = &training.race_distance {
+        content.push_str(&format!("**Race Distance**: {}\n", goal));
     }
     if let Some(obj) = &training.race_objectif {
         content.push_str(&format!("**Race objective**: {}\n", obj));

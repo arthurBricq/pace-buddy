@@ -140,7 +140,7 @@ export interface Training {
   description: string | null;
   start_date: string | null;
   end_date: string | null;
-  race_goal: string | null;
+  race_distance: string | null;
   race_objectif: string | null;
   created_at: string;
 }

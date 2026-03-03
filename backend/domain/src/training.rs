@@ -10,7 +10,7 @@ pub struct Training {
     pub description: Option<String>,
     pub start_date: Option<DateTime<Utc>>,
     pub end_date: Option<DateTime<Utc>>,
-    pub race_goal: Option<String>,
+    pub race_distance: Option<String>,
     pub race_objectif: Option<String>,
     pub created_at: DateTime<Utc>,
 }

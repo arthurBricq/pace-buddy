@@ -198,8 +198,8 @@ pub async fn build_insight_context(
     if let Some(ref desc) = training.description {
         user_prompt.push_str(&format!("Description: {}\n", desc));
     }
-    if let Some(ref goal) = training.race_goal {
-        user_prompt.push_str(&format!("Race Goal: {}\n", goal));
+    if let Some(ref goal) = training.race_distance {
+        user_prompt.push_str(&format!("Race Distance: {}\n", goal));
     }
     if let Some(start) = training.start_date {
         user_prompt.push_str(&format!("Start: {}\n", start.format("%Y-%m-%d")));
