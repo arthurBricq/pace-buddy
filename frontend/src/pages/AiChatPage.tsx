@@ -9,6 +9,7 @@ import CollapsibleContext from '../components/CollapsibleContext';
 
 export default function AiChatPage() {
   const { id } = useParams<{ id: string }>();
+  const [isDesktop, setIsDesktop] = useState(false);
   const [chat, setChat] = useState<AiChat | null>(null);
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [totalCost, setTotalCost] = useState(0);
@@ -55,6 +56,14 @@ export default function AiChatPage() {
       titleInputRef.current.select();
     }
   }, [isEditingTitle]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 1024px)');
+    const updateIsDesktop = () => setIsDesktop(mediaQuery.matches);
+    updateIsDesktop();
+    mediaQuery.addEventListener('change', updateIsDesktop);
+    return () => mediaQuery.removeEventListener('change', updateIsDesktop);
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -180,6 +189,7 @@ export default function AiChatPage() {
 
   // Filter out system messages for display
   const visibleMessages = messages.filter((m) => m.role !== 'system');
+  const isContextVisible = isDesktop || showContext;
 
   return (
     <div className="app-shell-chat">
@@ -219,13 +229,13 @@ export default function AiChatPage() {
             <span>{formatCost(totalCost)}</span>
             <button
               onClick={() => setShowContext(!showContext)}
-              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+              className={`lg:hidden px-3 py-1 rounded text-xs font-medium transition-colors ${
                 showContext
                   ? 'bg-purple-600 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              Context
+              Add Context
             </button>
           </div>
         </div>
@@ -315,7 +325,7 @@ export default function AiChatPage() {
         </div>
 
         {/* Context panel */}
-        {showContext && id && (
+        {isContextVisible && id && (
           <>
             <button
               type="button"
