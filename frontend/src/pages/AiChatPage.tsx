@@ -309,7 +309,7 @@ export default function AiChatPage() {
                 onKeyDown={handleKeyDown}
                 placeholder="Type your message... (Enter to send, Shift+Enter for newline)"
                 rows={2}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none text-sm"
+                className="flex-1 w-full min-w-0 min-h-11 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none text-base sm:text-sm"
                 disabled={sending}
               />
               <button
