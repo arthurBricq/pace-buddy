@@ -1,4 +1,5 @@
 use crate::errors::AppError;
+use crate::helpers::conversation_manager;
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
 use actix_web::{web, HttpResponse};
@@ -100,12 +101,12 @@ pub struct AiCostSummary {
 #[derive(Serialize)]
 pub struct ExpensiveRequest {
     pub id: String,
-    pub r#type: String, // "insight" or "chat"
+    pub r#type: String, // currently "chat"
     pub title: String,
     pub model: Option<String>,
     pub cost: f64,
     pub created_at: String,
-    pub training_id: Option<String>, // For insights, link to training
+    pub training_id: Option<String>,
 }
 
 pub async fn ai_cost_summary(
@@ -116,38 +117,13 @@ pub async fn ai_cost_summary(
     let mut expensive_requests = Vec::new();
     let mut total_cost = 0.0;
 
-    // Get all training insights
-    let trainings = state.storage.list_trainings(user.user_id).await?;
-    for training in trainings {
-        let insights = state
-            .storage
-            .get_training_insights(training.id, user.user_id)
-            .await?;
-        for insight in insights {
-            if let Some(cost) = insight.cost {
-                let user_cost = state.cost_to_user_quota(cost);
-                total_cost += user_cost;
-                expensive_requests.push(ExpensiveRequest {
-                    id: insight.id.to_string(),
-                    r#type: "insight".to_string(),
-                    title: insight.display_label,
-                    model: insight.model,
-                    cost: user_cost,
-                    created_at: insight.created_at.to_rfc3339(),
-                    training_id: Some(training.id.to_string()),
-                });
-            }
-        }
-    }
-
-    // Get all chats and their messages
+    // Get all chats and their messages (chat-level insight cost + message costs)
     let chats = state.storage.list_ai_chats(user.user_id).await?;
     for chat in chats {
         let messages = state.storage.get_ai_chat_messages(chat.id).await?;
-        let chat_cost: f64 = messages
-            .iter()
-            .map(|m| state.cost_to_user_quota(m.cost))
-            .sum::<f64>();
+        let chat_cost = state.cost_to_user_quota(conversation_manager::effective_chat_cost_raw(
+            &chat, &messages,
+        ));
         total_cost += chat_cost;
         if chat_cost > 0.0 {
             expensive_requests.push(ExpensiveRequest {
@@ -217,4 +193,3 @@ pub async fn request_quota(
     state.storage.create_quota_request(&req).await?;
     Ok(HttpResponse::Created().json(req))
 }
-

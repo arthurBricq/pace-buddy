@@ -116,6 +116,7 @@ pub async fn create_from_insight(
     assistant_response: &str,
     model: &str,
     title: &str,
+    source_insight_cost: f64,
     conversation_length: Option<u32>,
 ) -> Result<AiChat, DomainError> {
     let now = Utc::now();
@@ -124,6 +125,7 @@ pub async fn create_from_insight(
         user_id,
         training_id: Some(training_id),
         source_insight_id: Some(insight_id),
+        source_insight_cost,
         title: title.to_string(),
         model: model.to_string(),
         conversation_length,
@@ -176,4 +178,9 @@ pub async fn create_from_insight(
     storage.store_ai_chat_message(&assistant_msg).await?;
 
     Ok(chat)
+}
+
+pub fn effective_chat_cost_raw(chat: &AiChat, messages: &[AiChatMessage]) -> f64 {
+    let messages_cost: f64 = messages.iter().map(|m| m.cost).sum();
+    chat.source_insight_cost + messages_cost
 }

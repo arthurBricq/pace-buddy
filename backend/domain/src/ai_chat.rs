@@ -8,6 +8,8 @@ pub struct AiChat {
     pub user_id: Uuid,
     pub training_id: Option<Uuid>,
     pub source_insight_id: Option<Uuid>,
+    #[serde(default)]
+    pub source_insight_cost: f64,
     pub title: String,
     pub model: String,
     #[serde(default)]

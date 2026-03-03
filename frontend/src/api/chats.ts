@@ -60,6 +60,7 @@ export type ContextRequest =
   | { context_type: 'last_days_summary'; days: number }
   | { context_type: 'this_week_vs_last_week' }
   | { context_type: 'this_month_vs_last_month' }
+  | { context_type: 'runner_profile_presentation' }
   | { context_type: 'activity_detail'; activity_id: string }
   | { context_type: 'weekly_stats'; from: string; to: string }
   | { context_type: 'training_recap'; training_id: string };

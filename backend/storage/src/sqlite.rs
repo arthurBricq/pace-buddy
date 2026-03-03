@@ -171,6 +171,7 @@ impl SqliteStorage {
                 user_id TEXT NOT NULL REFERENCES users(id),
                 training_id TEXT,
                 source_insight_id TEXT,
+                source_insight_cost REAL NOT NULL DEFAULT 0.0,
                 title TEXT NOT NULL,
                 model TEXT NOT NULL,
                 created_at TEXT NOT NULL,
@@ -188,8 +189,23 @@ impl SqliteStorage {
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create ai_chats index: {e}")))?;
 
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_ai_chats_source_insight ON ai_chats(user_id, source_insight_id)",
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!(
+                "Failed to create ai_chats source insight index: {e}"
+            ))
+        })?;
+
         // Add conversation_length column if it doesn't exist (migration)
         sqlx::query("ALTER TABLE ai_chats ADD COLUMN conversation_length INTEGER")
+            .execute(&pool)
+            .await
+            .ok(); // Ignore error if column already exists
+        sqlx::query("ALTER TABLE ai_chats ADD COLUMN source_insight_cost REAL NOT NULL DEFAULT 0.0")
             .execute(&pool)
             .await
             .ok(); // Ignore error if column already exists
@@ -476,6 +492,7 @@ fn row_to_ai_chat(row: &SqliteRow) -> Result<AiChat, DomainError> {
     let user_id: String = row.get("user_id");
     let training_id: Option<String> = row.get("training_id");
     let source_insight_id: Option<String> = row.get("source_insight_id");
+    let source_insight_cost: f64 = row.try_get("source_insight_cost").unwrap_or(0.0);
     let title: String = row.get("title");
     let model: String = row.get("model");
     let conversation_length: Option<i32> = row
@@ -489,6 +506,7 @@ fn row_to_ai_chat(row: &SqliteRow) -> Result<AiChat, DomainError> {
         user_id: parse_uuid(&user_id)?,
         training_id: training_id.map(|s| parse_uuid(&s)).transpose()?,
         source_insight_id: source_insight_id.map(|s| parse_uuid(&s)).transpose()?,
+        source_insight_cost,
         title,
         model,
         conversation_length: conversation_length.map(|v| v as u32),
@@ -1289,13 +1307,14 @@ impl Storage for SqliteStorage {
     // -----------------------------------------------------------------------
     async fn create_ai_chat(&self, chat: &AiChat) -> Result<(), DomainError> {
         sqlx::query(
-            "INSERT INTO ai_chats (id, user_id, training_id, source_insight_id, title, model, conversation_length, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO ai_chats (id, user_id, training_id, source_insight_id, source_insight_cost, title, model, conversation_length, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(chat.id.to_string())
         .bind(chat.user_id.to_string())
         .bind(chat.training_id.map(|id| id.to_string()))
         .bind(chat.source_insight_id.map(|id| id.to_string()))
+        .bind(chat.source_insight_cost)
         .bind(&chat.title)
         .bind(&chat.model)
         .bind(chat.conversation_length.map(|v| v as i32))
@@ -1310,7 +1329,7 @@ impl Storage for SqliteStorage {
 
     async fn get_ai_chat(&self, id: Uuid, user_id: Uuid) -> Result<AiChat, DomainError> {
         let row = sqlx::query(
-            "SELECT id, user_id, training_id, source_insight_id, title, model, conversation_length, created_at, updated_at
+            "SELECT id, user_id, training_id, source_insight_id, source_insight_cost, title, model, conversation_length, created_at, updated_at
              FROM ai_chats WHERE id = ? AND user_id = ?",
         )
         .bind(id.to_string())
@@ -1323,9 +1342,32 @@ impl Storage for SqliteStorage {
         row_to_ai_chat(&row)
     }
 
+    async fn get_ai_chat_by_source_insight(
+        &self,
+        user_id: Uuid,
+        insight_id: Uuid,
+    ) -> Result<Option<AiChat>, DomainError> {
+        let row = sqlx::query(
+            "SELECT id, user_id, training_id, source_insight_id, source_insight_cost, title, model, conversation_length, created_at, updated_at
+             FROM ai_chats
+             WHERE user_id = ? AND source_insight_id = ?
+             ORDER BY updated_at DESC
+             LIMIT 1",
+        )
+        .bind(user_id.to_string())
+        .bind(insight_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to get ai chat by source insight: {e}"))
+        })?;
+
+        row.map(|r| row_to_ai_chat(&r)).transpose()
+    }
+
     async fn list_ai_chats(&self, user_id: Uuid) -> Result<Vec<AiChat>, DomainError> {
         let rows = sqlx::query(
-            "SELECT id, user_id, training_id, source_insight_id, title, model, conversation_length, created_at, updated_at
+            "SELECT id, user_id, training_id, source_insight_id, source_insight_cost, title, model, conversation_length, created_at, updated_at
              FROM ai_chats WHERE user_id = ? ORDER BY updated_at DESC",
         )
         .bind(user_id.to_string())

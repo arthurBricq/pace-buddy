@@ -207,6 +207,7 @@ export interface AiChat {
   user_id: string;
   training_id: string | null;
   source_insight_id: string | null;
+  source_insight_cost: number;
   title: string;
   model: string;
   conversation_length?: number | null;

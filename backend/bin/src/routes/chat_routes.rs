@@ -45,6 +45,7 @@ pub async fn create_chat(
         user_id: user.user_id,
         training_id,
         source_insight_id: None,
+        source_insight_cost: 0.0,
         title: body.title.clone(),
         model: body
             .model
@@ -86,10 +87,9 @@ pub async fn list_chats(
     for chat in chats {
         let messages = state.storage.get_ai_chat_messages(chat.id).await?;
         let message_count = messages.len() as i64;
-        let total_cost: f64 = messages
-            .iter()
-            .map(|m| state.cost_to_user_quota(m.cost))
-            .sum::<f64>();
+        let total_cost = state.cost_to_user_quota(conversation_manager::effective_chat_cost_raw(
+            &chat, &messages,
+        ));
 
         items.push(ChatListItem {
             id: chat.id.to_string(),
@@ -128,12 +128,14 @@ pub async fn get_chat(
     let chat = state.storage.get_ai_chat(chat_id, user.user_id).await?;
     let mut messages = state.storage.get_ai_chat_messages(chat_id).await?;
 
-    // Apply cost conversion so displayed costs reflect what users are charged
+    let total_cost =
+        state.cost_to_user_quota(conversation_manager::effective_chat_cost_raw(&chat, &messages));
+
+    // Apply cost conversion so displayed message-level costs reflect what users are charged
     for msg in &mut messages {
         msg.cost = state.cost_to_user_quota(msg.cost);
     }
 
-    let total_cost: f64 = messages.iter().map(|m| m.cost).sum();
     let total_tokens: u64 = messages.iter().map(|m| m.total_tokens as u64).sum();
 
     Ok(HttpResponse::Ok().json(ChatResponse {
@@ -306,6 +308,14 @@ pub async fn create_from_insight(
         .get_training_insight_by_id(insight_id, user.user_id)
         .await?;
 
+    if let Some(existing_chat) = state
+        .storage
+        .get_ai_chat_by_source_insight(user.user_id, insight.id)
+        .await?
+    {
+        return Ok(HttpResponse::Ok().json(existing_chat));
+    }
+
     let title = format!("Chat: {}", insight.display_label);
     let model = body
         .as_ref()
@@ -324,6 +334,7 @@ pub async fn create_from_insight(
         &insight.response,
         model,
         &title,
+        insight.cost.unwrap_or(0.0),
         conversation_length,
     )
     .await?;

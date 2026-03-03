@@ -17,6 +17,7 @@ type PanelSection =
   | 'last_days_summary'
   | 'this_week_vs_last_week'
   | 'this_month_vs_last_month'
+  | 'runner_profile_presentation'
   | 'activity_detail'
   | 'weekly_stats'
   | 'training_recap'
@@ -243,6 +244,30 @@ export default function ContextPanel({ chatId, onContextAdded, onClose }: Contex
               </p>
               <button
                 onClick={() => handleAdd({ context_type: 'this_month_vs_last_month' })}
+                disabled={adding}
+                className="w-full bg-purple-600 text-white py-1 rounded text-sm hover:bg-purple-700 disabled:opacity-50"
+              >
+                {adding ? 'Adding...' : 'Add'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Runner profile and general presentation */}
+        <div>
+          <button
+            onClick={() => toggle('runner_profile_presentation')}
+            className="w-full text-left px-3 py-2 rounded-md text-sm bg-gray-50 hover:bg-gray-100 font-medium text-gray-700"
+          >
+            Runner profile and general presentation
+          </button>
+          {activeSection === 'runner_profile_presentation' && (
+            <div className="mt-2 px-3 space-y-2">
+              <p className="text-xs text-gray-500">
+                Includes last 12 months distance, cumulative distance, and all races.
+              </p>
+              <button
+                onClick={() => handleAdd({ context_type: 'runner_profile_presentation' })}
                 disabled={adding}
                 className="w-full bg-purple-600 text-white py-1 rounded text-sm hover:bg-purple-700 disabled:opacity-50"
               >

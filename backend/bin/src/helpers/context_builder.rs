@@ -8,6 +8,8 @@ use storage::SqliteStorage;
 use storage::Storage;
 use uuid::Uuid;
 
+use crate::helpers::runner_profile_helper;
+
 #[derive(Deserialize)]
 #[serde(tag = "context_type", rename_all = "snake_case")]
 pub enum ContextRequest {
@@ -17,6 +19,7 @@ pub enum ContextRequest {
     LastDaysSummary { days: u32 },
     ThisWeekVsLastWeek,
     ThisMonthVsLastMonth,
+    RunnerProfilePresentation,
     ActivityDetail { activity_id: String },
     WeeklyStats { from: String, to: String },
     TrainingRecap { training_id: String },
@@ -44,6 +47,9 @@ pub async fn build_context(
         ContextRequest::ThisWeekVsLastWeek => build_this_week_vs_last_week(storage, user_id).await,
         ContextRequest::ThisMonthVsLastMonth => {
             build_this_month_vs_last_month(storage, user_id).await
+        }
+        ContextRequest::RunnerProfilePresentation => {
+            build_runner_profile_presentation(storage, user_id).await
         }
         ContextRequest::ActivityDetail { activity_id } => {
             let id = activity_id
@@ -97,6 +103,17 @@ async fn build_last_activities(
     }
 
     Ok(ContextResult { label, content })
+}
+
+async fn build_runner_profile_presentation(
+    storage: &Arc<SqliteStorage>,
+    user_id: Uuid,
+) -> Result<ContextResult, DomainError> {
+    let content = runner_profile_helper::build_runner_profile_section(storage, user_id).await?;
+    Ok(ContextResult {
+        label: runner_profile_helper::RUNNER_PROFILE_SECTION_TITLE.to_string(),
+        content,
+    })
 }
 
 async fn build_last_long_runs(

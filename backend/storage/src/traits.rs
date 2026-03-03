@@ -95,6 +95,11 @@ pub trait Storage: Send + Sync {
     // AI Chats
     async fn create_ai_chat(&self, chat: &AiChat) -> Result<(), DomainError>;
     async fn get_ai_chat(&self, id: Uuid, user_id: Uuid) -> Result<AiChat, DomainError>;
+    async fn get_ai_chat_by_source_insight(
+        &self,
+        user_id: Uuid,
+        insight_id: Uuid,
+    ) -> Result<Option<AiChat>, DomainError>;
     async fn list_ai_chats(&self, user_id: Uuid) -> Result<Vec<AiChat>, DomainError>;
     async fn update_ai_chat_title(&self, id: Uuid, user_id: Uuid, title: &str) -> Result<(), DomainError>;
     async fn delete_ai_chat(&self, id: Uuid, user_id: Uuid) -> Result<(), DomainError>;

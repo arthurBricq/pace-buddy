@@ -7,6 +7,7 @@ use storage::SqliteStorage;
 use storage::Storage;
 use uuid::Uuid;
 
+use crate::helpers::runner_profile_helper;
 use crate::helpers::strava_data_helper::fetch_streams_from_strava;
 use crate::state::AppState;
 
@@ -34,6 +35,8 @@ pub async fn build_insight_context(
     let training = state.storage.get_training(training_id, user_id).await?;
     let user_data = state.storage.get_user_by_id(user_id).await?;
     let mas_kmh = user_data.mas_current.map(|mps| mps * 3.6);
+    let runner_profile_section =
+        runner_profile_helper::build_runner_profile_section(&state.storage, user_id).await?;
 
     let training_activities = state
         .storage
@@ -167,7 +170,7 @@ pub async fn build_insight_context(
         }
     }
 
-    let (display_label, request_instruction) = match prompt_type {
+    let (base_label, request_instruction) = match prompt_type {
         "overview" => (
             "Critical overview of my training",
             "Give me a critical overview of my training so far. Analyze volume progression, interval quality, and readiness for the race goal.",
@@ -182,6 +185,7 @@ pub async fn build_insight_context(
             ));
         }
     };
+    let display_label = format!("{} — {}", training.name, base_label);
 
     // Build user prompt
     let today = Utc::now().format("%Y-%m-%d");
@@ -207,6 +211,10 @@ pub async fn build_insight_context(
     if let Some(mas) = mas_kmh {
         user_prompt.push_str(&format!("Runner's MAS: {:.1} km/h\n", mas));
     }
+
+    user_prompt.push('\n');
+    user_prompt.push_str(&runner_profile_section);
+    user_prompt.push('\n');
 
     if !weekly_volume.is_empty() {
         user_prompt.push_str("\n## Weekly Volume\n");
@@ -235,7 +243,7 @@ pub async fn build_insight_context(
         training,
         system_prompt: SYSTEM_PROMPT.to_string(),
         user_prompt,
-        display_label: display_label.to_string(),
+        display_label,
     })
 }
 
