@@ -316,7 +316,7 @@ pub async fn create_from_insight(
         return Ok(HttpResponse::Ok().json(existing_chat));
     }
 
-    let title = format!("Chat: {}", insight.display_label);
+    let title = format!("{}", insight.display_label);
     let model = body
         .as_ref()
         .and_then(|b| b.model.as_ref())
