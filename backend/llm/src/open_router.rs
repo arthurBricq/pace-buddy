@@ -28,19 +28,21 @@ impl OpenRouterClient {
 
 /// Curated list of allowed models
 const ALLOWED_MODELS: &[&str] = &[
-    "anthropic/claude-sonnet-4.5",
     "x-ai/grok-code-fast-1",
+    "deepseek/deepseek-v3.2",
     "google/gemini-2.5-flash",
     "google/gemini-3-flash-preview",
-    "deepseek/deepseek-v3.2",
-    "anthropic/claude-opus-4.5",
     "google/gemini-2.5-flash-lite",
     "google/gemini-3-pro-preview",
-    "openai/gpt-4o-mini",
+    "google/gemini-3.1-pro-preview",
+    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-opus-4.5",
     "anthropic/claude-haiku-4.5",
-    "openai/gpt-5.2",
     "anthropic/claude-sonnet-4",
+    "openai/gpt-5.2",
     "openai/gpt-5-mini",
+    "openai/gpt-5.3-chat",
+    "openai/gpt-5.4",
 ];
 
 fn fallback_allowed_models() -> Vec<ModelInfo> {
