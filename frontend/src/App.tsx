@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './hooks/useAuth';
 import AuthGuard from './components/AuthGuard';
+import AdminGuard from './components/AdminGuard';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ActivityListPage from './pages/ActivityListPage';
@@ -91,7 +92,9 @@ function App() {
             path="/admin"
             element={
               <AuthGuard>
-                <AdminDashboardPage />
+                <AdminGuard>
+                  <AdminDashboardPage />
+                </AdminGuard>
               </AuthGuard>
             }
           />
@@ -99,7 +102,9 @@ function App() {
             path="/admin/users"
             element={
               <AuthGuard>
-                <AdminUsersPage />
+                <AdminGuard>
+                  <AdminUsersPage />
+                </AdminGuard>
               </AuthGuard>
             }
           />
