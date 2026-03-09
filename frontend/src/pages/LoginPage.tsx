@@ -149,30 +149,22 @@ export default function LoginPage() {
       </header>
 
       <main className="brand-main">
-        <section className="brand-section">
+        <section className="brand-section brand-section-compact">
           <div className="brand-container">
             <p className="hero-kicker">LLM coach + deep interval understanding</p>
             <h1 className="hero-title">Your training, explained.</h1>
             <p className="hero-body">
-              Tired of copy-pasting your Strava activities into ChatGPT? PaceBuddy analyzes your interval sessions and
+              Tired of copy-pasting your Strava activities into ChatGPT?
+            </p>
+            <p className="hero-body">
+              PaceBuddy analyzes your interval sessions and
               training blocks, then lets you chat with a coach-style LLM that actually knows your context.
             </p>
-            <div className="hero-meta" role="list" aria-label="Trust highlights">
-              <span className="hero-chip" role="listitem">
-                Private by default
-              </span>
-              <span className="hero-chip" role="listitem">
-                Athlete-only workspace
-              </span>
-              <span className="hero-chip" role="listitem">
-                No AI training on your data
-              </span>
-            </div>
             {error && <p className="brand-error">{error}</p>}
           </div>
         </section>
 
-        <section className="brand-section">
+        <section className="brand-section brand-section-compact">
           <div className="brand-container">
             <div className="brand-panel">
               <h2 className="panel-title">Chat preview</h2>

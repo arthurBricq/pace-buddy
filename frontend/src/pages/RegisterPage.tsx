@@ -46,56 +46,70 @@ export default function RegisterPage() {
   return (
     <div className="auth-shell">
       <div className="auth-card">
-        <h1 className="text-2xl font-bold text-center mb-6">Create Account</h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Username
-            </label>
+        <Link to="/login" className="auth-logo-link" aria-label="Back to PaceBuddy landing">
+          <img src="/pace-buddy-logo.svg" alt="PaceBuddy" className="auth-logo" />
+        </Link>
+        <h1 className="auth-title">Create your account</h1>
+        <p className="auth-subtitle">
+          Use a passkey to register, then sync your activities from Strava.
+        </p>
+
+        <form onSubmit={handleSubmit} className="auth-form">
+          <div className="theme-field">
+            <label className="theme-label">Username</label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="theme-input"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+          <div className="theme-field">
+            <label className="theme-label">
               Email{' '}
-              <span className="text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
-                Optional
-              </span>
+              <span className="theme-optional-pill">Optional</span>
             </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="theme-input"
             />
-            <p className="mt-1 text-xs text-gray-500">Optional, but recommended so we can contact you later.</p>
+            <p className="theme-help">Recommended so we can contact you later if needed.</p>
           </div>
-          {error && <p className="text-red-600 text-sm">{error}</p>}
+          {error && <p className="theme-error-text">{error}</p>}
           <button
             type="submit"
             disabled={loading || stravaLoading}
-            className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
+            className="theme-btn theme-btn-primary w-full"
           >
             {loading ? 'Registering...' : 'Register with Passkey'}
           </button>
         </form>
-        <div className="my-4 text-center text-xs text-gray-400">OR</div>
+
+        <div className="theme-divider">or</div>
+
         <button
           type="button"
           onClick={handleStravaLogin}
           disabled={loading || stravaLoading}
-          className="w-full border border-orange-500 text-orange-700 py-2 rounded-md hover:bg-orange-50 disabled:opacity-50"
+          className="brand-btn brand-strava-btn w-full"
         >
-          {stravaLoading ? 'Redirecting to Strava...' : 'Log in with Strava'}
+          {stravaLoading ? (
+            'Redirecting to Strava...'
+          ) : (
+            <img
+              src="/btn_strava_connect_with_orange.svg"
+              alt="Connect with Strava"
+              className="strava-connect-img"
+            />
+          )}
         </button>
-        <p className="mt-4 text-center text-sm text-gray-500">
+
+        <p className="auth-footer-text">
           Already have an account?{' '}
-          <Link to="/login" className="text-blue-600 hover:underline">
+          <Link to="/login" className="theme-link">
             Log in
           </Link>
         </p>

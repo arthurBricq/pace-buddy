@@ -21,7 +21,9 @@ function NavLink({
       onClick={onClick}
       className={
         mobile
-          ? `block rounded-md px-2 py-1 ${active ? 'bg-gray-100 text-gray-900 font-semibold' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`
+          ? active
+            ? 'nav-link-mobile-active'
+            : 'nav-link-mobile'
           : active
             ? 'nav-link-active'
             : 'nav-link'
@@ -53,8 +55,8 @@ export default function Navbar() {
     <nav className="navbar-root">
       <div className="navbar-inner">
         <div className="flex items-center gap-4">
-          <Link to="/activities" className="navbar-brand">
-            Pace Buddy
+          <Link to="/activities" className="navbar-brand" aria-label="PaceBuddy">
+            <img src="/pace-buddy-logo.svg" alt="PaceBuddy" className="navbar-brand-logo" />
           </Link>
           <div className="navbar-links-desktop">
             <NavLink to="/activities">Activities</NavLink>
@@ -69,7 +71,7 @@ export default function Navbar() {
           <NavLink to="/profile">Profile</NavLink>
           <button
             onClick={handleLogout}
-            className="text-sm text-gray-500 hover:text-gray-700"
+            className="navbar-logout-btn"
           >
             Logout
           </button>
@@ -109,7 +111,7 @@ export default function Navbar() {
             </NavLink>
             <button
               onClick={handleLogout}
-              className="text-left rounded-md px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              className="nav-link-mobile text-left"
             >
               Logout
             </button>

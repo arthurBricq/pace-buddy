@@ -97,13 +97,13 @@ export default function ActivityListPage() {
 
   const getHighlightClasses = (tag: ActivityTag) => {
     if (tag === 'intervals') {
-      return 'bg-blue-50/60 border-blue-100';
+      return 'activity-highlight-intervals';
     }
     if (tag === 'long_run') {
-      return 'bg-emerald-50/60 border-emerald-100';
+      return 'activity-highlight-long_run';
     }
     if (tag === 'race') {
-      return 'bg-amber-50/60 border-amber-100';
+      return 'activity-highlight-race';
     }
     return '';
   };
@@ -231,7 +231,7 @@ export default function ActivityListPage() {
             <select
               value={tagFilter}
               onChange={(e) => setTagFilter(e.target.value as ActivityTag | 'all')}
-              className="w-full sm:w-auto px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="theme-select w-full sm:w-auto text-sm"
             >
               <option value="all">All Activities</option>
               <option value="intervals">Intervals</option>
@@ -243,10 +243,10 @@ export default function ActivityListPage() {
           <div className="button-row-wrap">
             <button
               onClick={() => setViewMode(viewMode === 'list' ? 'calendar' : 'list')}
-              className={`w-full sm:w-[18rem] whitespace-nowrap text-sm px-3 py-2 rounded-md border ${
+              className={`theme-toggle-btn sm:w-[18rem] ${
                 viewMode === 'calendar'
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  ? 'theme-toggle-btn-active'
+                  : ''
               }`}
             >
               {viewMode === 'list' ? 'Switch to calendar view' : 'Switch to list view'}
@@ -255,10 +255,10 @@ export default function ActivityListPage() {
               type="button"
               title={qualityTooltip}
               onClick={() => setQualityOnly((prev) => !prev)}
-              className={`w-full sm:w-[18rem] whitespace-nowrap text-sm px-3 py-2 rounded-md border ${
+              className={`theme-toggle-btn sm:w-[18rem] ${
                 qualityOnly
-                  ? 'bg-purple-600 text-white border-purple-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  ? 'theme-toggle-btn-active'
+                  : ''
               }`}
             >
               {qualityOnly ? 'Showing quality sessions only' : 'Filter only quality sessions'}
@@ -266,11 +266,11 @@ export default function ActivityListPage() {
           </div>
         </div>
 
-        {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
+        {error && <p className="theme-error-text mb-4">{error}</p>}
 
         {showSyncBanner && (
-          <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-md mb-4 flex items-center gap-2 text-sm">
-            <svg className="animate-spin h-4 w-4 text-blue-600" viewBox="0 0 24 24" fill="none">
+          <div className="theme-notice theme-notice-info mb-4 flex items-center gap-2">
+            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
@@ -279,33 +279,33 @@ export default function ActivityListPage() {
         )}
 
         {!loading && activities.length === 0 && syncStatus === 'failed' && syncStatusError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4 text-sm">
+          <div className="theme-notice theme-notice-error mb-4">
             Automatic Strava import failed: {syncStatusError}
           </div>
         )}
 
         {loading ? (
-          <p className="text-gray-500">Loading activities...</p>
+          <p className="theme-muted">Loading activities...</p>
         ) : activities.length === 0 ? (
-          <p className="text-gray-500">
+          <p className="theme-muted">
             No activities yet. If Strava is linked, imports happen automatically. You can request
             a manual resync from your profile.
           </p>
         ) : viewMode === 'calendar' ? (
           calendarWeeks.length === 0 ? (
-            <p className="text-gray-500">No activities for this filter.</p>
+            <p className="theme-muted">No activities for this filter.</p>
           ) : (
             <div className="space-y-4">
               {calendarWeeks.map((week) => (
                 <div
                   key={dateKey(week.weekStart)}
-                  className="bg-white/70 border border-gray-200 rounded-xl p-3"
+                  className="calendar-week-card"
                 >
                   <div className="calendar-week-grid grid gap-3 items-stretch">
-                  <div className="bg-white rounded-lg shadow p-4 flex flex-col justify-between">
+                  <div className="calendar-recap-card flex flex-col justify-between">
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Weekly recap</p>
-                      <p className="text-sm font-semibold text-gray-900 mt-1">
+                      <p className="text-xs theme-muted uppercase tracking-wide">Weekly recap</p>
+                      <p className="text-sm font-semibold mt-1">
                         {week.weekStart.toLocaleDateString(undefined, {
                           month: 'short',
                           day: 'numeric',
@@ -313,10 +313,10 @@ export default function ActivityListPage() {
                       </p>
                     </div>
                     <div className="mt-3">
-                      <p className="text-lg font-semibold text-gray-900">
+                      <p className="text-lg font-semibold">
                         {formatDistance(week.totalDistance)}
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm theme-muted">
                         {formatDuration(week.totalTime)}
                       </p>
                     </div>
@@ -324,9 +324,9 @@ export default function ActivityListPage() {
                   {week.days.map((day) => (
                     <div
                       key={day.key}
-                      className="bg-white rounded-lg shadow p-3 min-h-[150px] flex flex-col"
+                      className="calendar-day-card"
                     >
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs theme-muted">
                         {day.date.toLocaleDateString(undefined, {
                           weekday: 'short',
                           month: 'short',
@@ -335,10 +335,10 @@ export default function ActivityListPage() {
                       </div>
                       <div className="mt-2 space-y-2">
                         {day.activities.length === 0 ? (
-                          <p className="text-xs text-gray-400">No activity</p>
+                          <p className="text-xs theme-muted">No activity</p>
                         ) : (
                           day.activities.map((activity) => (
-                            <div key={activity.id} className="text-xs text-gray-700">
+                            <div key={activity.id} className="text-xs">
                               <div className="flex items-center gap-2">
                                 <span className="font-semibold">
                                   {formatDistance(activity.distance)}
@@ -347,7 +347,7 @@ export default function ActivityListPage() {
                               </div>
                               <Link
                                 to={`/activities/${activity.id}`}
-                                className="text-blue-600 hover:underline"
+                                className="theme-link"
                               >
                                 {activity.name}
                               </Link>
@@ -365,20 +365,20 @@ export default function ActivityListPage() {
         ) : (
           <>
             {filteredActivities.length === 0 ? (
-              <p className="text-gray-500">No activities for this filter.</p>
+              <p className="theme-muted">No activities for this filter.</p>
             ) : (
               <>
                 <div className="space-y-3 sm:hidden">
                   {filteredActivities.map((a) => (
-                    <article key={a.id} className={`rounded-lg border bg-white p-4 shadow ${getHighlightClasses(a.tag)}`}>
+                    <article key={a.id} className={`card-compact ${getHighlightClasses(a.tag)}`}>
                       <div className="mb-2 flex items-start justify-between gap-2">
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs theme-muted">
                           {new Date(a.start_date).toLocaleDateString()}
                         </p>
                         <div>
                           <button
                             onClick={() => openTagEditor(a.id)}
-                            className="inline-flex rounded-full p-0.5 transition-all hover:scale-[1.03] hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            className="tag-edit-trigger"
                             title="Edit activity type"
                           >
                             <TagBadge tag={a.tag} />
@@ -387,26 +387,26 @@ export default function ActivityListPage() {
                       </div>
                       <Link
                         to={`/activities/${a.id}`}
-                        className="mb-3 block text-base font-medium text-blue-600 hover:underline"
+                        className="mb-3 block text-base font-medium theme-link"
                       >
                         {a.name}
                       </Link>
                       <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
                         <div>
-                          <dt className="text-xs uppercase tracking-wide text-gray-500">Type</dt>
-                          <dd className="text-gray-700">{a.sport_type}</dd>
+                          <dt className="text-xs uppercase tracking-wide theme-muted">Type</dt>
+                          <dd>{a.sport_type}</dd>
                         </div>
                         <div>
-                          <dt className="text-xs uppercase tracking-wide text-gray-500">Distance</dt>
-                          <dd className="text-gray-900 font-medium">{formatDistance(a.distance)}</dd>
+                          <dt className="text-xs uppercase tracking-wide theme-muted">Distance</dt>
+                          <dd className="font-medium">{formatDistance(a.distance)}</dd>
                         </div>
                         <div>
-                          <dt className="text-xs uppercase tracking-wide text-gray-500">Duration</dt>
-                          <dd className="text-gray-700">{formatDuration(a.moving_time)}</dd>
+                          <dt className="text-xs uppercase tracking-wide theme-muted">Duration</dt>
+                          <dd>{formatDuration(a.moving_time)}</dd>
                         </div>
                         <div>
-                          <dt className="text-xs uppercase tracking-wide text-gray-500">Pace</dt>
-                          <dd className="text-gray-700">{formatPace(a.average_speed)}</dd>
+                          <dt className="text-xs uppercase tracking-wide theme-muted">Pace</dt>
+                          <dd>{formatPace(a.average_speed)}</dd>
                         </div>
                       </dl>
                     </article>
@@ -415,7 +415,7 @@ export default function ActivityListPage() {
 
                 <div className="hidden sm:block data-table-wrap">
                   <table className="data-table">
-                    <thead className="bg-gray-50 text-gray-600">
+                    <thead className="bg-[#fff6df] text-[#6b4f5d]">
                       <tr>
                         <th className="text-left px-4 py-3">Date</th>
                         <th className="text-left px-4 py-3">Name</th>
@@ -426,21 +426,21 @@ export default function ActivityListPage() {
                         <th className="text-center px-4 py-3">Tag</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-[#f0e3d7]">
                       {filteredActivities.map((a) => (
-                        <tr key={a.id} className={`hover:bg-gray-50 ${getHighlightClasses(a.tag)}`}>
-                          <td className="px-4 py-3 text-gray-500">
+                        <tr key={a.id} className={`hover:bg-[#fff9ef] ${getHighlightClasses(a.tag)}`}>
+                          <td className="px-4 py-3 theme-muted">
                             {new Date(a.start_date).toLocaleDateString()}
                           </td>
                           <td className="px-4 py-3">
                             <Link
                               to={`/activities/${a.id}`}
-                              className="text-blue-600 hover:underline"
+                              className="theme-link"
                             >
                               {a.name}
                             </Link>
                           </td>
-                          <td className="px-4 py-3 text-gray-500">{a.sport_type}</td>
+                          <td className="px-4 py-3 theme-muted">{a.sport_type}</td>
                           <td className="px-4 py-3 text-right">
                             {formatDistance(a.distance)}
                           </td>
@@ -453,7 +453,7 @@ export default function ActivityListPage() {
                           <td className="px-4 py-3 text-center">
                             <button
                               onClick={() => openTagEditor(a.id)}
-                              className="inline-flex rounded-full p-0.5 transition-all hover:scale-[1.03] hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                              className="tag-edit-trigger"
                               title="Edit activity type"
                             >
                               <TagBadge tag={a.tag} />
@@ -472,19 +472,19 @@ export default function ActivityListPage() {
                 <button
                   onClick={() => load(Math.max(0, offset - limit))}
                   disabled={offset === 0}
-                  className="text-sm text-blue-600 disabled:text-gray-400"
+                  className="theme-status-link"
                 >
                   Previous
                 </button>
                 <button
                   onClick={() => load(offset + limit)}
                   disabled={activities.length < limit}
-                  className="text-sm text-blue-600 disabled:text-gray-400"
+                  className="theme-status-link"
                 >
                   Next
                 </button>
               </div>
-              <span className="text-sm text-gray-500 sm:order-none">
+              <span className="text-sm theme-muted sm:order-none">
                 Showing {filteredActivities.length} of {activities.length}
               </span>
             </div>
@@ -498,12 +498,12 @@ export default function ActivityListPage() {
           onClick={() => setEditingTag(null)}
         >
           <div
-            className="w-full max-w-sm rounded-lg bg-white p-4 shadow-xl"
+            className="card w-full max-w-sm"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3">
-              <h2 className="text-base font-semibold text-gray-900">Edit activity type</h2>
-              <p className="text-xs text-gray-500 mt-1 truncate">{editingActivity.name}</p>
+              <h2 className="text-base font-semibold">Edit activity type</h2>
+              <p className="text-xs theme-muted mt-1 truncate">{editingActivity.name}</p>
             </div>
             <div className="grid grid-cols-2 gap-2">
               {TAG_OPTIONS.map((tag) => (
@@ -512,8 +512,8 @@ export default function ActivityListPage() {
                   onClick={() => handleTagChange(editingActivity.id, tag)}
                   className={`rounded-md border px-3 py-2 text-sm font-medium capitalize transition-colors ${
                     tag === editingActivity.tag
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'
+                      ? 'bg-[#4c102a] text-white border-[#4c102a]'
+                      : 'bg-white text-[#5b4451] border-[#dccab9] hover:border-[#761941]'
                   }`}
                 >
                   {formatTagLabel(tag)}
@@ -523,7 +523,7 @@ export default function ActivityListPage() {
             <div className="mt-3 flex justify-end">
               <button
                 onClick={() => setEditingTag(null)}
-                className="text-sm text-gray-500 hover:text-gray-700"
+                className="theme-status-link"
               >
                 Cancel
               </button>
