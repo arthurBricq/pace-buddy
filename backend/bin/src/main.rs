@@ -33,6 +33,10 @@ struct Cli {
     fresh_start: bool,
 }
 
+fn strava_webhook_callback_url(base_url: &str) -> String {
+    format!("{}/api/strava/webhook", base_url.trim_end_matches('/'))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
@@ -165,27 +169,67 @@ async fn main() -> std::io::Result<()> {
     // Background task: check/create Strava webhook subscription
     if let (Some(base_url), Some(verify_token)) = (&cfg.base_url, &cfg.strava_webhook_verify_token)
     {
-        let callback_url = format!("{base_url}/api/strava/webhook");
+        let callback_url = strava_webhook_callback_url(base_url);
         let verify_token = verify_token.clone();
         let client = Arc::clone(&strava_client);
         tokio::spawn(async move {
+            // Give the HTTP server a short head start so Strava validation callback can succeed.
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
             match client.view_webhook_subscriptions().await {
-                Ok(subs) if !subs.is_empty() => {
-                    log::info!(
-                        "Strava webhook subscription already exists (id={})",
-                        subs[0].id
-                    );
-                }
-                Ok(_) => {
-                    log::info!("No Strava webhook subscription found, creating one...");
-                    match client
-                        .create_webhook_subscription(&callback_url, &verify_token)
-                        .await
-                    {
-                        Ok(sub) => {
-                            log::info!("Strava webhook subscription created (id={})", sub.id)
+                Ok(subs) => {
+                    let mut current_sub = None;
+                    let mut stale_subs = Vec::new();
+                    for sub in subs {
+                        if sub.callback_url.as_deref() == Some(callback_url.as_str())
+                            && current_sub.is_none()
+                        {
+                            current_sub = Some(sub);
+                        } else {
+                            stale_subs.push(sub);
                         }
-                        Err(e) => log::error!("Failed to create Strava webhook subscription: {e}"),
+                    }
+
+                    if let Some(sub) = &current_sub {
+                        log::info!(
+                            "Strava webhook subscription already exists (id={})",
+                            sub.id
+                        );
+                    } else if !stale_subs.is_empty() {
+                        log::warn!(
+                            "Found {} stale Strava webhook subscription(s), recreating",
+                            stale_subs.len()
+                        );
+                    } else {
+                        log::info!("No Strava webhook subscription found, creating one...");
+                    }
+
+                    for sub in stale_subs {
+                        log::info!(
+                            "Deleting stale Strava webhook subscription id={} callback_url={:?}",
+                            sub.id,
+                            sub.callback_url
+                        );
+                        if let Err(e) = client.delete_webhook_subscription(sub.id).await {
+                            log::error!(
+                                "Failed to delete stale Strava webhook subscription id={}: {e}",
+                                sub.id
+                            );
+                        }
+                    }
+
+                    if current_sub.is_none() {
+                        match client
+                            .create_webhook_subscription(&callback_url, &verify_token)
+                            .await
+                        {
+                            Ok(sub) => {
+                                log::info!("Strava webhook subscription created (id={})", sub.id)
+                            }
+                            Err(e) => {
+                                log::error!("Failed to create Strava webhook subscription: {e}")
+                            }
+                        }
                     }
                 }
                 Err(e) => log::error!("Failed to check Strava webhook subscriptions: {e}"),

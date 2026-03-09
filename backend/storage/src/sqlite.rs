@@ -23,6 +23,12 @@ impl SqliteStorage {
             .await
             .map_err(|e| DomainError::Storage(format!("Failed to connect to database: {e}")))?;
 
+        Self::initialize_schema(&pool).await?;
+
+        Ok(Self { pool })
+    }
+
+    async fn initialize_schema(pool: &SqlitePool) -> Result<(), DomainError> {
         // Create tables directly (no migrations for now)
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS users (
@@ -35,7 +41,7 @@ impl SqliteStorage {
                 quota_balance_usd REAL NOT NULL DEFAULT 0.0
             )",
         )
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create users table: {e}")))?;
 
@@ -47,7 +53,7 @@ impl SqliteStorage {
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             )",
         )
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create passkeys table: {e}")))?;
 
@@ -60,7 +66,7 @@ impl SqliteStorage {
                 expires_at TEXT NOT NULL
             )",
         )
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create strava_tokens table: {e}")))?;
 
@@ -91,14 +97,14 @@ impl SqliteStorage {
                 UNIQUE(user_id, strava_id)
             )",
         )
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create activities table: {e}")))?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_activities_user_date ON activities(user_id, start_date DESC)"
         )
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create activities index: {e}")))?;
 
@@ -110,7 +116,7 @@ impl SqliteStorage {
                 PRIMARY KEY (activity_id, stream_type)
             )",
         )
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| {
             DomainError::Storage(format!("Failed to create activity_streams table: {e}"))
@@ -129,12 +135,12 @@ impl SqliteStorage {
                 created_at TEXT NOT NULL
             )",
         )
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create trainings table: {e}")))?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_trainings_user ON trainings(user_id)")
-            .execute(&pool)
+            .execute(pool)
             .await
             .map_err(|e| DomainError::Storage(format!("Failed to create trainings index: {e}")))?;
 
@@ -152,7 +158,7 @@ impl SqliteStorage {
                 created_at TEXT NOT NULL
             )",
         )
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| {
             DomainError::Storage(format!("Failed to create training_insights table: {e}"))
@@ -161,7 +167,7 @@ impl SqliteStorage {
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_training_insights_training ON training_insights(training_id, user_id)"
         )
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create training_insights index: {e}")))?;
 
@@ -178,21 +184,21 @@ impl SqliteStorage {
                 updated_at TEXT NOT NULL
             )",
         )
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create ai_chats table: {e}")))?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_ai_chats_user ON ai_chats(user_id, updated_at DESC)",
         )
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create ai_chats index: {e}")))?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_ai_chats_source_insight ON ai_chats(user_id, source_insight_id)",
         )
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| {
             DomainError::Storage(format!(
@@ -202,13 +208,13 @@ impl SqliteStorage {
 
         // Add conversation_length column if it doesn't exist (migration)
         sqlx::query("ALTER TABLE ai_chats ADD COLUMN conversation_length INTEGER")
-            .execute(&pool)
+            .execute(pool)
             .await
             .ok(); // Ignore error if column already exists
         sqlx::query(
             "ALTER TABLE ai_chats ADD COLUMN source_insight_cost REAL NOT NULL DEFAULT 0.0",
         )
-        .execute(&pool)
+        .execute(pool)
         .await
         .ok(); // Ignore error if column already exists
 
@@ -226,7 +232,7 @@ impl SqliteStorage {
                 created_at TEXT NOT NULL
             )",
         )
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| {
             DomainError::Storage(format!("Failed to create ai_chat_messages table: {e}"))
@@ -235,7 +241,7 @@ impl SqliteStorage {
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_ai_chat_messages_chat ON ai_chat_messages(chat_id, created_at ASC)"
         )
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create ai_chat_messages index: {e}")))?;
 
@@ -249,7 +255,7 @@ impl SqliteStorage {
                 granted_amount_usd REAL
             )",
         )
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create quota_requests table: {e}")))?;
 
@@ -261,13 +267,13 @@ impl SqliteStorage {
                 computed_at TEXT NOT NULL
             )",
         )
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| {
             DomainError::Storage(format!("Failed to create model_cost_tiers table: {e}"))
         })?;
 
-        Ok(Self { pool })
+        Ok(())
     }
 }
 
@@ -1749,7 +1755,7 @@ impl SqliteStorage {
         Ok(res.rows_affected())
     }
 
-    /// Development helper: remove all application data while keeping schema intact.
+    /// Development helper: remove all application data and rebuild schema.
     pub async fn delete_all_data(&self) -> Result<(), DomainError> {
         let mut tx = self
             .pool
@@ -1757,7 +1763,7 @@ impl SqliteStorage {
             .await
             .map_err(|e| DomainError::Storage(format!("Failed to begin transaction: {e}")))?;
 
-        // Child tables first, then parent tables.
+        // Drop child tables first, then parent tables.
         for table in [
             "ai_chat_messages",
             "ai_chats",
@@ -1766,20 +1772,23 @@ impl SqliteStorage {
             "activities",
             "trainings",
             "quota_requests",
+            "model_cost_tiers",
             "passkeys",
             "strava_tokens",
             "users",
         ] {
-            let query = format!("DELETE FROM {table}");
+            let query = format!("DROP TABLE IF EXISTS {table}");
             sqlx::query(&query)
                 .execute(&mut *tx)
                 .await
-                .map_err(|e| DomainError::Storage(format!("Failed to clear {table}: {e}")))?;
+                .map_err(|e| DomainError::Storage(format!("Failed to drop {table}: {e}")))?;
         }
 
         tx.commit()
             .await
             .map_err(|e| DomainError::Storage(format!("Failed to commit delete-all-data: {e}")))?;
+
+        Self::initialize_schema(&self.pool).await?;
 
         Ok(())
     }

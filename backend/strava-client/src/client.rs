@@ -169,6 +169,30 @@ impl StravaClient {
             .map_err(|e| DomainError::StravaApi(e.to_string()))
     }
 
+    /// Delete a webhook subscription by id.
+    pub async fn delete_webhook_subscription(&self, subscription_id: i64) -> Result<(), DomainError> {
+        let url = format!(
+            "https://www.strava.com/api/v3/push_subscriptions/{subscription_id}?client_id={}&client_secret={}",
+            self.client_id, self.client_secret
+        );
+
+        let resp = self
+            .client
+            .delete(&url)
+            .send()
+            .await
+            .map_err(|e| DomainError::StravaApi(e.to_string()))?;
+
+        if !resp.status().is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            return Err(DomainError::StravaApi(format!(
+                "Delete webhook subscription failed: {text}"
+            )));
+        }
+
+        Ok(())
+    }
+
     /// Fetch activities from Strava. page is 1-indexed. per_page max 200.
     pub async fn get_activities(
         &self,
