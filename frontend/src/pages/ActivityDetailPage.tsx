@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getActivity, getIntervals, updateActivityTag } from '../api/activities';
+import {
+  getActivity,
+  getIntervals,
+  type IntervalAlgorithm,
+  updateActivityTag,
+} from '../api/activities';
 import type { ActivityDetail, ActivityTag, IntervalResult } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import Navbar from '../components/Navbar';
@@ -19,6 +24,7 @@ export default function ActivityDetailPage() {
   const [error, setError] = useState('');
   const [editingTag, setEditingTag] = useState(false);
   const [intervals, setIntervals] = useState<IntervalResult | null>(null);
+  const [intervalAlgorithm, setIntervalAlgorithm] = useState<IntervalAlgorithm>('speed_based');
 
   useEffect(() => {
     if (!id) return;
@@ -34,14 +40,14 @@ export default function ActivityDetailPage() {
     
     // Only run interval parsing algorithm if activity is tagged as intervals
     if (detail.activity.tag === 'intervals') {
-      getIntervals(id)
+      getIntervals(id, intervalAlgorithm)
         .then(setIntervals)
         .catch((e) => console.warn('Failed to load intervals:', e));
     } else {
       // Clear intervals if activity is not tagged as intervals
       setIntervals(null);
     }
-  }, [id, detail]);
+  }, [id, detail, intervalAlgorithm]);
 
   const handleTagChange = async (tag: ActivityTag) => {
     if (!id || !detail) return;
@@ -125,6 +131,22 @@ export default function ActivityDetailPage() {
 
         {intervals?.is_interval_workout && (
           <IntervalRecap intervals={intervals} masCurrent={user?.mas_current ?? null} />
+        )}
+
+        {activity.tag === 'intervals' && (
+          <div className="bg-white rounded-lg shadow p-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Interval Algorithm
+            </label>
+            <select
+              value={intervalAlgorithm}
+              onChange={(e) => setIntervalAlgorithm(e.target.value as IntervalAlgorithm)}
+              className="w-full sm:w-auto rounded border border-gray-300 px-3 py-2 text-sm bg-white"
+            >
+              <option value="speed_based">Speed based</option>
+              <option value="manual_laps">Manual laps</option>
+            </select>
+          </div>
         )}
 
         {(streams.length > 0 || laps.length > 0) && (

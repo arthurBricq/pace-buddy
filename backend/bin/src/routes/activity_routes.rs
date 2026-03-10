@@ -156,15 +156,52 @@ pub struct TagUpdateRequest {
     pub tag: String,
 }
 
+#[derive(Deserialize)]
+pub struct IntervalsQuery {
+    pub algorithm: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum IntervalAlgorithmSelection {
+    SpeedBased,
+    ManualLaps,
+}
+
+impl IntervalAlgorithmSelection {
+    fn from_query(raw: Option<&str>) -> Result<Self, DomainError> {
+        match raw
+            .map(|s| s.trim().to_ascii_lowercase())
+            .as_deref()
+            .unwrap_or("speed_based")
+        {
+            "speed_based" | "auto_speed" => Ok(Self::SpeedBased),
+            "manual_laps" | "manual_lap" => Ok(Self::ManualLaps),
+            other => Err(DomainError::BadRequest(format!(
+                "Unknown interval algorithm '{other}'. Supported: speed_based, manual_laps"
+            ))),
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::SpeedBased => "speed_based",
+            Self::ManualLaps => "manual_laps",
+        }
+    }
+}
+
 pub async fn get_intervals(
     state: web::Data<AppState>,
     user: AuthenticatedUser,
     path: web::Path<Uuid>,
+    query: web::Query<IntervalsQuery>,
 ) -> Result<HttpResponse, AppError> {
     let activity_id = path.into_inner();
+    let algorithm = IntervalAlgorithmSelection::from_query(query.algorithm.as_deref())?;
     log::info!(
-        "GET /activities/{activity_id}/intervals user={}",
-        user.user_id
+        "GET /activities/{activity_id}/intervals user={} algorithm={}",
+        user.user_id,
+        algorithm.as_str()
     );
 
     let activity = state
@@ -172,17 +209,35 @@ pub async fn get_intervals(
         .get_activity(activity_id, user.user_id)
         .await?;
 
-    // Try cached streams first, fall back to Strava
-    let mut streams = state
-        .storage
-        .get_streams(activity_id)
-        .await
-        .unwrap_or_default();
-    if streams.is_empty() {
-        streams = fetch_streams_from_strava(&state, &activity).await?;
-    }
     let config = intervals::types::IntervalConfig::default();
-    match state.parse_intervals(&streams, &config, None).await {
+    let result = match algorithm {
+        IntervalAlgorithmSelection::SpeedBased => {
+            // Try cached streams first, fall back to Strava
+            let mut streams = state
+                .storage
+                .get_streams(activity_id)
+                .await
+                .unwrap_or_default();
+            if streams.is_empty() {
+                streams = fetch_streams_from_strava(&state, &activity).await?;
+            }
+            intervals::parse_intervals(&streams, &config, None)
+        }
+        IntervalAlgorithmSelection::ManualLaps => {
+            let mut laps = state
+                .storage
+                .get_laps(activity_id)
+                .await
+                .unwrap_or_default();
+            if laps.is_empty() {
+                laps = load_and_cache_laps(&state, &activity).await?;
+            }
+            let algorithm = intervals::ManualLapIntervalAlgorithm::new(&laps);
+            intervals::parse_intervals_with_algorithm(&algorithm, &[], &config, None)
+        }
+    };
+
+    match result {
         Ok(result) => Ok(HttpResponse::Ok().json(result)),
         Err(e) => {
             log::warn!("Interval parsing failed for {activity_id}: {e}");

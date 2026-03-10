@@ -18,7 +18,7 @@ use strava_client::StravaClient;
 use crate::config::Config;
 use crate::helpers::mas_estimator::LastRaceEstimator;
 use crate::helpers::model_cost_helper::recompute_model_cost_tiers;
-use crate::state::{AppState, IntervalAlgorithm};
+use crate::state::AppState;
 
 #[derive(Parser)]
 #[command(name = "pace-buddy", about = "Pace Buddy backend server")]
@@ -109,11 +109,6 @@ async fn main() -> std::io::Result<()> {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(24);
-    let interval_algorithm = IntervalAlgorithm::AutoSpeed;
-    log::info!(
-        "Interval parsing algorithm: {}",
-        interval_algorithm.as_str()
-    );
 
     let storage = Arc::new(storage);
 
@@ -146,7 +141,6 @@ async fn main() -> std::io::Result<()> {
         admin_strava_athlete_id: cfg.admin_strava_athlete_id,
         quota_markup_ratio: cfg.quota_markup_ratio,
         mas_estimator: Arc::new(LastRaceEstimator),
-        interval_algorithm: Arc::new(tokio::sync::RwLock::new(interval_algorithm)),
         syncing_activity_users: Arc::new(tokio::sync::Mutex::new(std::collections::HashSet::new())),
         activity_sync_statuses: Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new())),
     });

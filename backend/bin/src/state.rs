@@ -3,13 +3,11 @@ use std::sync::Arc;
 
 use crate::helpers::mas_estimator::{list_race_activities, LastRaceEstimator, MasEstimator};
 use auth::JwtService;
-use domain::ActivityStream;
 use domain::DomainError;
-use intervals::types::{IntervalConfig, IntervalResult};
 use llm::open_router::OpenRouterClient;
 use storage::{SqliteStorage, Storage};
 use strava_client::StravaClient;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 #[derive(Clone, Debug)]
@@ -17,22 +15,6 @@ pub enum ActivitiesSyncStatus {
     Running,
     Finished,
     Failed(String),
-}
-
-#[allow(dead_code)]
-#[derive(Clone, Copy, Debug)]
-pub enum IntervalAlgorithm {
-    AutoSpeed,
-    ManualLap,
-}
-
-impl IntervalAlgorithm {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::AutoSpeed => "auto_speed",
-            Self::ManualLap => "manual_lap",
-        }
-    }
 }
 
 pub struct AppState {
@@ -45,7 +27,6 @@ pub struct AppState {
     pub admin_strava_athlete_id: Option<i64>,
     pub quota_markup_ratio: f64,
     pub mas_estimator: Arc<LastRaceEstimator>,
-    pub interval_algorithm: Arc<RwLock<IntervalAlgorithm>>,
     pub syncing_activity_users: Arc<Mutex<HashSet<Uuid>>>,
     pub activity_sync_statuses: Arc<Mutex<HashMap<Uuid, ActivitiesSyncStatus>>>,
 }
@@ -54,30 +35,6 @@ impl AppState {
     /// Computes the cost in user quotas
     pub(crate) fn cost_to_user_quota(&self, real: f64) -> f64 {
         real * self.quota_markup_ratio
-    }
-
-    pub async fn parse_intervals(
-        &self,
-        streams: &[ActivityStream],
-        config: &IntervalConfig,
-        mas_kmh: Option<f64>,
-    ) -> Result<IntervalResult, intervals::error::IntervalError> {
-        let selected = *self.interval_algorithm.read().await;
-        match selected {
-            IntervalAlgorithm::AutoSpeed => {
-                let algorithm = intervals::AutoSpeedSegmentationAlgorithm;
-                intervals::parse_intervals_with_algorithm(&algorithm, streams, config, mas_kmh)
-            }
-            IntervalAlgorithm::ManualLap => Err(intervals::error::IntervalError::InsufficientData(
-                "Manual lap algorithm requires activity laps and is not wired in this code path yet"
-                    .to_string(),
-            )),
-        }
-    }
-
-    #[allow(dead_code)]
-    pub async fn set_interval_algorithm(&self, algorithm: IntervalAlgorithm) {
-        *self.interval_algorithm.write().await = algorithm;
     }
 
     /// Recompute MAS from current race-tagged activities and persist it.
