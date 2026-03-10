@@ -87,7 +87,7 @@ pub async fn build_insight_context(
         if streams.is_empty() {
             continue;
         }
-        match intervals::parse_intervals(&streams, &config, mas_kmh) {
+        match state.parse_intervals(&streams, &config, mas_kmh).await {
             Ok(result) if result.is_interval_workout => {
                 let mut desc = format!(
                     "### {} ({})\n{} reps:\n",

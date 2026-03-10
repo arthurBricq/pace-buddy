@@ -168,7 +168,7 @@ pub async fn get_intervals(
         streams = fetch_streams_from_strava(&state, &activity).await?;
     }
     let config = intervals::types::IntervalConfig::default();
-    match intervals::parse_intervals(&streams, &config, None) {
+    match state.parse_intervals(&streams, &config, None).await {
         Ok(result) => Ok(HttpResponse::Ok().json(result)),
         Err(e) => {
             log::warn!("Interval parsing failed for {activity_id}: {e}");
