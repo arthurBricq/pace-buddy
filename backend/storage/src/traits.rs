@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use domain::{
-    Activity, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError, ModelCostTier,
-    QuotaRequest, QuotaRequestStatus, RunningStats, StravaToken, Training, TrainingInsight, User,
+    Activity, ActivityLap, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError,
+    ModelCostTier, QuotaRequest, QuotaRequestStatus, RunningStats, StravaToken, Training,
+    TrainingInsight, User,
 };
 use uuid::Uuid;
 
@@ -57,6 +58,8 @@ pub trait Storage: Send + Sync {
     // Streams
     async fn store_streams(&self, streams: &[ActivityStream]) -> Result<(), DomainError>;
     async fn get_streams(&self, activity_id: Uuid) -> Result<Vec<ActivityStream>, DomainError>;
+    async fn store_laps(&self, laps: &[ActivityLap]) -> Result<(), DomainError>;
+    async fn get_laps(&self, activity_id: Uuid) -> Result<Vec<ActivityLap>, DomainError>;
 
     // Trainings
     async fn create_training(&self, training: &Training) -> Result<(), DomainError>;

@@ -47,6 +47,23 @@ pub struct WebhookSubscriptionResponse {
     pub callback_url: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct StravaLap {
+    pub id: i64,
+    pub name: Option<String>,
+    pub elapsed_time: i32,
+    pub moving_time: i32,
+    pub start_date: String,
+    pub distance: f64,
+    pub average_speed: f64,
+    pub max_speed: f64,
+    pub total_elevation_gain: f64,
+    pub average_heartrate: Option<f64>,
+    pub max_heartrate: Option<f64>,
+    pub split: Option<i32>,
+    pub lap_index: Option<i32>,
+}
+
 /// A single stream entry inside the keyed response: `{"data": [...], ...}`
 #[derive(Debug, Deserialize)]
 pub struct StravaStreamEntry {

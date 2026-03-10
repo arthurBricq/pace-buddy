@@ -170,7 +170,10 @@ impl StravaClient {
     }
 
     /// Delete a webhook subscription by id.
-    pub async fn delete_webhook_subscription(&self, subscription_id: i64) -> Result<(), DomainError> {
+    pub async fn delete_webhook_subscription(
+        &self,
+        subscription_id: i64,
+    ) -> Result<(), DomainError> {
         let url = format!(
             "https://www.strava.com/api/v3/push_subscriptions/{subscription_id}?client_id={}&client_secret={}",
             self.client_id, self.client_secret
@@ -300,5 +303,34 @@ impl StravaClient {
             .map_err(|e| DomainError::StravaApi(format!("Failed to read response body: {e}")))?;
 
         parse_streams_response(&text).map_err(DomainError::StravaApi)
+    }
+
+    /// Fetch laps for a specific activity.
+    pub async fn get_activity_laps(
+        &self,
+        access_token: &str,
+        activity_id: i64,
+    ) -> Result<Vec<StravaLap>, DomainError> {
+        let url = format!("https://www.strava.com/api/v3/activities/{activity_id}/laps");
+
+        let resp = self
+            .client
+            .get(&url)
+            .bearer_auth(access_token)
+            .send()
+            .await
+            .map_err(|e| DomainError::StravaApi(e.to_string()))?;
+
+        if resp.status() == 429 {
+            return Err(DomainError::StravaRateLimited);
+        }
+        if !resp.status().is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            return Err(DomainError::StravaApi(format!("Get laps failed: {text}")));
+        }
+
+        resp.json()
+            .await
+            .map_err(|e| DomainError::StravaApi(e.to_string()))
     }
 }

@@ -1,7 +1,7 @@
 use actix_web::web;
 use domain::DomainError;
 use storage::Storage;
-use strava_client::conversions::strava_streams_to_domain;
+use strava_client::conversions::{strava_laps_to_domain, strava_streams_to_domain};
 
 use crate::helpers::strava_token_helper::get_valid_access_token;
 use crate::state::AppState;
@@ -50,4 +50,32 @@ pub async fn fetch_streams_from_strava(
         .await?;
 
     Ok(strava_streams_to_domain(strava_streams, activity.id))
+}
+
+/// Fetch laps from Strava and cache them in DB.
+pub async fn load_and_cache_laps(
+    state: &web::Data<AppState>,
+    activity: &domain::Activity,
+) -> Result<Vec<domain::ActivityLap>, DomainError> {
+    let laps = fetch_laps_from_strava(state, activity).await?;
+    if !laps.is_empty() {
+        state.storage.store_laps(&laps).await?;
+    }
+    Ok(laps)
+}
+
+/// Fetch only laps from Strava.
+pub async fn fetch_laps_from_strava(
+    state: &web::Data<AppState>,
+    activity: &domain::Activity,
+) -> Result<Vec<domain::ActivityLap>, DomainError> {
+    let access_token =
+        get_valid_access_token(&state.storage, &state.strava_client, activity.user_id).await?;
+
+    let strava_laps = state
+        .strava_client
+        .get_activity_laps(&access_token, activity.strava_id)
+        .await?;
+
+    Ok(strava_laps_to_domain(strava_laps, activity.id))
 }

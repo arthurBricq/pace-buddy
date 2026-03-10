@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use domain::{
-    Activity, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError, ModelCostCategory,
-    ModelCostTier, QuotaRequest, QuotaRequestStatus, RunningStats, StravaToken, Training,
-    TrainingInsight, User,
+    Activity, ActivityLap, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError,
+    ModelCostCategory, ModelCostTier, QuotaRequest, QuotaRequestStatus, RunningStats, StravaToken,
+    Training, TrainingInsight, User,
 };
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow};
 use sqlx::Row;
@@ -109,6 +109,27 @@ impl SqliteStorage {
         .map_err(|e| {
             DomainError::Storage(format!("Failed to create activity_streams table: {e}"))
         })?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS activity_laps (
+                activity_id TEXT NOT NULL REFERENCES activities(id),
+                lap_index INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                start_date TEXT NOT NULL,
+                elapsed_time INTEGER NOT NULL,
+                moving_time INTEGER NOT NULL,
+                distance REAL NOT NULL,
+                average_speed REAL NOT NULL,
+                max_speed REAL NOT NULL,
+                total_elevation_gain REAL NOT NULL,
+                average_heartrate REAL,
+                max_heartrate REAL,
+                PRIMARY KEY (activity_id, lap_index)
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create activity_laps table: {e}")))?;
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS trainings (
@@ -457,6 +478,36 @@ fn row_to_activity_stream(row: &SqliteRow) -> Result<ActivityStream, DomainError
     })
 }
 
+fn row_to_activity_lap(row: &SqliteRow) -> Result<ActivityLap, DomainError> {
+    let activity_id: String = row.get("activity_id");
+    let lap_index: i32 = row.get("lap_index");
+    let name: String = row.get("name");
+    let start_date: String = row.get("start_date");
+    let elapsed_time: i32 = row.get("elapsed_time");
+    let moving_time: i32 = row.get("moving_time");
+    let distance: f64 = row.get("distance");
+    let average_speed: f64 = row.get("average_speed");
+    let max_speed: f64 = row.get("max_speed");
+    let total_elevation_gain: f64 = row.get("total_elevation_gain");
+    let average_heartrate: Option<f64> = row.get("average_heartrate");
+    let max_heartrate: Option<f64> = row.get("max_heartrate");
+
+    Ok(ActivityLap {
+        activity_id: parse_uuid(&activity_id)?,
+        lap_index,
+        name,
+        start_date: parse_datetime(&start_date)?,
+        elapsed_time,
+        moving_time,
+        distance,
+        average_speed,
+        max_speed,
+        total_elevation_gain,
+        average_heartrate,
+        max_heartrate,
+    })
+}
+
 fn row_to_training_insight(row: &SqliteRow) -> Result<TrainingInsight, DomainError> {
     let id: String = row.get("id");
     let training_id: String = row.get("training_id");
@@ -694,12 +745,17 @@ impl Storage for SqliteStorage {
             None => return Ok(()), // Activity doesn't exist locally, nothing to delete
         };
 
-        // Delete streams
+        // Delete streams/laps
         sqlx::query("DELETE FROM activity_streams WHERE activity_id = ?")
             .bind(&activity_id)
             .execute(&self.pool)
             .await
             .map_err(|e| DomainError::Storage(format!("Failed to delete streams: {e}")))?;
+        sqlx::query("DELETE FROM activity_laps WHERE activity_id = ?")
+            .bind(&activity_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to delete laps: {e}")))?;
 
         // Delete the activity
         sqlx::query("DELETE FROM activities WHERE id = ?")
@@ -714,7 +770,7 @@ impl Storage for SqliteStorage {
     async fn delete_strava_data(&self, user_id: Uuid) -> Result<(), DomainError> {
         let uid = user_id.to_string();
 
-        // Delete streams for this user's activities
+        // Delete streams/laps for this user's activities
         sqlx::query(
             "DELETE FROM activity_streams WHERE activity_id IN (SELECT id FROM activities WHERE user_id = ?)",
         )
@@ -722,6 +778,13 @@ impl Storage for SqliteStorage {
         .execute(&self.pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to delete streams: {e}")))?;
+        sqlx::query(
+            "DELETE FROM activity_laps WHERE activity_id IN (SELECT id FROM activities WHERE user_id = ?)",
+        )
+        .bind(&uid)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to delete laps: {e}")))?;
 
         // Delete activities
         sqlx::query("DELETE FROM activities WHERE user_id = ?")
@@ -972,6 +1035,75 @@ impl Storage for SqliteStorage {
         .map_err(|e| DomainError::Storage(format!("Failed to get streams: {e}")))?;
 
         rows.iter().map(row_to_activity_stream).collect()
+    }
+
+    async fn store_laps(&self, laps: &[ActivityLap]) -> Result<(), DomainError> {
+        if laps.is_empty() {
+            return Ok(());
+        }
+
+        let activity_id = laps[0].activity_id.to_string();
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to begin transaction: {e}")))?;
+
+        sqlx::query("DELETE FROM activity_laps WHERE activity_id = ?")
+            .bind(&activity_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to clear existing laps: {e}")))?;
+
+        for lap in laps {
+            sqlx::query(
+                "INSERT INTO activity_laps (
+                    activity_id, lap_index, name, start_date,
+                    elapsed_time, moving_time, distance,
+                    average_speed, max_speed, total_elevation_gain,
+                    average_heartrate, max_heartrate
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            )
+            .bind(lap.activity_id.to_string())
+            .bind(lap.lap_index)
+            .bind(&lap.name)
+            .bind(lap.start_date.to_rfc3339())
+            .bind(lap.elapsed_time)
+            .bind(lap.moving_time)
+            .bind(lap.distance)
+            .bind(lap.average_speed)
+            .bind(lap.max_speed)
+            .bind(lap.total_elevation_gain)
+            .bind(lap.average_heartrate)
+            .bind(lap.max_heartrate)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to store lap: {e}")))?;
+        }
+
+        tx.commit()
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to commit transaction: {e}")))?;
+
+        Ok(())
+    }
+
+    async fn get_laps(&self, activity_id: Uuid) -> Result<Vec<ActivityLap>, DomainError> {
+        let rows = sqlx::query(
+            "SELECT activity_id, lap_index, name, start_date,
+                    elapsed_time, moving_time, distance,
+                    average_speed, max_speed, total_elevation_gain,
+                    average_heartrate, max_heartrate
+             FROM activity_laps
+             WHERE activity_id = ?
+             ORDER BY lap_index ASC",
+        )
+        .bind(activity_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get laps: {e}")))?;
+
+        rows.iter().map(row_to_activity_lap).collect()
     }
 
     // -----------------------------------------------------------------------
@@ -1731,6 +1863,7 @@ impl SqliteStorage {
             "ai_chat_messages",
             "ai_chats",
             "training_insights",
+            "activity_laps",
             "activity_streams",
             "activities",
             "trainings",

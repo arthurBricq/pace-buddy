@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::errors::AppError;
 use crate::helpers::activity_sync_helper::sync_user_activities;
 use crate::helpers::strava_data_helper::{
-    fetch_polyline, fetch_streams_from_strava, load_and_cache_streams,
+    fetch_polyline, fetch_streams_from_strava, load_and_cache_laps, load_and_cache_streams,
 };
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
@@ -126,6 +126,19 @@ pub async fn get_activity(
         }
     }
 
+    // --- Laps: serve from cache, re-fetch if empty ---
+    let mut laps = state
+        .storage
+        .get_laps(activity_id)
+        .await
+        .unwrap_or_default();
+    if laps.is_empty() {
+        match load_and_cache_laps(&state, &activity).await {
+            Ok(l) => laps = l,
+            Err(e) => log::warn!("Failed to load laps for activity {activity_id}: {e}"),
+        }
+    }
+
     // --- Polyline: always fetch on demand (never persisted) ---
     if let Ok(polyline) = fetch_polyline(&state, &activity).await {
         activity.summary_polyline = polyline;
@@ -134,6 +147,7 @@ pub async fn get_activity(
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "activity": activity,
         "streams": streams,
+        "laps": laps,
     })))
 }
 

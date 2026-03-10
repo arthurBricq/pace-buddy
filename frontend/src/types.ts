@@ -67,9 +67,25 @@ export interface ActivityStream {
   data_json: string;
 }
 
+export interface ActivityLap {
+  activity_id: string;
+  lap_index: number;
+  name: string;
+  start_date: string;
+  elapsed_time: number;
+  moving_time: number;
+  distance: number;
+  average_speed: number;
+  max_speed: number;
+  total_elevation_gain: number;
+  average_heartrate: number | null;
+  max_heartrate: number | null;
+}
+
 export interface ActivityDetail {
   activity: Activity;
   streams: ActivityStream[];
+  laps: ActivityLap[];
 }
 
 export interface StravaStatus {

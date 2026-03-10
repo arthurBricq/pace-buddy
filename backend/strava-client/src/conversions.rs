@@ -1,8 +1,8 @@
 use chrono::{DateTime, Utc};
-use domain::{Activity, ActivityStream, ActivityTag};
+use domain::{Activity, ActivityLap, ActivityStream, ActivityTag};
 use uuid::Uuid;
 
-use crate::types::{StravaActivity, StravaStream};
+use crate::types::{StravaActivity, StravaLap, StravaStream};
 
 pub fn strava_activity_to_domain(sa: &StravaActivity, user_id: Uuid) -> Activity {
     let start_date = DateTime::parse_from_rfc3339(&sa.start_date)
@@ -53,6 +53,33 @@ pub fn strava_streams_to_domain(
                 stream_type: st,
                 data_json: s.data.to_string(),
             })
+        })
+        .collect()
+}
+
+pub fn strava_laps_to_domain(laps: Vec<StravaLap>, activity_id: Uuid) -> Vec<ActivityLap> {
+    laps.into_iter()
+        .enumerate()
+        .map(|(i, lap)| {
+            let lap_index = lap.lap_index.or(lap.split).unwrap_or(i as i32 + 1);
+            let start_date = DateTime::parse_from_rfc3339(&lap.start_date)
+                .map(|dt| dt.with_timezone(&Utc))
+                .unwrap_or_else(|_| Utc::now());
+
+            ActivityLap {
+                activity_id,
+                lap_index,
+                name: lap.name.unwrap_or_else(|| format!("Lap {lap_index}")),
+                start_date,
+                elapsed_time: lap.elapsed_time,
+                moving_time: lap.moving_time,
+                distance: lap.distance,
+                average_speed: lap.average_speed,
+                max_speed: lap.max_speed,
+                total_elevation_gain: lap.total_elevation_gain,
+                average_heartrate: lap.average_heartrate,
+                max_heartrate: lap.max_heartrate,
+            }
         })
         .collect()
 }

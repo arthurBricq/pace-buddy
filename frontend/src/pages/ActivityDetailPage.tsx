@@ -82,7 +82,7 @@ export default function ActivityDetailPage() {
     );
   }
 
-  const { activity, streams } = detail;
+  const { activity, streams, laps } = detail;
   const distanceStream = streams.find((s) => s.stream_type === 'distance');
   const timeStream = streams.find((s) => s.stream_type === 'time');
 
@@ -127,12 +127,13 @@ export default function ActivityDetailPage() {
           <IntervalRecap intervals={intervals} masCurrent={user?.mas_current ?? null} />
         )}
 
-        {streams.length > 0 && (
+        {(streams.length > 0 || laps.length > 0) && (
           <StreamChart
             streams={streams}
             distanceStream={distanceStream}
             timeStream={timeStream}
             segments={intervals?.segments}
+            laps={laps}
           />
         )}
       </div>

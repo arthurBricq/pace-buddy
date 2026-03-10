@@ -1,4 +1,6 @@
 import {
+  Bar,
+  BarChart,
   LineChart,
   Line,
   XAxis,
@@ -8,7 +10,7 @@ import {
   ResponsiveContainer,
   ReferenceArea,
 } from 'recharts';
-import type { ActivityStream, Segment, SegmentKind } from '../types';
+import type { ActivityLap, ActivityStream, Segment, SegmentKind } from '../types';
 
 const STREAM_COLORS: Record<string, string> = {
   heartrate: '#ef4444',
@@ -86,15 +88,16 @@ interface Props {
   timeStream?: ActivityStream;
   distanceStream?: ActivityStream;
   segments?: Segment[];
+  laps?: ActivityLap[];
 }
 
-export default function StreamChart({ streams, distanceStream, timeStream, segments }: Props) {
+export default function StreamChart({ streams, distanceStream, timeStream, segments, laps }: Props) {
   // Filter out non-chartable streams and exclude 'moving'
   const chartableStreams = streams.filter(
     (s) => !['time', 'distance', 'latlng', 'moving'].includes(s.stream_type),
   );
 
-  if (chartableStreams.length === 0) return null;
+  if (chartableStreams.length === 0 && (!laps || laps.length === 0)) return null;
 
   // Order streams: pace (velocity_smooth) first, then heartrate, then others
   const orderedStreams = [...chartableStreams].sort((a, b) => {
@@ -116,6 +119,17 @@ export default function StreamChart({ streams, distanceStream, timeStream, segme
   const segmentAreas = segments && segments.length > 0
     ? buildSegmentAreas(segments, timeData, distanceData)
     : [];
+
+  const lapData = [...(laps ?? [])]
+    .sort((a, b) => a.lap_index - b.lap_index)
+    .map((lap) => ({
+      lapIndex: lap.lap_index,
+      lapName: lap.name,
+      pace: speedToPace(lap.average_speed),
+      distanceKm: lap.distance / 1000,
+      durationS: lap.elapsed_time,
+    }))
+    .filter((lap) => lap.distanceKm > 0 && isFinite(lap.pace));
 
   return (
     <div className="space-y-6">
@@ -194,6 +208,41 @@ export default function StreamChart({ streams, distanceStream, timeStream, segme
           </div>
         );
       })}
+
+      {lapData.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-4">
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Manual Laps (Pace)</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={lapData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="lapIndex" tick={{ fontSize: 10 }} />
+              <YAxis
+                tick={{ fontSize: 10 }}
+                tickFormatter={(v: number) => formatPace(v)}
+                domain={['dataMin - 0.2', 'dataMax + 0.2']}
+                reversed
+              />
+              <Tooltip
+                formatter={(value, name, item) => {
+                  if (name === 'pace' && typeof value === 'number') {
+                    const payload = item?.payload as
+                      | { distanceKm?: number; durationS?: number }
+                      | undefined;
+                    const distanceKm = payload?.distanceKm ?? 0;
+                    const durationS = payload?.durationS ?? 0;
+                    return [
+                      `${formatPace(value)} • ${distanceKm.toFixed(2)} km • ${durationS}s`,
+                      'Lap',
+                    ];
+                  }
+                  return [value, name];
+                }}
+              />
+              <Bar dataKey="pace" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }
