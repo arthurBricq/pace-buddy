@@ -87,7 +87,8 @@ pub async fn build_insight_context(
         if streams.is_empty() {
             continue;
         }
-        match intervals::parse_intervals(&streams, &config, mas_kmh) {
+        let algorithm = intervals::AutoSpeedSegmentationAlgorithm;
+        match intervals::parse_intervals_with_algorithm(&algorithm, &streams, &config, mas_kmh) {
             Ok(result) if result.is_interval_workout => {
                 let mut desc = format!(
                     "### {} ({})\n{} reps:\n",

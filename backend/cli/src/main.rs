@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use intervals::types::IntervalConfig;
 use storage::Storage;
 use uuid::Uuid;
@@ -38,10 +38,20 @@ enum Command {
         /// MAS in km/h (optional, for %MAS computation)
         #[arg(long)]
         mas: Option<f64>,
+        /// Interval parsing algorithm
+        #[arg(long, value_enum, default_value_t = IntervalAlgorithmArg::SpeedBased)]
+        algorithm: IntervalAlgorithmArg,
         /// Output format: summary, json, debug
         #[arg(long, default_value = "summary")]
         format: String,
     },
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+#[value(rename_all = "snake_case")]
+enum IntervalAlgorithmArg {
+    SpeedBased,
+    ManualLaps,
 }
 
 #[tokio::main]
@@ -112,16 +122,34 @@ async fn main() -> anyhow::Result<()> {
         Command::Intervals {
             activity_id,
             mas,
+            algorithm,
             format,
         } => {
-            let streams = db.get_streams(activity_id).await?;
-            if streams.is_empty() {
-                anyhow::bail!("No streams found for activity {activity_id}");
-            }
-
             let config = IntervalConfig::default();
-            let result = intervals::parse_intervals(&streams, &config, mas)
-                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            let result = match algorithm {
+                IntervalAlgorithmArg::SpeedBased => {
+                    let streams = db.get_streams(activity_id).await?;
+                    if streams.is_empty() {
+                        anyhow::bail!("No streams found for activity {activity_id}");
+                    }
+                    let algorithm_impl = intervals::AutoSpeedSegmentationAlgorithm;
+                    intervals::parse_intervals_with_algorithm(
+                        &algorithm_impl,
+                        &streams,
+                        &config,
+                        mas,
+                    )
+                }
+                IntervalAlgorithmArg::ManualLaps => {
+                    let laps = db.get_laps(activity_id).await?;
+                    if laps.is_empty() {
+                        anyhow::bail!("No laps found for activity {activity_id}");
+                    }
+                    let algorithm_impl = intervals::ManualLapIntervalAlgorithm::new(&laps);
+                    intervals::parse_intervals_with_algorithm(&algorithm_impl, &[], &config, mas)
+                }
+            }
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
 
             match format.as_str() {
                 "json" => {

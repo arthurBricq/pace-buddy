@@ -38,21 +38,3 @@ pub fn parse_intervals_with_algorithm(
 ) -> Result<IntervalResult, IntervalError> {
     algorithm.parse(streams, config, mas_kmh)
 }
-
-/// Run the full interval parsing pipeline on raw activity streams.
-///
-/// - `streams`: raw ActivityStream objects from the database
-/// - `config`: tuning parameters (use `IntervalConfig::default()` for sensible defaults)
-/// - `mas_kmh`: optional Maximum Aerobic Speed in km/h (for %MAS computation)
-///
-/// Returns `IntervalResult` with segments, reps, and scoring.
-///
-/// This function uses the default `AutoSpeedSegmentationAlgorithm`.
-pub fn parse_intervals(
-    streams: &[ActivityStream],
-    config: &IntervalConfig,
-    mas_kmh: Option<f64>,
-) -> Result<IntervalResult, IntervalError> {
-    let algorithm = AutoSpeedSegmentationAlgorithm;
-    parse_intervals_with_algorithm(&algorithm, streams, config, mas_kmh)
-}

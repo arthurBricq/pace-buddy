@@ -181,6 +181,15 @@ fn build_synthetic_streams(cfg: &SyntheticSession) -> Vec<ActivityStream> {
     ]
 }
 
+fn parse_speed_algorithm(
+    streams: &[ActivityStream],
+    config: &IntervalConfig,
+    mas_kmh: Option<f64>,
+) -> crate::types::IntervalResult {
+    let algorithm = AutoSpeedSegmentationAlgorithm;
+    parse_intervals_with_algorithm(&algorithm, streams, config, mas_kmh).unwrap()
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -200,7 +209,7 @@ fn test_5x60s_jog_recovery() {
         seed: 42,
     });
     let config = IntervalConfig::default();
-    let result = parse_intervals(&streams, &config, Some(18.0)).unwrap();
+    let result = parse_speed_algorithm(&streams, &config, Some(18.0));
 
     assert!(
         result.is_interval_workout,
@@ -249,7 +258,7 @@ fn test_12x80s_stop_recovery() {
         seed: 123,
     });
     let config = IntervalConfig::default();
-    let result = parse_intervals(&streams, &config, Some(18.0)).unwrap();
+    let result = parse_speed_algorithm(&streams, &config, Some(18.0));
 
     assert!(
         result.is_interval_workout,
@@ -287,7 +296,7 @@ fn test_6x3min_jog_recovery() {
         seed: 999,
     });
     let config = IntervalConfig::default();
-    let result = parse_intervals(&streams, &config, None).unwrap();
+    let result = parse_speed_algorithm(&streams, &config, None);
 
     assert!(result.is_interval_workout);
     assert_eq!(
@@ -326,7 +335,7 @@ fn test_steady_run_not_intervals() {
     ];
 
     let config = IntervalConfig::default();
-    let result = parse_intervals(&streams, &config, None).unwrap();
+    let result = parse_speed_algorithm(&streams, &config, None);
 
     assert!(
         !result.is_interval_workout,
@@ -351,7 +360,7 @@ fn test_short_reps_strides() {
         seed: 7,
     });
     let config = IntervalConfig::default();
-    let result = parse_intervals(&streams, &config, None).unwrap();
+    let result = parse_speed_algorithm(&streams, &config, None);
 
     assert!(result.is_interval_workout);
     assert_eq!(
@@ -391,7 +400,7 @@ fn test_real_fixture(
         .unwrap_or_else(|e| panic!("Failed to parse fixture JSON: {}", e));
 
     let config = IntervalConfig::default();
-    let result = parse_intervals(&streams, &config, mas_kmh).unwrap();
+    let result = parse_speed_algorithm(&streams, &config, mas_kmh);
 
     // Print debug info for analysis
     eprintln!("=== Real {} fixture ===", fixture_file);

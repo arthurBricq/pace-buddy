@@ -221,7 +221,8 @@ pub async fn get_intervals(
             if streams.is_empty() {
                 streams = fetch_streams_from_strava(&state, &activity).await?;
             }
-            intervals::parse_intervals(&streams, &config, None)
+            let algorithm = intervals::AutoSpeedSegmentationAlgorithm;
+            intervals::parse_intervals_with_algorithm(&algorithm, &streams, &config, None)
         }
         IntervalAlgorithmSelection::ManualLaps => {
             let mut laps = state
