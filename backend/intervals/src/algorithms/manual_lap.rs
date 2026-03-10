@@ -37,7 +37,7 @@ impl IntervalParsingAlgorithm for ManualLapIntervalAlgorithm<'_> {
         laps.sort_by_key(|lap| lap.lap_index);
 
         let speeds: Vec<f64> = laps.iter().map(|lap| lap.average_speed.max(0.0)).collect();
-        let (cluster_low_mps, cluster_high_mps, threshold_speed_mps) = if speeds.len() >= 2 {
+        let (cluster_low_mps, cluster_high_mps, split_threshold_mps) = if speeds.len() >= 2 {
             stats::kmeans_k2(&speeds, 50)
         } else {
             let s = speeds[0];
@@ -47,6 +47,10 @@ impl IntervalParsingAlgorithm for ManualLapIntervalAlgorithm<'_> {
         // If low/high clusters are too close, this likely isn't an interval split.
         let min_cluster_gap = (config.hysteresis_delta_mps * 2.0).max(0.25);
         let has_work_recovery_split = (cluster_high_mps - cluster_low_mps) >= min_cluster_gap;
+        // Midpoint can be too permissive when recoveries are very slow.
+        // Require laps to be clearly in the high-speed cluster to be "work".
+        let work_threshold_mps =
+            split_threshold_mps + (cluster_high_mps - split_threshold_mps) * 0.35;
 
         let mut t_cursor = 0.0;
         let mut segments = Vec::with_capacity(laps.len());
@@ -56,7 +60,7 @@ impl IntervalParsingAlgorithm for ManualLapIntervalAlgorithm<'_> {
             let distance_m = lap.distance.max(0.0);
             let avg_speed_mps = lap.average_speed.max(0.0);
             let is_work = has_work_recovery_split
-                && avg_speed_mps >= threshold_speed_mps
+                && avg_speed_mps >= work_threshold_mps
                 && duration_s >= config.min_work_duration_s
                 && distance_m >= config.min_work_distance_m;
 
@@ -82,6 +86,22 @@ impl IntervalParsingAlgorithm for ManualLapIntervalAlgorithm<'_> {
             });
         }
 
+        // Guard against a common false positive:
+        // an easy opening lap classified as work just because midpoint threshold is low.
+        if matches!(segments.first().map(|s| s.kind), Some(SegmentKind::Work)) {
+            let work_speeds: Vec<f64> = segments
+                .iter()
+                .filter(|s| s.kind == SegmentKind::Work)
+                .map(|s| s.avg_speed_mps)
+                .collect();
+            if work_speeds.len() >= 2 {
+                let median_work_speed = stats::median(&work_speeds);
+                if median_work_speed > 0.0 && segments[0].avg_speed_mps < median_work_speed * 0.85 {
+                    segments[0].kind = SegmentKind::Recovery;
+                }
+            }
+        }
+
         label_lap_warmup_cooldown(&mut segments, config);
 
         let mut reps_list = build_reps_from_work_segments(&segments);
@@ -96,7 +116,7 @@ impl IntervalParsingAlgorithm for ManualLapIntervalAlgorithm<'_> {
             reps: reps_list,
             is_interval_workout,
             interval_score,
-            threshold_speed_mps,
+            threshold_speed_mps: work_threshold_mps,
             cluster_low_mps,
             cluster_high_mps,
         })

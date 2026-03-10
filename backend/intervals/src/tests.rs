@@ -527,3 +527,31 @@ fn test_manual_lap_algorithm_steady_run() {
     assert!(!result.is_interval_workout);
     assert!(result.reps.is_empty());
 }
+
+#[test]
+fn test_manual_lap_algorithm_does_not_count_warmup_as_rep() {
+    // Mirrors a 4x2k workout where recoveries are very slow and midpoint thresholding
+    // can incorrectly classify the opening warmup lap as work.
+    let laps = vec![
+        make_lap(1, 1292, 3469.0, 2.69, 4.1), // warmup (should not be work)
+        make_lap(2, 466, 2049.0, 4.40, 5.1),  // work
+        make_lap(3, 118, 65.0, 0.55, 1.4),    // recovery
+        make_lap(4, 457, 2029.0, 4.44, 5.1),  // work
+        make_lap(5, 119, 67.0, 0.56, 1.4),    // recovery
+        make_lap(6, 452, 2041.0, 4.52, 5.2),  // work
+        make_lap(7, 121, 69.0, 0.57, 1.4),    // recovery
+        make_lap(8, 473, 2047.0, 4.33, 5.0),  // work
+        make_lap(9, 747, 1541.0, 2.06, 3.2),  // cooldown
+    ];
+
+    let algorithm = ManualLapIntervalAlgorithm::new(&laps);
+    let config = IntervalConfig::default();
+    let result = parse_intervals_with_algorithm(&algorithm, &[], &config, None).unwrap();
+
+    assert!(result.is_interval_workout);
+    assert_eq!(result.reps.len(), 4);
+    assert!(matches!(
+        result.segments.first().map(|s| s.kind),
+        Some(crate::types::SegmentKind::Warmup)
+    ));
+}
