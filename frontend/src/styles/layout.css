@@ -658,6 +658,10 @@
       align-self: flex-end;
     }
 
+    .chat-context-overlay {
+      display: none;
+    }
+
     .chat-context-drawer {
       position: static;
       z-index: auto;

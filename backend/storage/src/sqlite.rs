@@ -46,18 +46,6 @@ impl SqliteStorage {
         .map_err(|e| DomainError::Storage(format!("Failed to create users table: {e}")))?;
 
         sqlx::query(
-            "CREATE TABLE IF NOT EXISTS passkeys (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id TEXT NOT NULL REFERENCES users(id),
-                passkey_json TEXT NOT NULL,
-                created_at TEXT NOT NULL DEFAULT (datetime('now'))
-            )",
-        )
-        .execute(pool)
-        .await
-        .map_err(|e| DomainError::Storage(format!("Failed to create passkeys table: {e}")))?;
-
-        sqlx::query(
             "CREATE TABLE IF NOT EXISTS strava_tokens (
                 user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id),
                 strava_athlete_id INTEGER NOT NULL,
@@ -619,31 +607,6 @@ impl Storage for SqliteStorage {
         .ok_or_else(|| DomainError::NotFound(format!("User email '{email}' not found")))?;
 
         row_to_user(&row)
-    }
-
-    // -----------------------------------------------------------------------
-    // Passkeys
-    // -----------------------------------------------------------------------
-    async fn store_passkey(&self, user_id: Uuid, passkey_json: &str) -> Result<(), DomainError> {
-        sqlx::query("INSERT INTO passkeys (user_id, passkey_json) VALUES (?, ?)")
-            .bind(user_id.to_string())
-            .bind(passkey_json)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| DomainError::Storage(format!("Failed to store passkey: {e}")))?;
-
-        Ok(())
-    }
-
-    async fn get_passkeys_for_user(&self, user_id: Uuid) -> Result<Vec<String>, DomainError> {
-        let rows = sqlx::query("SELECT passkey_json FROM passkeys WHERE user_id = ?")
-            .bind(user_id.to_string())
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| DomainError::Storage(format!("Failed to get passkeys: {e}")))?;
-
-        let passkeys: Vec<String> = rows.iter().map(|r| r.get("passkey_json")).collect();
-        Ok(passkeys)
     }
 
     // -----------------------------------------------------------------------
@@ -1773,7 +1736,6 @@ impl SqliteStorage {
             "trainings",
             "quota_requests",
             "model_cost_tiers",
-            "passkeys",
             "strava_tokens",
             "users",
         ] {

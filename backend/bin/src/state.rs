@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::helpers::mas_estimator::{list_race_activities, LastRaceEstimator, MasEstimator};
-use auth::{JwtService, WebAuthnService};
+use auth::JwtService;
 use domain::DomainError;
 use llm::open_router::OpenRouterClient;
 use storage::{SqliteStorage, Storage};
@@ -20,7 +20,6 @@ pub enum ActivitiesSyncStatus {
 pub struct AppState {
     pub storage: Arc<SqliteStorage>,
     pub strava_client: Arc<StravaClient>,
-    pub webauthn: Arc<WebAuthnService>,
     pub jwt: Arc<JwtService>,
     pub frontend_url: String,
     pub llm_client: Option<Arc<OpenRouterClient>>,

@@ -11,7 +11,7 @@ use actix_cors::Cors;
 use actix_web::{web, App, HttpServer};
 use clap::Parser;
 
-use auth::{JwtService, WebAuthnService};
+use auth::JwtService;
 use storage::SqliteStorage;
 use strava_client::StravaClient;
 
@@ -92,9 +92,6 @@ async fn main() -> std::io::Result<()> {
         }
     }
 
-    let webauthn = WebAuthnService::new(&cfg.webauthn_rp_id, &cfg.webauthn_rp_origin)
-        .expect("Failed to initialize WebAuthn");
-
     let jwt = JwtService::new(&cfg.jwt_secret);
 
     let strava_client = StravaClient::new(
@@ -137,7 +134,6 @@ async fn main() -> std::io::Result<()> {
     let app_state = web::Data::new(AppState {
         storage,
         strava_client: Arc::clone(&strava_client),
-        webauthn: Arc::new(webauthn),
         jwt: Arc::new(jwt),
         frontend_url: cfg.frontend_url.clone(),
         llm_client,

@@ -12,7 +12,7 @@ Here is the high-level architecture of the project:
   frontend is written in React.
 - We use Strava as the source of data with their API. All of the data loaded from strava is stored in a sqlite
   database, as to avoid the need to fetch many times the same data.
-- The registration is done merely via passkeys, as to avoid the need to store any sensitive data like passwords.
+- Authentication and account linking are done via Strava OAuth; no local password or passkey flow is required.
 
 # Features
 

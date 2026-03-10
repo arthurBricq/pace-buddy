@@ -327,12 +327,14 @@ export default function AiChatPage() {
         {/* Context panel */}
         {isContextVisible && id && (
           <>
-            <button
-              type="button"
-              className="chat-context-overlay"
-              aria-label="Close context panel"
-              onClick={() => setShowContext(false)}
-            />
+            {!isDesktop && showContext && (
+              <button
+                type="button"
+                className="chat-context-overlay"
+                aria-label="Close context panel"
+                onClick={() => setShowContext(false)}
+              />
+            )}
             <ContextPanel chatId={id} onContextAdded={loadChat} onClose={() => setShowContext(false)} />
           </>
         )}

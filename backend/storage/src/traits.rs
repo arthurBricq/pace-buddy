@@ -19,10 +19,6 @@ pub trait Storage: Send + Sync {
     async fn upsert_model_cost_tiers(&self, tiers: &[ModelCostTier]) -> Result<(), DomainError>;
     async fn list_model_cost_tiers(&self) -> Result<Vec<ModelCostTier>, DomainError>;
 
-    // Passkeys - store as JSON text
-    async fn store_passkey(&self, user_id: Uuid, passkey_json: &str) -> Result<(), DomainError>;
-    async fn get_passkeys_for_user(&self, user_id: Uuid) -> Result<Vec<String>, DomainError>;
-
     // Strava tokens
     async fn upsert_strava_token(&self, token: &StravaToken) -> Result<(), DomainError>;
     async fn get_strava_token(&self, user_id: Uuid) -> Result<StravaToken, DomainError>;

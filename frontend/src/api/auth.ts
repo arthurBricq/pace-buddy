@@ -1,40 +1,6 @@
 import { apiFetch } from './client';
 import type { User, ProfileResponse, QuotaStatus, QuotaRequestRecord, MASEstimate } from '../types';
 
-export async function registerStart(username: string, email?: string) {
-  return apiFetch<{ user_id: string; options: PublicKeyCredentialCreationOptions }>(
-    '/auth/register/start',
-    {
-      method: 'POST',
-      body: JSON.stringify({ username, email }),
-    },
-  );
-}
-
-export async function registerFinish(userId: string, credential: unknown) {
-  return apiFetch<{ status: string }>('/auth/register/finish', {
-    method: 'POST',
-    body: JSON.stringify({ user_id: userId, credential }),
-  });
-}
-
-export async function loginStart() {
-  return apiFetch<{ auth_id: string; options: PublicKeyCredentialRequestOptions }>(
-    '/auth/login/start',
-    {
-      method: 'POST',
-      body: JSON.stringify({}),
-    },
-  );
-}
-
-export async function loginFinish(authId: string, credential: unknown) {
-  return apiFetch<{ status: string }>('/auth/login/finish', {
-    method: 'POST',
-    body: JSON.stringify({ auth_id: authId, credential }),
-  });
-}
-
 export async function startStravaAuth() {
   return apiFetch<{ url: string }>('/auth/strava/start', { method: 'POST' });
 }

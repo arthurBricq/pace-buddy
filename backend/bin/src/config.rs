@@ -6,12 +6,6 @@ pub struct Config {
     pub database_url: String,
     /// Secret used to sign and verify JWT session tokens. Env: `JWT_SECRET`.
     pub jwt_secret: String,
-    /// WebAuthn Relying Party identifier (typically the hostname). Env: `WEBAUTHN_RP_ID`.
-    /// Derived from `BASE_URL` if not set.
-    pub webauthn_rp_id: String,
-    /// WebAuthn Relying Party origin (full URL). Env: `WEBAUTHN_RP_ORIGIN`.
-    /// Derived from `BASE_URL` if not set.
-    pub webauthn_rp_origin: String,
     /// Strava OAuth2 client ID. Env: `STRAVA_CLIENT_ID`, or read from `strava_client_id` file.
     pub strava_client_id: String,
     /// Strava OAuth2 client secret. Env: `STRAVA_CLIENT_SECRET`, or read from `strava_client_secret` file.
@@ -31,8 +25,8 @@ pub struct Config {
     /// Verification token for Strava webhook subscription validation.
     /// Env: `STRAVA_WEBHOOK_VERIFY_TOKEN`. `None` disables webhook setup.
     pub strava_webhook_verify_token: Option<String>,
-    /// Unified base URL that derives defaults for `frontend_url`, `webauthn_rp_origin`,
-    /// `strava_redirect_uri`, and `webauthn_rp_id`. Env: `BASE_URL`.
+    /// Unified base URL that derives defaults for `frontend_url` and `strava_redirect_uri`.
+    /// Env: `BASE_URL`.
     pub base_url: Option<String>,
     /// Strava athlete ID of the admin user. Env: `ADMIN_STRAVA_ATHLETE_ID`.
     /// `None` disables the admin dashboard for all users.
@@ -44,7 +38,7 @@ pub struct Config {
 
 impl Config {
     pub fn from_env() -> Self {
-        // BASE_URL unifies FRONTEND_URL, WEBAUTHN_RP_ORIGIN, STRAVA_REDIRECT_URI, and WEBAUTHN_RP_ID.
+        // BASE_URL unifies FRONTEND_URL and STRAVA_REDIRECT_URI.
         // Example: BASE_URL=https://myapp.fly.dev
         // Individual env vars still take precedence for flexibility.
         let base_url = env::var("BASE_URL").ok();
@@ -53,12 +47,6 @@ impl Config {
             .as_deref()
             .unwrap_or("https://pace-buddy:5173")
             .to_string();
-
-        let default_rp_id = base_url
-            .as_deref()
-            .and_then(|u| u.split("://").nth(1))
-            .map(|host| host.split(':').next().unwrap_or(host).to_string())
-            .unwrap_or_else(|| "pace-buddy".to_string());
 
         let default_redirect_uri = base_url
             .as_deref()
@@ -70,8 +58,6 @@ impl Config {
                 .unwrap_or_else(|_| "sqlite:data.db?mode=rwc".to_string()),
             jwt_secret: env::var("JWT_SECRET")
                 .unwrap_or_else(|_| "dev-secret-change-in-production".to_string()),
-            webauthn_rp_id: env::var("WEBAUTHN_RP_ID").unwrap_or(default_rp_id),
-            webauthn_rp_origin: env::var("WEBAUTHN_RP_ORIGIN").unwrap_or(default_origin.clone()),
             strava_client_id: env::var("STRAVA_CLIENT_ID").unwrap_or_else(|_| {
                 fs::read_to_string("strava_client_id")
                     .unwrap_or_default()
