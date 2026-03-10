@@ -1,5 +1,5 @@
 use super::*;
-use domain::{ActivityStream, StreamType};
+use domain::{ActivityLap, ActivityStream, StreamType};
 use uuid::Uuid;
 
 fn make_stream(stream_type: StreamType, data_json: &str) -> ActivityStream {
@@ -453,4 +453,68 @@ fn test_real_8x800m() {
 #[test]
 fn test_real_5x1000m() {
     test_real_fixture("4x2k@04:15.json", 4, 1800.0, 2200., None);
+}
+
+fn make_lap(
+    lap_index: i32,
+    elapsed_time: i32,
+    distance: f64,
+    avg_speed: f64,
+    max_speed: f64,
+) -> ActivityLap {
+    ActivityLap {
+        activity_id: Uuid::nil(),
+        lap_index,
+        name: format!("Lap {lap_index}"),
+        start_date: "2026-01-01T10:00:00Z".parse().unwrap(),
+        elapsed_time,
+        moving_time: elapsed_time,
+        distance,
+        average_speed: avg_speed,
+        max_speed,
+        total_elevation_gain: 0.0,
+        average_heartrate: Some(165.0),
+        max_heartrate: Some(175.0),
+    }
+}
+
+#[test]
+fn test_manual_lap_algorithm_detects_intervals() {
+    let laps = vec![
+        make_lap(1, 420, 1200.0, 2.9, 3.2), // warmup
+        make_lap(2, 90, 420.0, 4.7, 5.0),   // work
+        make_lap(3, 90, 250.0, 2.8, 3.1),   // recovery
+        make_lap(4, 90, 425.0, 4.8, 5.1),   // work
+        make_lap(5, 90, 260.0, 2.9, 3.2),   // recovery
+        make_lap(6, 90, 430.0, 4.9, 5.2),   // work
+        make_lap(7, 90, 255.0, 2.8, 3.1),   // recovery
+        make_lap(8, 90, 435.0, 4.8, 5.1),   // work
+        make_lap(9, 360, 1000.0, 2.8, 3.1), // cooldown
+    ];
+
+    let algorithm = ManualLapIntervalAlgorithm::new(&laps);
+    let config = IntervalConfig::default();
+    let result = parse_intervals_with_algorithm(&algorithm, &[], &config, Some(18.0)).unwrap();
+
+    assert!(result.is_interval_workout);
+    assert_eq!(result.reps.len(), 4);
+    assert!(result.reps.iter().all(|rep| rep.pct_mas.is_some()));
+}
+
+#[test]
+fn test_manual_lap_algorithm_steady_run() {
+    let laps = vec![
+        make_lap(1, 300, 1000.0, 3.45, 3.7),
+        make_lap(2, 300, 1000.0, 3.47, 3.7),
+        make_lap(3, 300, 1000.0, 3.49, 3.8),
+        make_lap(4, 300, 1000.0, 3.44, 3.7),
+        make_lap(5, 300, 1000.0, 3.46, 3.7),
+    ];
+
+    let algorithm = ManualLapIntervalAlgorithm::new(&laps);
+    let config = IntervalConfig::default();
+    let result = parse_intervals_with_algorithm(&algorithm, &[], &config, None).unwrap();
+
+    assert!(!result.is_interval_workout);
+    assert!(result.reps.is_empty());
 }

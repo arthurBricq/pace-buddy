@@ -19,15 +19,18 @@ pub enum ActivitiesSyncStatus {
     Failed(String),
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug)]
 pub enum IntervalAlgorithm {
     AutoSpeed,
+    ManualLap,
 }
 
 impl IntervalAlgorithm {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::AutoSpeed => "auto_speed",
+            Self::ManualLap => "manual_lap",
         }
     }
 }
@@ -65,6 +68,10 @@ impl AppState {
                 let algorithm = intervals::AutoSpeedSegmentationAlgorithm;
                 intervals::parse_intervals_with_algorithm(&algorithm, streams, config, mas_kmh)
             }
+            IntervalAlgorithm::ManualLap => Err(intervals::error::IntervalError::InsufficientData(
+                "Manual lap algorithm requires activity laps and is not wired in this code path yet"
+                    .to_string(),
+            )),
         }
     }
 
