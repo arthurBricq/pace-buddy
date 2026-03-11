@@ -138,14 +138,26 @@ export default function ActivityDetailPage() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Interval Algorithm
             </label>
-            <select
-              value={intervalAlgorithm}
-              onChange={(e) => setIntervalAlgorithm(e.target.value as IntervalAlgorithm)}
-              className="w-full sm:w-auto rounded border border-gray-300 px-3 py-2 text-sm bg-white"
-            >
-              <option value="speed_based">Speed based</option>
-              <option value="manual_laps">Manual laps</option>
-            </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-md">
+              <button
+                type="button"
+                onClick={() => setIntervalAlgorithm('speed_based')}
+                className={`theme-toggle-btn ${
+                  intervalAlgorithm === 'speed_based' ? 'theme-toggle-btn-active' : ''
+                }`}
+              >
+                Speed based
+              </button>
+              <button
+                type="button"
+                onClick={() => setIntervalAlgorithm('manual_laps')}
+                className={`theme-toggle-btn ${
+                  intervalAlgorithm === 'manual_laps' ? 'theme-toggle-btn-active' : ''
+                }`}
+              >
+                Manual laps
+              </button>
+            </div>
           </div>
         )}
 
