@@ -10,6 +10,9 @@ use strava_client::StravaClient;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
+/// Helpers related to intervals
+pub(crate) mod intervals;
+
 #[derive(Clone, Debug)]
 pub enum ActivitiesSyncStatus {
     Running,

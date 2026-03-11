@@ -8,7 +8,6 @@ use storage::Storage;
 use uuid::Uuid;
 
 use crate::helpers::runner_profile_helper;
-use crate::helpers::strava_data_helper::fetch_streams_from_strava;
 use crate::state::AppState;
 
 pub const DEFAULT_LLM_MODEL: &str = "google/gemini-2.5-flash";
@@ -45,7 +44,6 @@ pub async fn build_insight_context(
         .await?;
 
     // Build interval descriptions for each activity
-    let config = intervals::types::IntervalConfig::default();
     let mut interval_descriptions = Vec::new();
     let mut long_run_descriptions = Vec::new();
     for activity in &training_activities {
@@ -70,26 +68,9 @@ pub async fn build_insight_context(
             ));
         }
 
-        let mut streams = state
-            .storage
-            .get_streams(activity.id)
-            .await
-            .unwrap_or_default();
-        if streams.is_empty() {
-            streams = match fetch_streams_from_strava(state, activity).await {
-                Ok(s) => s,
-                Err(e) => {
-                    log::warn!("Failed to fetch streams for activity {}: {e}", activity.id);
-                    continue;
-                }
-            };
-        }
-        if streams.is_empty() {
-            continue;
-        }
-        let algorithm = intervals::AutoSpeedSegmentationAlgorithm;
-        match intervals::parse_intervals_with_algorithm(&algorithm, &streams, &config, mas_kmh) {
-            Ok(result) if result.is_interval_workout => {
+        match state.resolve_intervals(activity, None, mas_kmh).await {
+            Ok(resolution) if resolution.result.is_interval_workout => {
+                let result = resolution.result;
                 let mut desc = format!(
                     "### {} ({})\n{} reps:\n",
                     activity.name,
@@ -118,7 +99,13 @@ pub async fn build_insight_context(
                 }
                 interval_descriptions.push(desc);
             }
-            _ => {}
+            Ok(_) => {}
+            Err(e) => {
+                log::warn!(
+                    "Failed to resolve intervals for activity {} in insight builder: {e}",
+                    activity.id
+                );
+            }
         }
     }
 
