@@ -132,6 +132,22 @@ impl SqliteStorage {
         .map_err(|e| DomainError::Storage(format!("Failed to create activity_laps table: {e}")))?;
 
         sqlx::query(
+            "CREATE TABLE IF NOT EXISTS activity_interval_results (
+                activity_id TEXT PRIMARY KEY NOT NULL REFERENCES activities(id),
+                algorithm TEXT NOT NULL,
+                result_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!(
+                "Failed to create activity_interval_results table: {e}"
+            ))
+        })?;
+
+        sqlx::query(
             "CREATE TABLE IF NOT EXISTS trainings (
                 id TEXT PRIMARY KEY NOT NULL,
                 user_id TEXT NOT NULL REFERENCES users(id),
@@ -756,6 +772,11 @@ impl Storage for SqliteStorage {
             .execute(&self.pool)
             .await
             .map_err(|e| DomainError::Storage(format!("Failed to delete laps: {e}")))?;
+        sqlx::query("DELETE FROM activity_interval_results WHERE activity_id = ?")
+            .bind(&activity_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to delete interval result: {e}")))?;
 
         // Delete the activity
         sqlx::query("DELETE FROM activities WHERE id = ?")
@@ -785,6 +806,13 @@ impl Storage for SqliteStorage {
         .execute(&self.pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to delete laps: {e}")))?;
+        sqlx::query(
+            "DELETE FROM activity_interval_results WHERE activity_id IN (SELECT id FROM activities WHERE user_id = ?)",
+        )
+        .bind(&uid)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to delete interval results: {e}")))?;
 
         // Delete activities
         sqlx::query("DELETE FROM activities WHERE user_id = ?")
@@ -997,11 +1025,13 @@ impl Storage for SqliteStorage {
             .await
             .map_err(|e| DomainError::Storage(format!("Failed to begin transaction: {e}")))?;
 
+        let mut activity_ids: std::collections::HashSet<Uuid> = std::collections::HashSet::new();
         for stream in streams {
             // Never persist GPS data
             if stream.stream_type == domain::StreamType::LatLng {
                 continue;
             }
+            activity_ids.insert(stream.activity_id);
             sqlx::query(
                 "INSERT INTO activity_streams (activity_id, stream_type, data_json)
                  VALUES (?, ?, ?)
@@ -1014,6 +1044,18 @@ impl Storage for SqliteStorage {
             .execute(&mut *tx)
             .await
             .map_err(|e| DomainError::Storage(format!("Failed to store stream: {e}")))?;
+        }
+
+        for activity_id in activity_ids {
+            sqlx::query("DELETE FROM activity_interval_results WHERE activity_id = ?")
+                .bind(activity_id.to_string())
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| {
+                    DomainError::Storage(format!(
+                        "Failed to invalidate parsed intervals after stream update: {e}"
+                    ))
+                })?;
         }
 
         tx.commit()
@@ -1054,6 +1096,15 @@ impl Storage for SqliteStorage {
             .execute(&mut *tx)
             .await
             .map_err(|e| DomainError::Storage(format!("Failed to clear existing laps: {e}")))?;
+        sqlx::query("DELETE FROM activity_interval_results WHERE activity_id = ?")
+            .bind(&activity_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| {
+                DomainError::Storage(format!(
+                    "Failed to invalidate parsed intervals after lap update: {e}"
+                ))
+            })?;
 
         for lap in laps {
             sqlx::query(
@@ -1104,6 +1155,46 @@ impl Storage for SqliteStorage {
         .map_err(|e| DomainError::Storage(format!("Failed to get laps: {e}")))?;
 
         rows.iter().map(row_to_activity_lap).collect()
+    }
+
+    async fn store_interval_result(
+        &self,
+        activity_id: Uuid,
+        algorithm: &str,
+        result_json: &str,
+    ) -> Result<(), DomainError> {
+        sqlx::query(
+            "INSERT INTO activity_interval_results (activity_id, algorithm, result_json, updated_at)
+             VALUES (?, ?, ?, ?)
+             ON CONFLICT(activity_id) DO UPDATE SET
+                algorithm = excluded.algorithm,
+                result_json = excluded.result_json,
+                updated_at = excluded.updated_at",
+        )
+        .bind(activity_id.to_string())
+        .bind(algorithm)
+        .bind(result_json)
+        .bind(Utc::now().to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to store interval result: {e}")))?;
+
+        Ok(())
+    }
+
+    async fn get_interval_result(
+        &self,
+        activity_id: Uuid,
+    ) -> Result<Option<(String, String)>, DomainError> {
+        sqlx::query_as::<_, (String, String)>(
+            "SELECT algorithm, result_json
+             FROM activity_interval_results
+             WHERE activity_id = ?",
+        )
+        .bind(activity_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get interval result: {e}")))
     }
 
     // -----------------------------------------------------------------------
@@ -1863,6 +1954,7 @@ impl SqliteStorage {
             "ai_chat_messages",
             "ai_chats",
             "training_insights",
+            "activity_interval_results",
             "activity_laps",
             "activity_streams",
             "activities",

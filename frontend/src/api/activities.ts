@@ -1,7 +1,5 @@
 import { apiFetch } from './client';
-import type { Activity, ActivityDetail, IntervalResult } from '../types';
-
-export type IntervalAlgorithm = 'speed_based' | 'manual_laps';
+import type { Activity, ActivityDetail, IntervalAlgorithm, IntervalResponse } from '../types';
 
 export async function syncActivities(after?: number, before?: number) {
   return apiFetch<{ synced: number; already_running?: boolean }>('/activities/sync', {
@@ -24,8 +22,9 @@ export async function getActivity(id: string) {
   return apiFetch<ActivityDetail>(`/activities/${id}`);
 }
 
-export async function getIntervals(id: string, algorithm: IntervalAlgorithm = 'speed_based') {
-  return apiFetch<IntervalResult>(`/activities/${id}/intervals?algorithm=${algorithm}`);
+export async function getIntervals(id: string, algorithm?: IntervalAlgorithm) {
+  const query = algorithm ? `?algorithm=${algorithm}` : '';
+  return apiFetch<IntervalResponse>(`/activities/${id}/intervals${query}`);
 }
 
 export async function updateActivityTag(id: string, tag: string) {

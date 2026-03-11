@@ -60,6 +60,16 @@ pub trait Storage: Send + Sync {
     async fn get_streams(&self, activity_id: Uuid) -> Result<Vec<ActivityStream>, DomainError>;
     async fn store_laps(&self, laps: &[ActivityLap]) -> Result<(), DomainError>;
     async fn get_laps(&self, activity_id: Uuid) -> Result<Vec<ActivityLap>, DomainError>;
+    async fn store_interval_result(
+        &self,
+        activity_id: Uuid,
+        algorithm: &str,
+        result_json: &str,
+    ) -> Result<(), DomainError>;
+    async fn get_interval_result(
+        &self,
+        activity_id: Uuid,
+    ) -> Result<Option<(String, String)>, DomainError>;
 
     // Trainings
     async fn create_training(&self, training: &Training) -> Result<(), DomainError>;

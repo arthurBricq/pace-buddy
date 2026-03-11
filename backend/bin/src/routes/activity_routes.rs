@@ -1,5 +1,5 @@
 use actix_web::{web, HttpResponse};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use storage::Storage;
 use uuid::Uuid;
 
@@ -167,13 +167,15 @@ enum IntervalAlgorithmSelection {
     ManualLaps,
 }
 
+impl Default for IntervalAlgorithmSelection {
+    fn default() -> Self {
+        Self::SpeedBased
+    }
+}
+
 impl IntervalAlgorithmSelection {
-    fn from_query(raw: Option<&str>) -> Result<Self, DomainError> {
-        match raw
-            .map(|s| s.trim().to_ascii_lowercase())
-            .as_deref()
-            .unwrap_or("speed_based")
-        {
+    fn from_str(raw: &str) -> Result<Self, DomainError> {
+        match raw.trim().to_ascii_lowercase().as_str() {
             "speed_based" | "auto_speed" => Ok(Self::SpeedBased),
             "manual_laps" | "manual_lap" => Ok(Self::ManualLaps),
             other => Err(DomainError::BadRequest(format!(
@@ -190,6 +192,13 @@ impl IntervalAlgorithmSelection {
     }
 }
 
+#[derive(Serialize)]
+struct IntervalResponse {
+    algorithm: String,
+    #[serde(flatten)]
+    result: intervals::types::IntervalResult,
+}
+
 pub async fn get_intervals(
     state: web::Data<AppState>,
     user: AuthenticatedUser,
@@ -197,11 +206,18 @@ pub async fn get_intervals(
     query: web::Query<IntervalsQuery>,
 ) -> Result<HttpResponse, AppError> {
     let activity_id = path.into_inner();
-    let algorithm = IntervalAlgorithmSelection::from_query(query.algorithm.as_deref())?;
+    let requested_algorithm = query
+        .algorithm
+        .as_deref()
+        .map(IntervalAlgorithmSelection::from_str)
+        .transpose()?;
+
     log::info!(
         "GET /activities/{activity_id}/intervals user={} algorithm={}",
         user.user_id,
-        algorithm.as_str()
+        requested_algorithm
+            .map(|a| a.as_str())
+            .unwrap_or("<from-cache-or-default>")
     );
 
     let activity = state
@@ -209,8 +225,74 @@ pub async fn get_intervals(
         .get_activity(activity_id, user.user_id)
         .await?;
 
+    let cached = state.storage.get_interval_result(activity_id).await?;
+    let selected_algorithm = if let Some(requested) = requested_algorithm {
+        if let Some((cached_algorithm, cached_result_json)) = cached.as_ref() {
+            if cached_algorithm == requested.as_str() {
+                match serde_json::from_str::<intervals::types::IntervalResult>(cached_result_json) {
+                    Ok(cached_result) => {
+                        log::info!(
+                            "Returning cached intervals for activity={} algorithm={}",
+                            activity_id,
+                            requested.as_str()
+                        );
+                        return Ok(HttpResponse::Ok().json(IntervalResponse {
+                            algorithm: cached_algorithm.clone(),
+                            result: cached_result,
+                        }));
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "Failed to deserialize cached intervals for activity {}: {}. Recomputing.",
+                            activity_id,
+                            e
+                        );
+                    }
+                }
+            }
+        }
+        requested
+    } else if let Some((cached_algorithm, cached_result_json)) = cached {
+        match IntervalAlgorithmSelection::from_str(&cached_algorithm) {
+            Ok(_) => {
+                match serde_json::from_str::<intervals::types::IntervalResult>(&cached_result_json)
+                {
+                    Ok(cached_result) => {
+                        log::info!(
+                            "Returning cached intervals for activity={} algorithm={}",
+                            activity_id,
+                            cached_algorithm
+                        );
+                        return Ok(HttpResponse::Ok().json(IntervalResponse {
+                            algorithm: cached_algorithm,
+                            result: cached_result,
+                        }));
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "Failed to deserialize cached intervals for activity {}: {}. Recomputing.",
+                            activity_id,
+                            e
+                        );
+                    }
+                }
+            }
+            Err(_) => {
+                log::warn!(
+                    "Found unknown cached interval algorithm '{}' for activity {}. Recomputing with default.",
+                    cached_algorithm,
+                    activity_id
+                );
+            }
+        }
+        IntervalAlgorithmSelection::default()
+    } else {
+        IntervalAlgorithmSelection::default()
+    };
+
+    // Fallback: re-execute the interval parsing algorithm
     let config = intervals::types::IntervalConfig::default();
-    let result = match algorithm {
+    let result = match selected_algorithm {
         IntervalAlgorithmSelection::SpeedBased => {
             // Try cached streams first, fall back to Strava
             let mut streams = state
@@ -239,10 +321,42 @@ pub async fn get_intervals(
     };
 
     match result {
-        Ok(result) => Ok(HttpResponse::Ok().json(result)),
+        Ok(result) => {
+            match serde_json::to_string(&result) {
+                Ok(result_json) => {
+                    if let Err(e) = state
+                        .storage
+                        .store_interval_result(
+                            activity_id,
+                            selected_algorithm.as_str(),
+                            &result_json,
+                        )
+                        .await
+                    {
+                        log::error!(
+                            "Failed to persist parsed intervals for activity {}: {}",
+                            activity_id,
+                            e
+                        );
+                    }
+                }
+                Err(e) => {
+                    log::error!(
+                        "Failed to serialize parsed intervals for activity {}: {}",
+                        activity_id,
+                        e
+                    );
+                }
+            }
+            Ok(HttpResponse::Ok().json(IntervalResponse {
+                algorithm: selected_algorithm.as_str().to_string(),
+                result,
+            }))
+        }
         Err(e) => {
             log::warn!("Interval parsing failed for {activity_id}: {e}");
             Ok(HttpResponse::Ok().json(serde_json::json!({
+                "algorithm": selected_algorithm.as_str(),
                 "segments": [],
                 "reps": [],
                 "is_interval_workout": false,

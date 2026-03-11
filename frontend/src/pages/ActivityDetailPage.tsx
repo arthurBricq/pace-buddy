@@ -3,10 +3,9 @@ import { useParams, Link } from 'react-router-dom';
 import {
   getActivity,
   getIntervals,
-  type IntervalAlgorithm,
   updateActivityTag,
 } from '../api/activities';
-import type { ActivityDetail, ActivityTag, IntervalResult } from '../types';
+import type { ActivityDetail, ActivityTag, IntervalAlgorithm, IntervalResponse } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import Navbar from '../components/Navbar';
 import ActivityStats from '../components/ActivityStats';
@@ -23,8 +22,8 @@ export default function ActivityDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editingTag, setEditingTag] = useState(false);
-  const [intervals, setIntervals] = useState<IntervalResult | null>(null);
-  const [intervalAlgorithm, setIntervalAlgorithm] = useState<IntervalAlgorithm>('speed_based');
+  const [intervals, setIntervals] = useState<IntervalResponse | null>(null);
+  const [intervalAlgorithm, setIntervalAlgorithm] = useState<IntervalAlgorithm | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -37,17 +36,33 @@ export default function ActivityDetailPage() {
 
   useEffect(() => {
     if (!id || !detail) return;
-    
-    // Only run interval parsing algorithm if activity is tagged as intervals
+
+    // Only load interval parsing output if activity is tagged as intervals
     if (detail.activity.tag === 'intervals') {
-      getIntervals(id, intervalAlgorithm)
-        .then(setIntervals)
+      getIntervals(id)
+        .then((result) => {
+          setIntervals(result);
+          setIntervalAlgorithm(result.algorithm);
+        })
         .catch((e) => console.warn('Failed to load intervals:', e));
     } else {
       // Clear intervals if activity is not tagged as intervals
       setIntervals(null);
+      setIntervalAlgorithm(null);
     }
-  }, [id, detail, intervalAlgorithm]);
+  }, [id, detail]);
+
+  const handleAlgorithmChange = (algorithm: IntervalAlgorithm) => {
+    if (!id || detail?.activity.tag !== 'intervals' || intervalAlgorithm === algorithm) return;
+
+    setIntervalAlgorithm(algorithm);
+    getIntervals(id, algorithm)
+      .then((result) => {
+        setIntervals(result);
+        setIntervalAlgorithm(result.algorithm);
+      })
+      .catch((e) => console.warn('Failed to switch interval algorithm:', e));
+  };
 
   const handleTagChange = async (tag: ActivityTag) => {
     if (!id || !detail) return;
@@ -141,7 +156,7 @@ export default function ActivityDetailPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-md">
               <button
                 type="button"
-                onClick={() => setIntervalAlgorithm('speed_based')}
+                onClick={() => handleAlgorithmChange('speed_based')}
                 className={`theme-toggle-btn ${
                   intervalAlgorithm === 'speed_based' ? 'theme-toggle-btn-active' : ''
                 }`}
@@ -150,7 +165,7 @@ export default function ActivityDetailPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setIntervalAlgorithm('manual_laps')}
+                onClick={() => handleAlgorithmChange('manual_laps')}
                 className={`theme-toggle-btn ${
                   intervalAlgorithm === 'manual_laps' ? 'theme-toggle-btn-active' : ''
                 }`}

@@ -110,6 +110,8 @@ export interface AiCostSummary {
 
 // Interval parsing types
 
+export type IntervalAlgorithm = 'speed_based' | 'manual_laps';
+
 export type SegmentKind = 'Warmup' | 'Work' | 'Recovery' | 'Cooldown' | 'Pause' | 'Steady' | 'Unknown';
 export interface Segment {
   kind: SegmentKind;
@@ -147,6 +149,10 @@ export interface IntervalResult {
   threshold_speed_mps: number;
   cluster_low_mps: number;
   cluster_high_mps: number;
+}
+
+export interface IntervalResponse extends IntervalResult {
+  algorithm: IntervalAlgorithm;
 }
 
 export interface Training {
