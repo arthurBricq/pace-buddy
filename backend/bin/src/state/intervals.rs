@@ -1,6 +1,6 @@
 use crate::helpers::strava_token_helper::get_valid_access_token;
 use crate::state::AppState;
-use domain::{Activity, DomainError};
+use domain::{Activity, ActivityLap, DomainError};
 use intervals::types::{IntervalConfig, IntervalResult};
 use intervals::{
     parse_intervals_with_algorithm, AutoSpeedSegmentationAlgorithm, ManualLapIntervalAlgorithm,
@@ -91,6 +91,7 @@ impl AppState {
                             );
                         }
                     }
+                    cached_algorithm_selection
                 }
                 Err(_) => {
                     log::warn!(
@@ -98,11 +99,11 @@ impl AppState {
                         cached_algorithm,
                         activity.id
                     );
+                    self.default_interval_algorithm(activity).await?
                 }
             }
-            IntervalAlgorithmSelection::default()
         } else {
-            IntervalAlgorithmSelection::default()
+            self.default_interval_algorithm(activity).await?
         };
 
         let result = self
@@ -138,6 +139,39 @@ impl AppState {
         })
     }
 
+    async fn default_interval_algorithm(
+        &self,
+        activity: &Activity,
+    ) -> Result<IntervalAlgorithmSelection, DomainError> {
+        let laps = self.get_or_fetch_laps(activity).await?;
+        if laps.len() > 1 {
+            Ok(IntervalAlgorithmSelection::ManualLaps)
+        } else {
+            Ok(IntervalAlgorithmSelection::SpeedBased)
+        }
+    }
+
+    async fn get_or_fetch_laps(
+        &self,
+        activity: &Activity,
+    ) -> Result<Vec<ActivityLap>, DomainError> {
+        let mut laps = self.storage.get_laps(activity.id).await.unwrap_or_default();
+        if laps.is_empty() {
+            let access_token =
+                get_valid_access_token(&self.storage, &self.strava_client, activity.user_id)
+                    .await?;
+            let strava_laps = self
+                .strava_client
+                .get_activity_laps(&access_token, activity.strava_id)
+                .await?;
+            laps = strava_laps_to_domain(strava_laps, activity.id);
+            if !laps.is_empty() {
+                self.storage.store_laps(&laps).await?;
+            }
+        }
+        Ok(laps)
+    }
+
     async fn compute_intervals(
         &self,
         activity: &Activity,
@@ -169,23 +203,7 @@ impl AppState {
                 parse_intervals_with_algorithm(&parser, &streams, &config, mas_kmh)
             }
             IntervalAlgorithmSelection::ManualLaps => {
-                let mut laps = self.storage.get_laps(activity.id).await.unwrap_or_default();
-                if laps.is_empty() {
-                    let access_token = get_valid_access_token(
-                        &self.storage,
-                        &self.strava_client,
-                        activity.user_id,
-                    )
-                    .await?;
-                    let strava_laps = self
-                        .strava_client
-                        .get_activity_laps(&access_token, activity.strava_id)
-                        .await?;
-                    laps = strava_laps_to_domain(strava_laps, activity.id);
-                    if !laps.is_empty() {
-                        self.storage.store_laps(&laps).await?;
-                    }
-                }
+                let laps = self.get_or_fetch_laps(activity).await?;
                 let parser = ManualLapIntervalAlgorithm::new(&laps);
                 parse_intervals_with_algorithm(&parser, &[], &config, mas_kmh)
             }
