@@ -410,7 +410,7 @@ mod tests {
 
     #[test]
     fn test_segment_bimodal() {
-        // 10 samples of slow (2 m/s) then 10 samples of fast (5 m/s) then 10 slow
+        // 10 samples of slow (2 mps) then 10 samples of fast (5 mps) then 10 slow
         let n = 30;
         let time: Vec<f64> = (0..n).map(|i| i as f64).collect();
         let speed: Vec<f64> = (0..n)
@@ -552,7 +552,7 @@ mod tests {
         };
 
         let result = segment(&data, &config);
-        // 8s work segment at 5 m/s = 40m distance, below 12s duration threshold
+        // 8s work segment at 5 mps = 40m distance, below 12s duration threshold
         let work_segs: Vec<&Segment> = result
             .segments
             .iter()

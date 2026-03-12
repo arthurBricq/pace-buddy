@@ -2,7 +2,7 @@ import type { IntervalResult } from '../types';
 
 interface Props {
   intervals: IntervalResult;
-  masCurrent?: number | null; // Current MAS in m/s
+  masCurrent?: number | null; // Current MAS in km/h
 }
 
 function formatPace(paceSecondsPerKm: number): string {
@@ -29,8 +29,9 @@ function scoreColor(score: number): string {
   return 'bg-gray-100 text-gray-600';
 }
 
-function calculateMASPercent(avgSpeedMps: number, masMps: number | null | undefined): number | null {
-  if (!masMps || masMps <= 0) return null;
+function calculateMASPercent(avgSpeedMps: number, masKmh: number | null | undefined): number | null {
+  if (!masKmh || masKmh <= 0) return null;
+  const masMps = masKmh / 3.6;
   return (avgSpeedMps / masMps) * 100;
 }
 
@@ -43,9 +44,18 @@ export default function IntervalRecap({ intervals, masCurrent }: Props) {
         <h2 className="text-lg font-semibold text-gray-800">
           {reps.length} rep{reps.length !== 1 ? 's' : ''} detected
         </h2>
-        <span className={`text-xs font-medium px-2 py-1 rounded-full ${scoreColor(interval_score)}`}>
-          Score: {(interval_score * 100).toFixed(0)}%
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 text-xs text-gray-500 cursor-help"
+            title="Session score combines rep count, work/recovery alternation, and pace consistency. Higher is more interval-like and consistent."
+            aria-label="Session score explanation"
+          >
+            ?
+          </span>
+          <span className={`text-base font-semibold px-3 py-1.5 rounded-full ${scoreColor(interval_score)}`}>
+            Session score: {(interval_score * 100).toFixed(0)}%
+          </span>
+        </div>
       </div>
 
       {reps.length > 0 && (

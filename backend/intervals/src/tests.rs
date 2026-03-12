@@ -18,21 +18,21 @@ fn make_stream(stream_type: StreamType, data_json: &str) -> ActivityStream {
 struct SyntheticSession {
     /// Warmup duration in seconds
     warmup_s: u32,
-    /// Warmup speed in m/s
+    /// Warmup speed in mps
     warmup_speed: f64,
     /// Number of reps
     reps: u32,
     /// Work duration per rep in seconds
     work_s: u32,
-    /// Work speed in m/s
+    /// Work speed in mps
     work_speed: f64,
     /// Recovery duration per rep in seconds
     recovery_s: u32,
-    /// Recovery speed in m/s (0.0 = standing stop)
+    /// Recovery speed in mps (0.0 = standing stop)
     recovery_speed: f64,
     /// Cooldown duration in seconds
     cooldown_s: u32,
-    /// Cooldown speed in m/s
+    /// Cooldown speed in mps
     cooldown_speed: f64,
     /// Seed for deterministic pseudo-random noise
     seed: u64,
@@ -71,7 +71,7 @@ fn build_synthetic_streams(cfg: &SyntheticSession) -> Vec<ActivityStream> {
     let mut t = 0.0;
     let mut d = 0.0;
 
-    let speed_noise = 0.15; // ±0.15 m/s GPS jitter on speed
+    let speed_noise = 0.15; // ±0.15 mps GPS jitter on speed
     let stop_drift = 0.3; // GPS drift when standing still
 
     // Helper: push one second of data at a target speed
@@ -409,7 +409,7 @@ fn test_real_fixture(
     eprintln!("Is interval workout: {}", result.is_interval_workout);
     eprintln!("Score: {:.2}", result.interval_score);
     eprintln!(
-        "Threshold: {:.2} m/s, clusters: {:.2} / {:.2}",
+        "Threshold: {:.2} mps, clusters: {:.2} / {:.2}",
         result.threshold_speed_mps, result.cluster_low_mps, result.cluster_high_mps
     );
     for (i, rep) in result.reps.iter().enumerate() {

@@ -47,11 +47,11 @@ impl AppState {
         user_id: Uuid,
     ) -> Result<Option<f64>, DomainError> {
         let races = list_race_activities(self.storage.as_ref(), user_id).await?;
-        let mas_mps = MasEstimator::estimate(self.mas_estimator.as_ref(), &races);
-        if let Some(mas_mps) = mas_mps {
-            self.storage.update_user_mas(user_id, Some(mas_mps)).await?;
+        let mas_kmh = MasEstimator::estimate(self.mas_estimator.as_ref(), &races);
+        if let Some(mas_kmh) = mas_kmh {
+            self.storage.update_user_mas(user_id, Some(mas_kmh)).await?;
         }
-        Ok(mas_mps)
+        Ok(mas_kmh)
     }
 
     pub async fn try_begin_activities_sync(&self, user_id: Uuid) -> bool {

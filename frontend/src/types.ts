@@ -4,7 +4,7 @@ export interface User {
   display_name: string;
   email?: string | null;
   created_at: string;
-  mas_current: number | null; // Current MAS estimate in m/s
+  mas_current: number | null; // Current MAS estimate in km/h
   quota_balance_usd: number;
 }
 
@@ -270,7 +270,6 @@ export interface ChatListItem {
 
 export interface MASEstimate {
   date: string;
-  mas_ms: number;
   mas_kmh: number;
   activity_id: string;
   activity_name: string;

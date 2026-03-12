@@ -28,10 +28,10 @@ const STREAM_LABELS: Record<string, string> = {
   watts: 'Power (W)',
 };
 
-// Convert speed in m/s to pace in min/km
+// Convert speed in mps to pace in min/km
 function speedToPace(speedMps: number): number {
   if (speedMps <= 0 || !isFinite(speedMps)) return 10; // Return max pace for invalid values
-  const pace = 1000 / speedMps / 60; // Convert m/s to min/km
+  const pace = 1000 / speedMps / 60; // Convert mps to min/km
   // Clamp pace between 0 and 10 min/km (reasonable running pace range)
   return Math.max(0, Math.min(10, pace));
 }
@@ -136,7 +136,7 @@ export default function StreamChart({ streams, distanceStream, timeStream, segme
       {orderedStreams.map((stream) => {
         const data: number[] = JSON.parse(stream.data_json);
         
-        // Convert velocity_smooth (m/s) to pace (min/km)
+        // Convert velocity_smooth (mps) to pace (min/km)
         const isPace = stream.stream_type === 'velocity_smooth';
         const chartData = data
           .map((value, i) => {

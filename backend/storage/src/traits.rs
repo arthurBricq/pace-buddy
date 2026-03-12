@@ -15,7 +15,7 @@ pub trait Storage: Send + Sync {
     async fn get_user_by_username(&self, username: &str) -> Result<User, DomainError>;
     async fn get_user_by_email(&self, email: &str) -> Result<User, DomainError>;
     async fn list_users(&self) -> Result<Vec<User>, DomainError>;
-    async fn update_user_mas(&self, user_id: Uuid, mas_mps: Option<f64>)
+    async fn update_user_mas(&self, user_id: Uuid, mas_kmh: Option<f64>)
         -> Result<(), DomainError>;
     async fn upsert_model_cost_tiers(&self, tiers: &[ModelCostTier]) -> Result<(), DomainError>;
     async fn list_model_cost_tiers(&self) -> Result<Vec<ModelCostTier>, DomainError>;

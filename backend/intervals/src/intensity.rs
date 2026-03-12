@@ -3,13 +3,13 @@ use crate::types::Rep;
 /// Compute %MAS for each rep given MAS in km/h.
 /// Updates rep.pct_mas in place.
 pub fn compute_intensity(reps: &mut [Rep], mas_kmh: Option<f64>) {
-    let mas_mps = match mas_kmh {
+    let mas_speed = match mas_kmh {
         Some(v) if v > 0.0 => v / 3.6,
         _ => return,
     };
 
     for rep in reps.iter_mut() {
-        rep.pct_mas = Some(rep.avg_speed_mps / mas_mps);
+        rep.pct_mas = Some(rep.avg_speed_mps / mas_speed);
     }
 }
 
@@ -49,7 +49,7 @@ mod tests {
     #[test]
     fn test_compute_intensity() {
         let mut reps = vec![make_rep(5.0), make_rep(4.5)];
-        // MAS = 18 km/h = 5.0 m/s
+        // MAS = 18 km/h
         compute_intensity(&mut reps, Some(18.0));
         assert!((reps[0].pct_mas.unwrap() - 1.0).abs() < 0.01);
         assert!((reps[1].pct_mas.unwrap() - 0.9).abs() < 0.01);

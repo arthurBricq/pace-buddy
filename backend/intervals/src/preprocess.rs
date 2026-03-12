@@ -9,7 +9,7 @@ pub struct PreprocessedData {
     pub time: Vec<f64>,
     /// Cumulative distance (meters)
     pub distance: Vec<f64>,
-    /// Smoothed speed (m/s)
+    /// Smoothed speed (mps)
     pub speed_smooth: Vec<f64>,
     /// True where the athlete is paused
     pub pause_mask: Vec<bool>,

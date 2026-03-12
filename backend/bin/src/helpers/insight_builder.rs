@@ -34,7 +34,7 @@ pub async fn build_insight_context(
 ) -> Result<InsightContext, DomainError> {
     let training = state.storage.get_training(training_id, user_id).await?;
     let user_data = state.storage.get_user_by_id(user_id).await?;
-    let mas_kmh = user_data.mas_current.map(|mps| mps * 3.6);
+    let mas_kmh = user_data.mas_current;
     let runner_profile_section =
         runner_profile_helper::build_runner_profile_section(&state.storage, user_id).await?;
 

@@ -1439,10 +1439,10 @@ impl Storage for SqliteStorage {
     async fn update_user_mas(
         &self,
         user_id: Uuid,
-        mas_mps: Option<f64>,
+        mas_kmh: Option<f64>,
     ) -> Result<(), DomainError> {
         sqlx::query("UPDATE users SET mas_current = ? WHERE id = ?")
-            .bind(mas_mps)
+            .bind(mas_kmh)
             .bind(user_id.to_string())
             .execute(&self.pool)
             .await

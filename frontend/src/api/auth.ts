@@ -14,18 +14,18 @@ export async function getMe() {
 }
 
 export async function getMAS() {
-  return apiFetch<{ mas_mps: number | null }>('/auth/mas');
+  return apiFetch<{ mas_kmh: number | null }>('/auth/mas');
 }
 
-export async function updateMAS(mas_mps: number | null) {
+export async function updateMAS(mas_kmh: number | null) {
   return apiFetch<{ status: string }>('/auth/mas', {
     method: 'PATCH',
-    body: JSON.stringify({ mas_mps }),
+    body: JSON.stringify({ mas_kmh }),
   });
 }
 
 export async function recomputeMAS() {
-  return apiFetch<{ status: string; mas_mps: number }>('/auth/mas/recompute', {
+  return apiFetch<{ status: string; mas_kmh: number }>('/auth/mas/recompute', {
     method: 'POST',
   });
 }

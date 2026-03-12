@@ -17,13 +17,13 @@ pub async fn get_mas(
     log::debug!("GET /auth/mas user_id={}", user.user_id);
     let u = state.storage.get_user_by_id(user.user_id).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({
-        "mas_mps": u.mas_current,
+        "mas_kmh": u.mas_current,
     })))
 }
 
 #[derive(Deserialize)]
 pub struct UpdateMASRequest {
-    pub mas_mps: Option<f64>,
+    pub mas_kmh: Option<f64>,
 }
 
 pub async fn update_mas(
@@ -32,13 +32,13 @@ pub async fn update_mas(
     body: web::Json<UpdateMASRequest>,
 ) -> Result<HttpResponse, AppError> {
     log::info!(
-        "PATCH /auth/mas user_id={} mas_mps={:?}",
+        "PATCH /auth/mas user_id={} mas_kmh={:?}",
         user.user_id,
-        body.mas_mps
+        body.mas_kmh
     );
     state
         .storage
-        .update_user_mas(user.user_id, body.mas_mps)
+        .update_user_mas(user.user_id, body.mas_kmh)
         .await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "status": "ok",
@@ -50,14 +50,14 @@ pub async fn recompute_mas(
     user: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
     log::info!("POST /auth/mas/recompute user_id={}", user.user_id);
-    let mas_mps = state
+    let mas_kmh = state
         .recompute_user_mas_from_races(user.user_id)
         .await?
-        .ok_or_else(|| DomainError::BadRequest("No races available to compute MAS".into()))?;
+        .ok_or_else(|| DomainError::BadRequest("No eligible races available to compute MAS".into()))?;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "status": "ok",
-        "mas_mps": mas_mps,
+        "mas_kmh": mas_kmh,
     })))
 }
 

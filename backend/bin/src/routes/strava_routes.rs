@@ -422,11 +422,11 @@ async fn handle_webhook_event(
                 .await?;
             let domain_activity = strava_activity_to_domain(&strava_activity, user_id);
             app.storage.upsert_activities(&[domain_activity]).await?;
-            if let Some(mas_mps) = app.recompute_user_mas_from_races(user_id).await? {
+            if let Some(mas_kmh) = app.recompute_user_mas_from_races(user_id).await? {
                 log::info!(
-                    "Webhook: recomputed MAS after activity upsert user={} mas_mps={:.4}",
+                    "Webhook: recomputed MAS after activity upsert user={} mas_kmh={:.4}",
                     user_id,
-                    mas_mps
+                    mas_kmh
                 );
             }
             log::info!(
@@ -444,11 +444,11 @@ async fn handle_webhook_event(
             app.storage
                 .delete_activity_by_strava_id(event.object_id, user_id)
                 .await?;
-            if let Some(mas_mps) = app.recompute_user_mas_from_races(user_id).await? {
+            if let Some(mas_kmh) = app.recompute_user_mas_from_races(user_id).await? {
                 log::info!(
-                    "Webhook: recomputed MAS after activity delete user={} mas_mps={:.4}",
+                    "Webhook: recomputed MAS after activity delete user={} mas_kmh={:.4}",
                     user_id,
-                    mas_mps
+                    mas_kmh
                 );
             }
             log::info!(

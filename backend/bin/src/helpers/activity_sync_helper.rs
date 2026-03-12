@@ -68,11 +68,11 @@ pub async fn sync_user_activities(
     let total = all_activities.len();
     state.storage.upsert_activities(&all_activities).await?;
 
-    if let Some(mas_mps) = state.recompute_user_mas_from_races(user_id).await? {
+    if let Some(mas_kmh) = state.recompute_user_mas_from_races(user_id).await? {
         log::info!(
-            "Updated MAS after sync user={} mas_mps={:.4}",
+            "Updated MAS after sync user={} mas_kmh={:.4}",
             user_id,
-            mas_mps
+            mas_kmh
         );
     }
 

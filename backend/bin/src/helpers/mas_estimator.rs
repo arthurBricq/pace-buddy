@@ -4,6 +4,8 @@ use serde::Serialize;
 use storage::Storage;
 use uuid::Uuid;
 
+const MAX_MAS_RACE_DISTANCE_M: f64 = 50_000.0;
+
 pub trait MasEstimator: Send + Sync {
     fn estimate(&self, races: &[Activity]) -> Option<f64>;
 }
@@ -14,7 +16,6 @@ pub struct LastRaceEstimator;
 #[derive(Debug, Clone, Serialize)]
 pub struct RaceMasEstimate {
     pub date: DateTime<Utc>,
-    pub mas_ms: f64,
     pub mas_kmh: f64,
     pub activity_id: Uuid,
     pub activity_name: String,
@@ -23,6 +24,13 @@ pub struct RaceMasEstimate {
 }
 
 impl LastRaceEstimator {
+    fn is_eligible_race(race: &Activity) -> bool {
+        race.sport_type.eq_ignore_ascii_case("Run")
+            && race.distance > 0.0
+            && race.distance <= MAX_MAS_RACE_DISTANCE_M
+            && race.moving_time > 0
+    }
+
     fn p_value(distance_m: f64) -> f64 {
         if (1500.0..=3000.0).contains(&distance_m) {
             0.98
@@ -48,13 +56,13 @@ impl LastRaceEstimator {
     }
 
     pub fn estimate_for_race(race: &Activity) -> Option<f64> {
-        if race.distance <= 0.0 || race.moving_time <= 0 {
+        if !Self::is_eligible_race(race) {
             return None;
         }
 
         let avg_speed_mps = race.distance / f64::from(race.moving_time);
         let p = Self::p_value(race.distance);
-        Some(avg_speed_mps / p)
+        Some((avg_speed_mps / p) * 3.6)
     }
 }
 
@@ -63,8 +71,9 @@ impl MasEstimator for LastRaceEstimator {
         races
             .iter()
             .filter(|a| a.tag == ActivityTag::Race)
-            .max_by_key(|a| a.start_date)
-            .and_then(Self::estimate_for_race)
+            .filter_map(|race| Self::estimate_for_race(race).map(|mas_kmh| (race, mas_kmh)))
+            .max_by(|(a, _), (b, _)| a.start_date.cmp(&b.start_date))
+            .map(|(_, mas_kmh)| mas_kmh)
     }
 }
 
@@ -97,10 +106,9 @@ pub fn build_race_mas_estimates(races: &[Activity]) -> Vec<RaceMasEstimate> {
     let mut out: Vec<RaceMasEstimate> = races
         .iter()
         .filter_map(|race| {
-            LastRaceEstimator::estimate_for_race(race).map(|mas_ms| RaceMasEstimate {
+            LastRaceEstimator::estimate_for_race(race).map(|mas_kmh| RaceMasEstimate {
                 date: race.start_date,
-                mas_ms,
-                mas_kmh: mas_ms * 3.6,
+                mas_kmh,
                 activity_id: race.id,
                 activity_name: race.name.clone(),
                 distance_m: race.distance,
@@ -116,20 +124,25 @@ pub fn build_race_mas_estimates(races: &[Activity]) -> Vec<RaceMasEstimate> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Duration;
+    use domain::ActivityTag;
 
-    #[test]
-    fn estimate_for_10k_is_consistent() {
-        // 10k in 40min => avg 4.1667 m/s, p=0.90 => MAS ~= 4.63 m/s
-        let mas = LastRaceEstimator::estimate_for_race(&Activity {
+    fn make_race(
+        sport_type: &str,
+        distance_m: f64,
+        moving_time_s: i32,
+        start_offset_days: i64,
+    ) -> Activity {
+        Activity {
             id: Uuid::new_v4(),
             user_id: Uuid::new_v4(),
             strava_id: 1,
             name: "Race".to_string(),
-            sport_type: "Run".to_string(),
-            start_date: Utc::now(),
-            elapsed_time: 2400,
-            moving_time: 2400,
-            distance: 10_000.0,
+            sport_type: sport_type.to_string(),
+            start_date: Utc::now() + Duration::days(start_offset_days),
+            elapsed_time: moving_time_s,
+            moving_time: moving_time_s,
+            distance: distance_m,
             total_elevation_gain: 0.0,
             average_speed: 0.0,
             max_speed: 0.0,
@@ -143,9 +156,39 @@ mod tests {
             workout_type: None,
             streams_fetched_at: None,
             created_at: Utc::now(),
-        })
-        .unwrap();
+        }
+    }
 
-        assert!((mas - 4.6296).abs() < 0.01);
+    #[test]
+    fn estimate_for_10k_is_consistent() {
+        // 10k in 40min => avg 15.0 km/h, p=0.90 => MAS ~= 16.67 km/h
+        let mas = LastRaceEstimator::estimate_for_race(&make_race("Run", 10_000.0, 2400, 0))
+            .unwrap();
+
+        assert!((mas - 16.6667).abs() < 0.01);
+    }
+
+    #[test]
+    fn estimate_for_trail_run_is_none() {
+        let mas = LastRaceEstimator::estimate_for_race(&make_race("TrailRun", 10_000.0, 3000, 0));
+        assert!(mas.is_none());
+    }
+
+    #[test]
+    fn estimate_for_ultra_over_50k_is_none() {
+        let mas = LastRaceEstimator::estimate_for_race(&make_race("Run", 52_000.0, 15_000, 0));
+        assert!(mas.is_none());
+    }
+
+    #[test]
+    fn estimator_uses_latest_eligible_race() {
+        let races = vec![
+            make_race("Run", 10_000.0, 2400, 0),
+            make_race("TrailRun", 10_000.0, 2400, 1),
+            make_race("Run", 55_000.0, 14_000, 2),
+        ];
+
+        let mas = LastRaceEstimator.estimate(&races).unwrap();
+        assert!((mas - 16.6667).abs() < 0.01);
     }
 }

@@ -7,11 +7,11 @@ pub struct IntervalConfig {
     pub smooth_window: usize,
     /// Rolling mean window applied after median (0 = disabled)
     pub smooth_mean_window: usize,
-    /// Speed below which we consider the athlete paused (m/s)
+    /// Speed below which we consider the athlete paused (mps)
     pub pause_speed_threshold: f64,
     /// Minimum duration to consider a low-speed region a pause (seconds)
     pub pause_min_duration_s: f64,
-    /// Hysteresis delta applied above/below k-means boundary (m/s)
+    /// Hysteresis delta applied above/below k-means boundary (mps)
     pub hysteresis_delta_mps: f64,
     /// Consecutive seconds speed must stay above v_enter before entering Work
     pub enter_confirm_s: f64,

@@ -8,7 +8,7 @@ pub fn build_reps(
     segments: &mut Vec<Segment>,
     data: &PreprocessedData,
     config: &IntervalConfig,
-    mas_mps: Option<f64>,
+    mas_speed: Option<f64>,
 ) -> Vec<Rep> {
     label_warmup_cooldown(segments, config);
 
@@ -33,7 +33,7 @@ pub fn build_reps(
                 0.0
             };
 
-            let pct_mas = mas_mps.map(|mas| if mas > 0.0 { avg_speed_mps / mas } else { 0.0 });
+            let pct_mas = mas_speed.map(|mas| if mas > 0.0 { avg_speed_mps / mas } else { 0.0 });
 
             // Recovery = time from end of this work to start of next work
             let recovery_duration_s = work_segments

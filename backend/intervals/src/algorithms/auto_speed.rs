@@ -27,8 +27,8 @@ impl IntervalParsingAlgorithm for AutoSpeedSegmentationAlgorithm {
 
         // 4. Build reps: warmup/cooldown, pair work+recovery, quality metrics
         let mut segments = segmentation.segments;
-        let mas_mps = mas_kmh.map(|v| v / 3.6);
-        let mut reps_list = reps::build_reps(&mut segments, &preprocessed, config, mas_mps);
+        let mas_speed = mas_kmh.map(|v| v / 3.6);
+        let mut reps_list = reps::build_reps(&mut segments, &preprocessed, config, mas_speed);
 
         // 5. Intensity: compute %MAS for each rep
         intensity::compute_intensity(&mut reps_list, mas_kmh);

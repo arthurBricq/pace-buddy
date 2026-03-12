@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { listActivities, updateActivityTag } from '../api/activities';
-import { getMAS, getMASEstimates, recomputeMAS, updateMAS } from '../api/auth';
-import type { Activity, MASEstimate } from '../types';
+import {useEffect, useMemo, useState} from 'react';
+import {Link} from 'react-router-dom';
+import {listActivities, updateActivityTag} from '../api/activities';
+import {getMAS, getMASEstimates, recomputeMAS, updateMAS} from '../api/auth';
+import type {Activity, MASEstimate} from '../types';
 import Navbar from '../components/Navbar';
 import MASChart from '../components/MASChart';
 
@@ -66,7 +66,7 @@ export default function RacesPage() {
   const loadCurrentMAS = async () => {
     try {
       const response = await getMAS();
-      setCurrentMAS(response.mas_mps);
+      setCurrentMAS(response.mas_kmh);
     } catch (err: any) {
       console.error('Failed to load current MAS:', err);
     }
@@ -113,7 +113,7 @@ export default function RacesPage() {
     setUpdatingMAS(true);
     try {
       const response = await recomputeMAS();
-      setCurrentMAS(response.mas_mps);
+      setCurrentMAS(response.mas_kmh);
       await loadMasEstimates();
       setError('');
     } catch (err: any) {
@@ -126,7 +126,7 @@ export default function RacesPage() {
   const handleManualOverride = async () => {
     const masValue = parseFloat(manualMAS);
     if (isNaN(masValue) || masValue <= 0) {
-      setError('Please enter a valid MAS value (m/s)');
+      setError('Please enter a valid MAS value (km/h)');
       return;
     }
 
@@ -159,7 +159,7 @@ export default function RacesPage() {
   if (loading) {
     return (
       <div className="app-shell">
-        <Navbar />
+        <Navbar/>
         <div className="page-container-wide">
           <p className="text-gray-500">Loading races...</p>
         </div>
@@ -169,12 +169,15 @@ export default function RacesPage() {
 
   return (
     <div className="app-shell">
-      <Navbar />
+      <Navbar/>
       <div className="page-container-wide section-stack">
         <div>
           <h1 className="text-2xl font-bold">Races (estimators)</h1>
           <p className="text-sm text-gray-500 mt-1">
             Activities tagged as races used to estimate Maximum Aerobic Speed (MAS)
+          </p>
+          <p className="text-xs text-gray-500 mt-1">
+            Not all races can be used to estimate MAS.
           </p>
         </div>
 
@@ -221,7 +224,7 @@ export default function RacesPage() {
           {showManualOverride ? (
             <div className="border-t pt-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Enter MAS value (m/s)
+                Enter MAS value (km/h)
               </label>
               <div className="flex gap-2">
                 <input
@@ -229,7 +232,7 @@ export default function RacesPage() {
                   step="0.01"
                   value={manualMAS}
                   onChange={(e) => setManualMAS(e.target.value)}
-                  placeholder="e.g., 4.5"
+                  placeholder="e.g., 16.2"
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
@@ -252,12 +255,7 @@ export default function RacesPage() {
                   <div>
                     <span className="text-sm text-gray-600">MAS:</span>
                     <span className="text-2xl font-bold text-blue-600 ml-2">
-                      {(currentMAS * 3.6).toFixed(2)} km/h
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-sm text-gray-500">
-                      ({currentMAS.toFixed(2)} m/s)
+                      {currentMAS.toFixed(2)} km/h
                     </span>
                   </div>
                 </div>
@@ -268,7 +266,7 @@ export default function RacesPage() {
 
         {/* MAS Chart */}
         {masEstimates.length > 0 && (
-          <MASChart estimates={masEstimates} />
+          <MASChart estimates={masEstimates}/>
         )}
 
         {/* Activities Section */}
@@ -331,55 +329,51 @@ export default function RacesPage() {
             <div className="data-table-wrap">
               <table className="data-table-wide">
                 <thead className="bg-gray-50 text-gray-600">
-                  <tr>
-                    <th className="text-left px-4 py-3">Date</th>
-                    <th className="text-left px-4 py-3">Name</th>
-                    <th className="text-left px-4 py-3">Distance</th>
-                    <th className="text-right px-4 py-3">Time</th>
-                    <th className="text-right px-4 py-3">MAS (km/h)</th>
-                    <th className="text-right px-4 py-3">MAS (m/s)</th>
-                    <th className="text-right px-4 py-3">Actions</th>
-                  </tr>
+                <tr>
+                  <th className="text-left px-4 py-3">Date</th>
+                  <th className="text-left px-4 py-3">Name</th>
+                  <th className="text-left px-4 py-3">Distance</th>
+                  <th className="text-right px-4 py-3">Time</th>
+                  <th className="text-right px-4 py-3">MAS (km/h)</th>
+                  <th className="text-right px-4 py-3">Actions</th>
+                </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {activities
-                    .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
-                    .map((a) => {
-                      const estimate = estimatesByActivityId.get(a.id);
-                      return (
-                        <tr key={a.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-gray-500">
-                            {new Date(a.start_date).toLocaleDateString()}
-                          </td>
-                          <td className="px-4 py-3">
-                            <Link
-                              to={`/activities/${a.id}`}
-                              className="text-blue-600 hover:underline"
-                            >
-                              {a.name}
-                            </Link>
-                          </td>
-                          <td className="px-4 py-3">{formatDistance(a.distance)}</td>
-                          <td className="px-4 py-3 text-right">
-                            {formatDuration(a.moving_time)}
-                          </td>
-                          <td className="px-4 py-3 text-right font-medium text-blue-600">
-                            {estimate ? estimate.mas_kmh.toFixed(2) : '-'}
-                          </td>
-                          <td className="px-4 py-3 text-right text-gray-600">
-                            {estimate ? estimate.mas_ms.toFixed(2) : '-'}
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <button
-                              onClick={() => handleRemoveRace(a.id)}
-                              className="text-red-600 hover:text-red-800 text-sm"
-                            >
-                              Remove
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                {activities
+                  .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
+                  .map((a) => {
+                    const estimate = estimatesByActivityId.get(a.id);
+                    return (
+                      <tr key={a.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-gray-500">
+                          {new Date(a.start_date).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Link
+                            to={`/activities/${a.id}`}
+                            className="text-blue-600 hover:underline"
+                          >
+                            {a.name}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3">{formatDistance(a.distance)}</td>
+                        <td className="px-4 py-3 text-right">
+                          {formatDuration(a.moving_time)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-blue-600">
+                          {estimate ? estimate.mas_kmh.toFixed(2) : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => handleRemoveRace(a.id)}
+                            className="text-red-600 hover:text-red-800 text-sm"
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -158,17 +158,17 @@ async fn main() -> anyhow::Result<()> {
                 "debug" => {
                     println!("=== Clustering ===");
                     println!(
-                        "  Low cluster:  {:.2} m/s ({:.1} km/h)",
+                        "  Low cluster:  {:.2} mps ({:.1} km/h)",
                         result.cluster_low_mps,
                         result.cluster_low_mps * 3.6
                     );
                     println!(
-                        "  High cluster: {:.2} m/s ({:.1} km/h)",
+                        "  High cluster: {:.2} mps ({:.1} km/h)",
                         result.cluster_high_mps,
                         result.cluster_high_mps * 3.6
                     );
                     println!(
-                        "  Threshold:    {:.2} m/s ({:.1} km/h)",
+                        "  Threshold:    {:.2} mps ({:.1} km/h)",
                         result.threshold_speed_mps,
                         result.threshold_speed_mps * 3.6
                     );
@@ -177,7 +177,7 @@ async fn main() -> anyhow::Result<()> {
                     println!("=== Segments ({}) ===", result.segments.len());
                     for (i, seg) in result.segments.iter().enumerate() {
                         println!(
-                            "  [{:2}] {:?} | {:.0}s-{:.0}s | dur={:.0}s dist={:.0}m | avg={:.2}m/s ({}) | std={:.2}",
+                            "  [{:2}] {:?} | {:.0}s-{:.0}s | dur={:.0}s dist={:.0}m | avg={:.2}mps ({}) | std={:.2}",
                             i,
                             seg.kind,
                             seg.start_t,
@@ -227,7 +227,7 @@ async fn main() -> anyhow::Result<()> {
                             result.interval_score
                         );
                         println!(
-                            "Threshold: {:.2} m/s ({})",
+                            "Threshold: {:.2} mps ({})",
                             result.threshold_speed_mps,
                             format_pace(result.threshold_speed_mps)
                         );
@@ -266,7 +266,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Format m/s as min:sec /km pace string.
+/// Format speed (mps) as min:sec /km pace string.
 fn format_pace(speed_mps: f64) -> String {
     if speed_mps < 0.1 {
         return "-".into();

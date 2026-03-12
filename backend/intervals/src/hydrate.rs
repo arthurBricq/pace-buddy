@@ -9,7 +9,7 @@ pub struct HydratedStreams {
     pub time: Vec<f64>,
     /// Cumulative distance in meters (required)
     pub distance: Vec<f64>,
-    /// Smoothed velocity in m/s (required)
+    /// Smoothed velocity in mps (required)
     pub velocity_smooth: Vec<f64>,
     /// Whether the athlete is moving at each sample (optional)
     pub moving: Option<Vec<bool>>,
