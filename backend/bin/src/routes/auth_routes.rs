@@ -1,15 +1,10 @@
 use actix_web::cookie::{Cookie, SameSite};
 use actix_web::{web, HttpRequest, HttpResponse};
-use serde::Deserialize;
 use storage::Storage;
 
 use crate::errors::AppError;
-use crate::helpers::invite_code_helper::{
-    hash_invite_code, invite_code_is_valid_for_redemption, normalize_invite_code,
-};
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
-use domain::DomainError;
 
 pub async fn logout(_req: HttpRequest) -> Result<HttpResponse, AppError> {
     log::info!("POST /auth/logout");

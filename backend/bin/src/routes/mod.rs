@@ -13,6 +13,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         web::scope("/api")
             .service(
                 web::scope("/auth")
+                    // Public login start endpoint. The handler lives in
+                    // `strava_routes` so start/callback stay documented together.
                     .route(
                         "/strava/start",
                         web::post().to(strava_routes::strava_auth_start),

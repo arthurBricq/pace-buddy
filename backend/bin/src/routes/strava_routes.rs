@@ -15,6 +15,10 @@ use crate::state::AppState;
 use domain::{DomainError, StravaToken};
 use strava_client::conversions::strava_activity_to_domain;
 
+/// Starts a Strava OAuth flow for an already-authenticated app user who wants
+/// to attach (or re-attach) their Strava account.
+///
+/// This is the "link" path used from the profile page, not the public login.
 pub async fn link(
     state: web::Data<AppState>,
     user: AuthenticatedUser,
@@ -41,6 +45,12 @@ pub struct StravaAuthStartBody {
     pub invite_code: Option<String>,
 }
 
+/// Starts a Strava OAuth flow for public sign-in / registration.
+///
+/// We optionally validate the invite code early, but we do not require one yet:
+/// at this stage we do not know which Strava athlete is logging in.
+/// The final "invite required?" decision is made in `/strava/callback` once the
+/// athlete id is known and we can determine whether the user already exists.
 pub async fn strava_auth_start(
     state: web::Data<AppState>,
     body: Option<web::Json<StravaAuthStartBody>>,
@@ -57,7 +67,8 @@ pub async fn strava_auth_start(
         .map(str::trim)
         .filter(|v| !v.is_empty())
     {
-        // If there is an invite code provided, make sure
+        // If a code is provided at login-start time, validate it now so the
+        // user gets immediate feedback before being sent to Strava.
         let normalized = normalize_invite_code(raw_code)?;
         let code_hash = hash_invite_code(&normalized);
         let invite = match state.storage.get_invite_code_by_hash(&code_hash).await {
@@ -164,6 +175,9 @@ pub async fn callback(app: web::Data<AppState>, query: web::Query<CallbackQuery>
     let oauth_user_id = oauth_state.user_id.clone();
     let oauth_invite_code_hash = oauth_state.invite_code_hash.clone();
 
+    // OAuth flow branch:
+    // - `strava_login`: public login/registration flow
+    // - `strava_link`: authenticated user linking Strava from profile
     match oauth_purpose.as_str() {
         "strava_login" => {
             handle_strava_login_callback(&app, athlete_id, oauth_invite_code_hash, token_resp).await
