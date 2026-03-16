@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::helpers::activity_sync_helper::sync_user_activities;
+use crate::helpers::invite_code_helper::invite_code_is_valid_for_redemption;
 use crate::helpers::strava_token_helper::get_valid_access_token;
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
@@ -73,25 +74,43 @@ pub async fn callback(app: web::Data<AppState>, query: web::Query<CallbackQuery>
         oauth_state.purpose,
         oauth_state.user_id.is_some()
     );
+    let oauth_error_path = if oauth_state.purpose == "strava_login" {
+        "/login"
+    } else {
+        "/profile"
+    };
 
     let token_resp = match app.strava_client.exchange_code(&query.code).await {
         Ok(t) => t,
         Err(e) => {
             log::error!("Strava token exchange failed: {e}");
-            return redirect_with_error(frontend, &format!("Token exchange failed: {e}"));
+            return redirect_with_error_to(
+                frontend,
+                oauth_error_path,
+                &format!("Token exchange failed: {e}"),
+            );
         }
     };
 
     let athlete_id = token_resp.athlete.as_ref().map(|a| a.id).unwrap_or(0);
     if athlete_id == 0 {
-        return redirect_with_error(frontend, "Strava did not return an athlete id");
+        return redirect_with_error_to(
+            frontend,
+            oauth_error_path,
+            "Strava did not return an athlete id",
+        );
     }
 
-    match oauth_state.purpose.as_str() {
-        "strava_login" => handle_strava_login_callback(&app, athlete_id, token_resp).await,
+    let oauth_purpose = oauth_state.purpose.clone();
+    let oauth_user_id = oauth_state.user_id.clone();
+    let oauth_invite_code_hash = oauth_state.invite_code_hash.clone();
+
+    match oauth_purpose.as_str() {
+        "strava_login" => {
+            handle_strava_login_callback(&app, athlete_id, oauth_invite_code_hash, token_resp).await
+        }
         "strava_link" => {
-            let Some(user_id) = oauth_state
-                .user_id
+            let Some(user_id) = oauth_user_id
                 .as_deref()
                 .and_then(|s| Uuid::parse_str(s).ok())
             else {
@@ -162,6 +181,7 @@ async fn generate_unique_strava_username(
 async fn handle_strava_login_callback(
     app: &web::Data<AppState>,
     athlete_id: i64,
+    invite_code_hash: Option<String>,
     token_resp: strava_client::types::TokenResponse,
 ) -> HttpResponse {
     let frontend = &app.frontend_url;
@@ -170,15 +190,66 @@ async fn handle_strava_login_callback(
     let user_id = match app.storage.get_strava_token_by_athlete_id(athlete_id).await {
         Ok(existing) => existing.user_id,
         Err(_) => {
+            let bypass_invite_for_admin = app.admin_strava_athlete_id == Some(athlete_id);
+            if !bypass_invite_for_admin {
+                let Some(code_hash) = invite_code_hash.as_deref() else {
+                    return redirect_with_error_to(
+                        frontend,
+                        "/login",
+                        "Invite code is required for new accounts",
+                    );
+                };
+
+                match app.storage.get_invite_code_by_hash(code_hash).await {
+                    Ok(invite) => {
+                        if !invite_code_is_valid_for_redemption(&invite) {
+                            return redirect_with_error_to(
+                                frontend,
+                                "/login",
+                                "Invite code is invalid, expired, revoked, or already used",
+                            );
+                        }
+                    }
+                    Err(_) => {
+                        return redirect_with_error_to(
+                            frontend,
+                            "/login",
+                            "Invite code is invalid",
+                        );
+                    }
+                }
+
+                if let Err(e) = app.storage.consume_invite_code(code_hash, athlete_id).await {
+                    log::warn!(
+                        "Invite code consumption failed for athlete {}: {}",
+                        athlete_id,
+                        e
+                    );
+                    return redirect_with_error_to(
+                        frontend,
+                        "/login",
+                        "Invite code is invalid, expired, revoked, or already used",
+                    );
+                }
+            }
+
             let username = match generate_unique_strava_username(app, athlete_id).await {
                 Ok(u) => u,
                 Err(e) => {
-                    return redirect_with_error(frontend, &format!("Failed to create user: {e}"))
+                    return redirect_with_error_to(
+                        frontend,
+                        "/login",
+                        &format!("Failed to create user: {e}"),
+                    )
                 }
             };
             let user = domain::User::new(username.clone(), username, None);
             if let Err(e) = app.storage.create_user(&user).await {
-                return redirect_with_error(frontend, &format!("Failed to create user: {e}"));
+                return redirect_with_error_to(
+                    frontend,
+                    "/login",
+                    &format!("Failed to create user: {e}"),
+                );
             }
             created_new_user = true;
             user.id
@@ -195,7 +266,11 @@ async fn handle_strava_login_callback(
     };
 
     if let Err(e) = app.storage.upsert_strava_token(&strava_token).await {
-        return redirect_with_error(frontend, &format!("Failed to save Strava token: {e}"));
+        return redirect_with_error_to(
+            frontend,
+            "/login",
+            &format!("Failed to save Strava token: {e}"),
+        );
     }
 
     if created_new_user {
@@ -205,7 +280,11 @@ async fn handle_strava_login_callback(
     let jwt = match app.jwt.create_token(user_id) {
         Ok(v) => v,
         Err(e) => {
-            return redirect_with_error(frontend, &format!("Failed to create session token: {e}"))
+            return redirect_with_error_to(
+                frontend,
+                "/login",
+                &format!("Failed to create session token: {e}"),
+            )
         }
     };
 
@@ -225,12 +304,13 @@ fn build_session_cookie(token: &str) -> Cookie<'static> {
 }
 
 fn redirect_with_error(frontend_url: &str, message: &str) -> HttpResponse {
+    redirect_with_error_to(frontend_url, "/profile", message)
+}
+
+fn redirect_with_error_to(frontend_url: &str, path: &str, message: &str) -> HttpResponse {
     let encoded = urlencoding::encode(message);
     HttpResponse::Found()
-        .append_header((
-            "Location",
-            format!("{frontend_url}/profile?error={encoded}"),
-        ))
+        .append_header(("Location", format!("{frontend_url}{path}?error={encoded}")))
         .finish()
 }
 

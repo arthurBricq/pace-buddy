@@ -104,6 +104,18 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route(
                         "/quota-requests/{id}/reject",
                         web::post().to(admin_routes::reject_quota_request),
+                    )
+                    .route(
+                        "/invite-codes",
+                        web::post().to(admin_routes::create_invite_code),
+                    )
+                    .route(
+                        "/invite-codes",
+                        web::get().to(admin_routes::list_invite_codes),
+                    )
+                    .route(
+                        "/invite-codes/{id}/revoke",
+                        web::post().to(admin_routes::revoke_invite_code),
                     ),
             )
             .service(

@@ -47,6 +47,35 @@
     gap: 0.7rem;
   }
 
+  .brand-invite-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6b4958;
+  }
+
+  .brand-invite-field input {
+    width: 17rem;
+    border: 1px solid #e0cebe;
+    border-radius: 999px;
+    padding: 0.52rem 0.8rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #3f2633;
+    background: #fffdf9;
+  }
+
+  .brand-invite-field input:focus-visible {
+    outline: 2px solid var(--color-secondary);
+    outline-offset: 1px;
+  }
+
   .brand-btn {
     display: inline-flex;
     align-items: center;
@@ -462,6 +491,17 @@
   @media (max-width: 480px) {
     .brand-actions {
       gap: 0.45rem;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+
+    .brand-invite-field {
+      width: 100%;
+      justify-content: flex-end;
+    }
+
+    .brand-invite-field input {
+      width: min(100%, 13rem);
     }
 
     .brand-btn-primary {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { startStravaAuth } from '../api/auth';
 
 const chatPreview = [
@@ -105,14 +105,17 @@ function FeatureIcon({ type }: { type: string }) {
 }
 
 export default function LoginPage() {
-  const [error, setError] = useState('');
+  const [searchParams] = useSearchParams();
+  const [error, setError] = useState(searchParams.get('error') || '');
   const [stravaLoading, setStravaLoading] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
 
   const handleStravaLogin = async () => {
     setError('');
     setStravaLoading(true);
     try {
-      const { url } = await startStravaAuth();
+      const code = inviteCode.trim();
+      const { url } = await startStravaAuth(code || undefined);
       window.location.href = url;
     } catch (err: any) {
       setError(err.message || 'Strava login failed');
@@ -128,6 +131,16 @@ export default function LoginPage() {
             <img src="/pace-buddy-logo.svg" alt="PaceBuddy" className="brand-logo-img" />
           </Link>
           <div className="brand-actions">
+            <label className="brand-invite-field">
+              <span>Invite code</span>
+              <input
+                type="text"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                placeholder="PB-XXXX-XXXX-XXXX-XXXX"
+                autoComplete="one-time-code"
+              />
+            </label>
             <button
               type="button"
               onClick={handleStravaLogin}

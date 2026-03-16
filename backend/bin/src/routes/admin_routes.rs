@@ -1,9 +1,14 @@
 use actix_web::{web, HttpResponse};
+use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use storage::Storage;
 use uuid::Uuid;
 
 use crate::errors::AppError;
+use crate::helpers::invite_code_helper::{
+    generate_invite_code, hash_invite_code, invite_code_is_valid_for_redemption,
+    normalize_invite_code,
+};
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
 
@@ -24,6 +29,19 @@ pub struct AdminUserQuotaSpending {
     total_spent_usd: f64,
 }
 
+#[derive(Serialize)]
+pub struct AdminInviteCode {
+    id: String,
+    created_by_user_id: Option<String>,
+    created_for: Option<String>,
+    created_at: String,
+    expires_at: Option<String>,
+    used_at: Option<String>,
+    used_by_strava_athlete_id: Option<i64>,
+    revoked_at: Option<String>,
+    is_redeemable: bool,
+}
+
 /// Verify the authenticated user is the admin by checking their Strava athlete ID.
 async fn verify_admin(
     state: &web::Data<AppState>,
@@ -39,13 +57,31 @@ async fn verify_admin(
         .await
         .map_err(|_| domain::DomainError::Forbidden("Not an admin".into()))?;
 
-    log::info!("Admin verification for user: {}", user.user_id);
+    log::info!(
+        "Admin verification for user: {} with athlete-id {}",
+        user.user_id,
+        token.strava_athlete_id
+    );
 
     if token.strava_athlete_id != admin_id {
         return Err(domain::DomainError::Forbidden("Not an admin".into()).into());
     }
 
     Ok(())
+}
+
+fn to_admin_invite_code(invite: &domain::invite_code::InviteCode) -> AdminInviteCode {
+    AdminInviteCode {
+        id: invite.id.to_string(),
+        created_by_user_id: invite.created_by_user_id.as_ref().map(|id| id.to_string()),
+        created_for: invite.created_for.clone(),
+        created_at: invite.created_at.to_rfc3339(),
+        expires_at: invite.expires_at.as_ref().map(|dt| dt.to_rfc3339()),
+        used_at: invite.used_at.as_ref().map(|dt| dt.to_rfc3339()),
+        used_by_strava_athlete_id: invite.used_by_strava_athlete_id,
+        revoked_at: invite.revoked_at.as_ref().map(|dt| dt.to_rfc3339()),
+        is_redeemable: invite_code_is_valid_for_redemption(invite),
+    }
 }
 
 pub async fn stats(
@@ -181,5 +217,114 @@ pub async fn delete_all_data(
     verify_admin(&state, &user).await?;
     state.storage.delete_all_data().await?;
     log::warn!("Admin {} deleted all database data", user.user_id);
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })))
+}
+
+#[derive(Deserialize)]
+pub struct CreateInviteCodeBody {
+    pub created_for: Option<String>,
+    pub expires_in_days: Option<i64>,
+    pub code: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct CreateInviteCodeResponse {
+    code: String,
+    invite: AdminInviteCode,
+}
+
+pub async fn create_invite_code(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+    body: web::Json<CreateInviteCodeBody>,
+) -> Result<HttpResponse, AppError> {
+    verify_admin(&state, &user).await?;
+
+    let created_for = body
+        .created_for
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(|v| v.to_string());
+
+    let expires_at = match body.expires_in_days {
+        Some(days) if days <= 0 => {
+            return Err(
+                domain::DomainError::BadRequest("expires_in_days must be positive".into()).into(),
+            )
+        }
+        Some(days) => Some(Utc::now() + Duration::days(days)),
+        None => None,
+    };
+
+    let requested_code = body
+        .code
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
+    let max_attempts = if requested_code.is_some() { 1 } else { 5 };
+
+    for _ in 0..max_attempts {
+        let code = if let Some(raw_code) = requested_code {
+            normalize_invite_code(raw_code)?
+        } else {
+            generate_invite_code()
+        };
+
+        let invite = domain::invite_code::InviteCode {
+            id: Uuid::new_v4(),
+            code_hash: hash_invite_code(&code),
+            created_by_user_id: Some(user.user_id),
+            created_for: created_for.clone(),
+            created_at: Utc::now(),
+            expires_at: expires_at.clone(),
+            used_at: None,
+            used_by_strava_athlete_id: None,
+            revoked_at: None,
+        };
+
+        match state.storage.create_invite_code(&invite).await {
+            Ok(()) => {
+                return Ok(HttpResponse::Ok().json(CreateInviteCodeResponse {
+                    code,
+                    invite: to_admin_invite_code(&invite),
+                }))
+            }
+            Err(domain::DomainError::Storage(message))
+                if requested_code.is_some() && message.contains("UNIQUE") =>
+            {
+                return Err(
+                    domain::DomainError::BadRequest("Invite code already exists".into()).into(),
+                )
+            }
+            Err(domain::DomainError::Storage(message))
+                if requested_code.is_none() && message.contains("UNIQUE") =>
+            {
+                continue
+            }
+            Err(e) => return Err(e.into()),
+        }
+    }
+
+    Err(domain::DomainError::Internal("Failed to generate a unique invite code".into()).into())
+}
+
+pub async fn list_invite_codes(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+) -> Result<HttpResponse, AppError> {
+    verify_admin(&state, &user).await?;
+    let invites = state.storage.list_invite_codes().await?;
+    let response: Vec<AdminInviteCode> = invites.iter().map(to_admin_invite_code).collect();
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn revoke_invite_code(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+    path: web::Path<Uuid>,
+) -> Result<HttpResponse, AppError> {
+    verify_admin(&state, &user).await?;
+    state.storage.revoke_invite_code(path.into_inner()).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })))
 }

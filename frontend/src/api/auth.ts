@@ -1,8 +1,11 @@
 import { apiFetch } from './client';
 import type { User, ProfileResponse, QuotaStatus, QuotaRequestRecord, MASEstimate } from '../types';
 
-export async function startStravaAuth() {
-  return apiFetch<{ url: string }>('/auth/strava/start', { method: 'POST' });
+export async function startStravaAuth(invite_code?: string) {
+  return apiFetch<{ url: string }>('/auth/strava/start', {
+    method: 'POST',
+    body: JSON.stringify({ invite_code: invite_code || undefined }),
+  });
 }
 
 export async function logout() {

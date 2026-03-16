@@ -21,6 +21,8 @@ pub struct OAuthStateClaims {
     pub purpose: String,
     /// Optional app user id (present for `strava_link` flow).
     pub user_id: Option<String>,
+    /// Optional invite code hash carried from login start to callback.
+    pub invite_code_hash: Option<String>,
     /// Unique nonce to prevent accidental token reuse collisions.
     pub nonce: String,
     /// Expiration time (as UTC timestamp in seconds).
@@ -71,13 +73,16 @@ impl JwtService {
     }
 
     /// Create a signed OAuth state token for Strava login.
-    pub fn create_strava_login_state(&self) -> Result<String, DomainError> {
-        self.create_oauth_state("strava_login", None)
+    pub fn create_strava_login_state(
+        &self,
+        invite_code_hash: Option<String>,
+    ) -> Result<String, DomainError> {
+        self.create_oauth_state("strava_login", None, invite_code_hash)
     }
 
     /// Create a signed OAuth state token for Strava account linking.
     pub fn create_strava_link_state(&self, user_id: Uuid) -> Result<String, DomainError> {
-        self.create_oauth_state("strava_link", Some(user_id))
+        self.create_oauth_state("strava_link", Some(user_id), None)
     }
 
     /// Verify an OAuth state token and return claims.
@@ -92,6 +97,7 @@ impl JwtService {
         &self,
         purpose: &str,
         user_id: Option<Uuid>,
+        invite_code_hash: Option<String>,
     ) -> Result<String, DomainError> {
         let expiration = Utc::now()
             .checked_add_signed(Duration::minutes(10))
@@ -102,6 +108,7 @@ impl JwtService {
         let claims = OAuthStateClaims {
             purpose: purpose.to_string(),
             user_id: user_id.map(|id| id.to_string()),
+            invite_code_hash,
             nonce: Uuid::new_v4().to_string(),
             exp: expiration.timestamp() as usize,
         };

@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use domain::invite_code::InviteCode;
 use domain::{
     Activity, ActivityLap, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError,
     ModelCostCategory, ModelCostTier, QuotaRequest, QuotaRequestStatus, RunningStats, StravaToken,
@@ -285,6 +286,30 @@ impl SqliteStorage {
         .map_err(|e| DomainError::Storage(format!("Failed to create quota_requests table: {e}")))?;
 
         sqlx::query(
+            "CREATE TABLE IF NOT EXISTS invite_codes (
+                id TEXT PRIMARY KEY NOT NULL,
+                code_hash TEXT UNIQUE NOT NULL,
+                created_by_user_id TEXT REFERENCES users(id),
+                created_for TEXT,
+                created_at TEXT NOT NULL,
+                expires_at TEXT,
+                used_at TEXT,
+                used_by_strava_athlete_id INTEGER,
+                revoked_at TEXT
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create invite_codes table: {e}")))?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_invite_codes_created_at ON invite_codes(created_at DESC)",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create invite_codes index: {e}")))?;
+
+        sqlx::query(
             "CREATE TABLE IF NOT EXISTS model_cost_tiers (
                 model_id TEXT PRIMARY KEY NOT NULL,
                 model_name TEXT NOT NULL,
@@ -362,6 +387,30 @@ fn row_to_quota_request(row: &SqliteRow) -> Result<QuotaRequest, DomainError> {
         requested_at: parse_datetime(&requested_at)?,
         resolved_at: resolved_at.as_deref().map(parse_datetime).transpose()?,
         granted_amount_usd,
+    })
+}
+
+fn row_to_invite_code(row: &SqliteRow) -> Result<InviteCode, DomainError> {
+    let id: String = row.get("id");
+    let code_hash: String = row.get("code_hash");
+    let created_by_user_id: Option<String> = row.get("created_by_user_id");
+    let created_for: Option<String> = row.get("created_for");
+    let created_at: String = row.get("created_at");
+    let expires_at: Option<String> = row.get("expires_at");
+    let used_at: Option<String> = row.get("used_at");
+    let used_by_strava_athlete_id: Option<i64> = row.get("used_by_strava_athlete_id");
+    let revoked_at: Option<String> = row.get("revoked_at");
+
+    Ok(InviteCode {
+        id: parse_uuid(&id)?,
+        code_hash,
+        created_by_user_id: created_by_user_id.as_deref().map(parse_uuid).transpose()?,
+        created_for,
+        created_at: parse_datetime(&created_at)?,
+        expires_at: expires_at.as_deref().map(parse_datetime).transpose()?,
+        used_at: used_at.as_deref().map(parse_datetime).transpose()?,
+        used_by_strava_athlete_id,
+        revoked_at: revoked_at.as_deref().map(parse_datetime).transpose()?,
     })
 }
 
@@ -1900,6 +1949,120 @@ impl Storage for SqliteStorage {
 
         Ok(())
     }
+
+    async fn create_invite_code(&self, invite_code: &InviteCode) -> Result<(), DomainError> {
+        let created_by_user_id: Option<String> = invite_code
+            .created_by_user_id
+            .as_ref()
+            .map(|id| id.to_string());
+        let expires_at: Option<String> = invite_code.expires_at.as_ref().map(|dt| dt.to_rfc3339());
+        let used_at: Option<String> = invite_code.used_at.as_ref().map(|dt| dt.to_rfc3339());
+        let revoked_at: Option<String> = invite_code.revoked_at.as_ref().map(|dt| dt.to_rfc3339());
+
+        sqlx::query(
+            "INSERT INTO invite_codes (
+                id, code_hash, created_by_user_id, created_for, created_at, expires_at, used_at,
+                used_by_strava_athlete_id, revoked_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(invite_code.id.to_string())
+        .bind(&invite_code.code_hash)
+        .bind(created_by_user_id)
+        .bind(&invite_code.created_for)
+        .bind(invite_code.created_at.to_rfc3339())
+        .bind(expires_at)
+        .bind(used_at)
+        .bind(invite_code.used_by_strava_athlete_id)
+        .bind(revoked_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create invite code: {e}")))?;
+
+        Ok(())
+    }
+
+    async fn list_invite_codes(&self) -> Result<Vec<InviteCode>, DomainError> {
+        let rows = sqlx::query(
+            "SELECT id, code_hash, created_by_user_id, created_for, created_at, expires_at, used_at, used_by_strava_athlete_id, revoked_at
+             FROM invite_codes
+             ORDER BY created_at DESC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to list invite codes: {e}")))?;
+
+        rows.iter().map(row_to_invite_code).collect()
+    }
+
+    async fn get_invite_code_by_hash(&self, code_hash: &str) -> Result<InviteCode, DomainError> {
+        let row = sqlx::query(
+            "SELECT id, code_hash, created_by_user_id, created_for, created_at, expires_at, used_at, used_by_strava_athlete_id, revoked_at
+             FROM invite_codes
+             WHERE code_hash = ?",
+        )
+        .bind(code_hash)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get invite code: {e}")))?
+        .ok_or_else(|| DomainError::NotFound("Invite code not found".into()))?;
+
+        row_to_invite_code(&row)
+    }
+
+    async fn revoke_invite_code(&self, id: Uuid) -> Result<(), DomainError> {
+        let now = Utc::now().to_rfc3339();
+        let result = sqlx::query(
+            "UPDATE invite_codes
+             SET revoked_at = COALESCE(revoked_at, ?)
+             WHERE id = ? AND used_at IS NULL",
+        )
+        .bind(&now)
+        .bind(id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to revoke invite code: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Err(DomainError::BadRequest(
+                "Invite code cannot be revoked (already used or missing)".into(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    async fn consume_invite_code(
+        &self,
+        code_hash: &str,
+        used_by_strava_athlete_id: i64,
+    ) -> Result<(), DomainError> {
+        let now = Utc::now();
+        let now_rfc3339 = now.to_rfc3339();
+
+        let result = sqlx::query(
+            "UPDATE invite_codes
+             SET used_at = ?, used_by_strava_athlete_id = ?
+             WHERE code_hash = ?
+               AND used_at IS NULL
+               AND revoked_at IS NULL
+               AND (expires_at IS NULL OR expires_at > ?)",
+        )
+        .bind(&now_rfc3339)
+        .bind(used_by_strava_athlete_id)
+        .bind(code_hash)
+        .bind(&now_rfc3339)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to consume invite code: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Err(DomainError::BadRequest(
+                "Invite code is invalid, expired, revoked, or already used".into(),
+            ));
+        }
+
+        Ok(())
+    }
 }
 
 impl SqliteStorage {
@@ -1960,6 +2123,7 @@ impl SqliteStorage {
             "activities",
             "trainings",
             "quota_requests",
+            "invite_codes",
             "model_cost_tiers",
             "strava_tokens",
             "users",

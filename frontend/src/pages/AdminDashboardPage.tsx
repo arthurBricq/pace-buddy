@@ -6,7 +6,11 @@ import {
   approveQuotaRequest,
   rejectQuotaRequest,
   deleteAllData,
+  listInviteCodes,
+  createInviteCode,
+  revokeInviteCode,
   type AdminStats,
+  type AdminInviteCode,
 } from '../api/admin';
 import type { QuotaRequestRecord } from '../types';
 import Navbar from '../components/Navbar';
@@ -18,11 +22,18 @@ export default function AdminDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [inviteCodes, setInviteCodes] = useState<AdminInviteCode[]>([]);
+  const [inviteFor, setInviteFor] = useState('');
+  const [inviteExpiresDays, setInviteExpiresDays] = useState('30');
+  const [inviteCustomCode, setInviteCustomCode] = useState('');
+  const [createdInviteCode, setCreatedInviteCode] = useState<string | null>(null);
+  const [isCreatingInvite, setIsCreatingInvite] = useState(false);
 
   const loadData = () => {
     setNotice(null);
     getAdminStats().then(setStats).catch((e) => setError(e.message));
     getQuotaRequests().then(setRequests).catch(() => {});
+    listInviteCodes().then(setInviteCodes).catch(() => {});
   };
 
   useEffect(loadData, []);
@@ -65,6 +76,37 @@ export default function AdminDashboardPage() {
       setError(e.message);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleCreateInvite = async () => {
+    const expiresInDays = parseInt(inviteExpiresDays, 10);
+    const payload = {
+      created_for: inviteFor.trim() || undefined,
+      expires_in_days: Number.isNaN(expiresInDays) ? undefined : expiresInDays,
+      code: inviteCustomCode.trim() || undefined,
+    };
+
+    try {
+      setIsCreatingInvite(true);
+      const result = await createInviteCode(payload);
+      setCreatedInviteCode(result.code);
+      setInviteFor('');
+      setInviteCustomCode('');
+      loadData();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setIsCreatingInvite(false);
+    }
+  };
+
+  const handleRevokeInvite = async (id: string) => {
+    try {
+      await revokeInviteCode(id);
+      loadData();
+    } catch (e: any) {
+      setError(e.message);
     }
   };
 
@@ -142,6 +184,106 @@ export default function AdminDashboardPage() {
                     >
                       Reject
                     </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <h3 className="text-lg font-semibold mb-4">Invite Codes</h3>
+
+          {createdInviteCode && (
+            <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+              New invite code: <span className="font-mono font-semibold">{createdInviteCode}</span>
+            </div>
+          )}
+
+          <div className="mb-4 grid gap-2 sm:grid-cols-4">
+            <input
+              type="text"
+              placeholder="For (optional)"
+              value={inviteFor}
+              onChange={(e) => setInviteFor(e.target.value)}
+              className="rounded border px-3 py-2 text-sm"
+            />
+            <input
+              type="number"
+              min="1"
+              placeholder="Expires in days"
+              value={inviteExpiresDays}
+              onChange={(e) => setInviteExpiresDays(e.target.value)}
+              className="rounded border px-3 py-2 text-sm"
+            />
+            <input
+              type="text"
+              placeholder="Custom code (optional)"
+              value={inviteCustomCode}
+              onChange={(e) => setInviteCustomCode(e.target.value)}
+              className="rounded border px-3 py-2 text-sm"
+            />
+            <button
+              onClick={handleCreateInvite}
+              disabled={isCreatingInvite}
+              className="rounded bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-60"
+            >
+              {isCreatingInvite ? 'Creating...' : 'Create Invite Code'}
+            </button>
+          </div>
+
+          {inviteCodes.length === 0 ? (
+            <p className="text-sm text-gray-500">No invite codes yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {inviteCodes.map((invite) => (
+                <div
+                  key={invite.id}
+                  className="rounded border border-gray-200 bg-gray-50 p-3 text-sm"
+                >
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="font-medium text-gray-800">
+                        {invite.created_for || 'Unnamed invite'}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Created {new Date(invite.created_at).toLocaleString()}
+                        {invite.expires_at ? ` • Expires ${new Date(invite.expires_at).toLocaleString()}` : ''}
+                      </p>
+                      {invite.used_at && (
+                        <p className="text-xs text-gray-500">
+                          Used {new Date(invite.used_at).toLocaleString()}
+                          {invite.used_by_strava_athlete_id
+                            ? ` by athlete ${invite.used_by_strava_athlete_id}`
+                            : ''}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`rounded px-2 py-1 text-xs font-semibold ${
+                          invite.is_redeemable
+                            ? 'bg-green-100 text-green-700'
+                            : invite.revoked_at
+                              ? 'bg-gray-200 text-gray-700'
+                              : 'bg-amber-100 text-amber-700'
+                        }`}
+                      >
+                        {invite.is_redeemable
+                          ? 'active'
+                          : invite.revoked_at
+                            ? 'revoked'
+                            : 'used/expired'}
+                      </span>
+                      {invite.is_redeemable && (
+                        <button
+                          onClick={() => handleRevokeInvite(invite.id)}
+                          className="rounded bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-700"
+                        >
+                          Revoke
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}

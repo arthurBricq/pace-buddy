@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use domain::invite_code::InviteCode;
 use domain::{
     Activity, ActivityLap, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError,
     ModelCostTier, QuotaRequest, QuotaRequestStatus, RunningStats, StravaToken, Training,
@@ -159,6 +160,17 @@ pub trait Storage: Send + Sync {
         id: Uuid,
         status: QuotaRequestStatus,
         granted_amount_usd: Option<f64>,
+    ) -> Result<(), DomainError>;
+
+    // Invite codes
+    async fn create_invite_code(&self, invite_code: &InviteCode) -> Result<(), DomainError>;
+    async fn list_invite_codes(&self) -> Result<Vec<InviteCode>, DomainError>;
+    async fn get_invite_code_by_hash(&self, code_hash: &str) -> Result<InviteCode, DomainError>;
+    async fn revoke_invite_code(&self, id: Uuid) -> Result<(), DomainError>;
+    async fn consume_invite_code(
+        &self,
+        code_hash: &str,
+        used_by_strava_athlete_id: i64,
     ) -> Result<(), DomainError>;
 
     // Stats
