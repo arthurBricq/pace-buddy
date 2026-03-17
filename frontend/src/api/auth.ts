@@ -1,5 +1,13 @@
 import { apiFetch } from './client';
-import type { User, ProfileResponse, QuotaStatus, QuotaRequestRecord, MASEstimate } from '../types';
+import type {
+  AthleteProfile,
+  IdentityProfile,
+  MASEstimate,
+  ProfileResponse,
+  QuotaRequestRecord,
+  QuotaStatus,
+  User,
+} from '../types';
 
 export async function startStravaAuth(invite_code?: string) {
   return apiFetch<{ url: string }>('/auth/strava/start', {
@@ -14,6 +22,10 @@ export async function logout() {
 
 export async function getMe() {
   return apiFetch<User>('/auth/me');
+}
+
+export async function getOnboardingStatus() {
+  return apiFetch<{ needs_onboarding: boolean }>('/auth/onboarding/status');
 }
 
 export async function getMAS() {
@@ -39,6 +51,47 @@ export async function getMASEstimates() {
 
 export async function getProfile() {
   return apiFetch<ProfileResponse>('/auth/profile');
+}
+
+export interface UpsertIdentityProfilePayload {
+  name?: string | null;
+  age?: number | null;
+  email?: string | null;
+  gender?: string | null;
+  height_cm?: number | null;
+  weight_kg?: number | null;
+}
+
+export interface UpsertAthleteProfilePayload {
+  goal_description?: string | null;
+  goal_date?: string | null;
+  goal_distance_km?: number | null;
+  goal_target_time_seconds?: number | null;
+  goal_sport_type?: string | null;
+  goal_elevation_gain_m?: number | null;
+  additional_info?: string | null;
+}
+
+export async function getIdentityProfile() {
+  return apiFetch<IdentityProfile | null>('/auth/profile/identity');
+}
+
+export async function upsertIdentityProfile(payload: UpsertIdentityProfilePayload) {
+  return apiFetch<IdentityProfile>('/auth/profile/identity', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getAthleteProfile() {
+  return apiFetch<AthleteProfile | null>('/auth/profile/athlete');
+}
+
+export async function upsertAthleteProfile(payload: UpsertAthleteProfilePayload) {
+  return apiFetch<AthleteProfile>('/auth/profile/athlete', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
 }
 
 export interface ExpensiveRequest {

@@ -66,6 +66,23 @@ function formatCost(cost: number): string {
   return `$${cost.toFixed(4)}`;
 }
 
+function formatGoalTargetTime(seconds: number | null): string {
+  if (!seconds || seconds <= 0) return '-';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s
+    .toString()
+    .padStart(2, '0')}`;
+}
+
+function formatGoalSportType(value: string | null): string {
+  if (!value) return '-';
+  if (value === 'trail_running') return 'Trail running';
+  if (value === 'running') return 'Running';
+  return value;
+}
+
 export default function ProfilePage() {
   const [searchParams] = useSearchParams();
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
@@ -153,7 +170,7 @@ export default function ProfilePage() {
     );
   }
 
-  const { user, stats } = profile;
+  const { user, stats, identity_profile: identityProfile, athlete_profile: athleteProfile } = profile;
 
   return (
     <div className="app-shell">
@@ -165,6 +182,105 @@ export default function ProfilePage() {
           <p className="text-sm text-gray-400 mt-1">
             Member since {new Date(user.created_at).toLocaleDateString()}
           </p>
+          <div className="mt-4">
+            <Link to="/onboarding" className="text-sm text-purple-700 hover:text-purple-900 underline">
+              Edit onboarding profile
+            </Link>
+          </div>
+        </div>
+
+        <div className="grid gap-6 sm:grid-cols-2">
+          <div className="card">
+            <h2 className="text-lg font-semibold mb-4">General presentation</h2>
+            {identityProfile ? (
+              <div className="space-y-3">
+                <div className="flex justify-between gap-4">
+                  <span className="text-sm text-gray-500">Name</span>
+                  <span className="text-sm font-medium text-right">{identityProfile.name || '-'}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-sm text-gray-500">Age</span>
+                  <span className="text-sm font-medium text-right">
+                    {identityProfile.age != null ? identityProfile.age : '-'}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-sm text-gray-500">Email</span>
+                  <span className="text-sm font-medium text-right">{identityProfile.email || '-'}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-sm text-gray-500">Gender</span>
+                  <span className="text-sm font-medium text-right">{identityProfile.gender || '-'}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-sm text-gray-500">Height</span>
+                  <span className="text-sm font-medium text-right">
+                    {identityProfile.height_cm != null ? `${identityProfile.height_cm} cm` : '-'}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-sm text-gray-500">Weight</span>
+                  <span className="text-sm font-medium text-right">
+                    {identityProfile.weight_kg != null ? `${identityProfile.weight_kg} kg` : '-'}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">Not configured yet.</p>
+            )}
+          </div>
+
+          <div className="card">
+            <h2 className="text-lg font-semibold mb-4">Sport presentation</h2>
+            {athleteProfile ? (
+              <div className="space-y-3">
+                <div className="flex justify-between gap-4">
+                  <span className="text-sm text-gray-500">Goal date</span>
+                  <span className="text-sm font-medium text-right">{athleteProfile.goal_date || '-'}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-sm text-gray-500">Goal distance</span>
+                  <span className="text-sm font-medium text-right">
+                    {athleteProfile.goal_distance_km != null ? `${athleteProfile.goal_distance_km} km` : '-'}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-sm text-gray-500">Goal target time</span>
+                  <span className="text-sm font-medium text-right">
+                    {formatGoalTargetTime(athleteProfile.goal_target_time_seconds)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-sm text-gray-500">Goal sport</span>
+                  <span className="text-sm font-medium text-right">
+                    {formatGoalSportType(athleteProfile.goal_sport_type)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-sm text-gray-500">Goal elevation</span>
+                  <span className="text-sm font-medium text-right">
+                    {athleteProfile.goal_elevation_gain_m != null
+                      ? `${Math.round(athleteProfile.goal_elevation_gain_m)} m`
+                      : '-'}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Goal description</p>
+                  <p className="text-sm font-medium mt-1 whitespace-pre-wrap">
+                    {athleteProfile.goal_description || '-'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Additional information</p>
+                  <p className="text-sm font-medium mt-1 whitespace-pre-wrap">
+                    {athleteProfile.additional_info || '-'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">Not configured yet.</p>
+            )}
+          </div>
         </div>
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">

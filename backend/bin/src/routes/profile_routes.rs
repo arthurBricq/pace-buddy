@@ -4,8 +4,8 @@ use crate::helpers::mas_estimator::{build_race_mas_estimates, list_race_activiti
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
 use actix_web::{web, HttpResponse};
-use chrono::Datelike;
-use domain::DomainError;
+use chrono::{Datelike, Utc};
+use domain::{AthleteProfile, DomainError, IdentityProfile};
 use serde::{Deserialize, Serialize};
 use storage::Storage;
 use uuid::Uuid;
@@ -53,7 +53,9 @@ pub async fn recompute_mas(
     let mas_kmh = state
         .recompute_user_mas_from_races(user.user_id)
         .await?
-        .ok_or_else(|| DomainError::BadRequest("No eligible races available to compute MAS".into()))?;
+        .ok_or_else(|| {
+            DomainError::BadRequest("No eligible races available to compute MAS".into())
+        })?;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "status": "ok",
@@ -71,6 +73,177 @@ pub async fn mas_estimates(
     Ok(HttpResponse::Ok().json(estimates))
 }
 
+fn normalize_optional_string(value: Option<String>) -> Option<String> {
+    value.and_then(|raw| {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
+}
+
+#[derive(Deserialize)]
+pub struct UpsertIdentityProfileRequest {
+    pub name: Option<String>,
+    pub age: Option<i32>,
+    pub email: Option<String>,
+    pub gender: Option<String>,
+    pub height_cm: Option<f64>,
+    pub weight_kg: Option<f64>,
+}
+
+#[derive(Deserialize)]
+pub struct UpsertAthleteProfileRequest {
+    pub goal_description: Option<String>,
+    pub goal_date: Option<String>,
+    pub goal_distance_km: Option<f64>,
+    pub goal_target_time_seconds: Option<i32>,
+    pub goal_sport_type: Option<String>,
+    pub goal_elevation_gain_m: Option<f64>,
+    pub additional_info: Option<String>,
+}
+
+pub async fn onboarding_status(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+) -> Result<HttpResponse, AppError> {
+    log::debug!("GET /auth/onboarding/status user_id={}", user.user_id);
+    let has_identity_profile = state
+        .storage
+        .get_identity_profile(user.user_id)
+        .await?
+        .is_some();
+    let has_athlete_profile = state
+        .storage
+        .get_athlete_profile(user.user_id)
+        .await?
+        .is_some();
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "needs_onboarding": !(has_identity_profile && has_athlete_profile),
+    })))
+}
+
+pub async fn get_identity_profile(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+) -> Result<HttpResponse, AppError> {
+    log::debug!("GET /auth/profile/identity user_id={}", user.user_id);
+    let profile = state.storage.get_identity_profile(user.user_id).await?;
+    Ok(HttpResponse::Ok().json(profile))
+}
+
+pub async fn upsert_identity_profile(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+    body: web::Json<UpsertIdentityProfileRequest>,
+) -> Result<HttpResponse, AppError> {
+    log::info!("PUT /auth/profile/identity user_id={}", user.user_id);
+
+    if let Some(age) = body.age {
+        if !(1..=120).contains(&age) {
+            return Err(DomainError::BadRequest("Age must be between 1 and 120".into()).into());
+        }
+    }
+    if let Some(height_cm) = body.height_cm {
+        if !(50.0..=260.0).contains(&height_cm) {
+            return Err(
+                DomainError::BadRequest("Height must be between 50 and 260 cm".into()).into(),
+            );
+        }
+    }
+    if let Some(weight_kg) = body.weight_kg {
+        if !(20.0..=250.0).contains(&weight_kg) {
+            return Err(
+                DomainError::BadRequest("Weight must be between 20 and 250 kg".into()).into(),
+            );
+        }
+    }
+
+    let profile = IdentityProfile {
+        user_id: user.user_id,
+        name: normalize_optional_string(body.name.clone()),
+        age: body.age,
+        email: normalize_optional_string(body.email.clone()),
+        gender: normalize_optional_string(body.gender.clone()),
+        height_cm: body.height_cm,
+        weight_kg: body.weight_kg,
+        updated_at: Utc::now(),
+    };
+
+    state.storage.upsert_identity_profile(&profile).await?;
+    Ok(HttpResponse::Ok().json(profile))
+}
+
+pub async fn get_athlete_profile(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+) -> Result<HttpResponse, AppError> {
+    log::debug!("GET /auth/profile/athlete user_id={}", user.user_id);
+    let profile = state.storage.get_athlete_profile(user.user_id).await?;
+    Ok(HttpResponse::Ok().json(profile))
+}
+
+pub async fn upsert_athlete_profile(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+    body: web::Json<UpsertAthleteProfileRequest>,
+) -> Result<HttpResponse, AppError> {
+    log::info!("PUT /auth/profile/athlete user_id={}", user.user_id);
+
+    let goal_date = normalize_optional_string(body.goal_date.clone());
+    if let Some(raw_goal_date) = goal_date.as_deref() {
+        chrono::NaiveDate::parse_from_str(raw_goal_date, "%Y-%m-%d").map_err(|_| {
+            DomainError::BadRequest("Goal date must be in YYYY-MM-DD format".into())
+        })?;
+    }
+
+    if let Some(goal_distance_km) = body.goal_distance_km {
+        if goal_distance_km <= 0.0 {
+            return Err(DomainError::BadRequest("Goal distance must be > 0".into()).into());
+        }
+    }
+    if let Some(goal_target_time_seconds) = body.goal_target_time_seconds {
+        if goal_target_time_seconds <= 0 {
+            return Err(DomainError::BadRequest("Goal target time must be > 0".into()).into());
+        }
+    }
+    if let Some(goal_elevation_gain_m) = body.goal_elevation_gain_m {
+        if goal_elevation_gain_m < 0.0 {
+            return Err(DomainError::BadRequest("Goal elevation gain must be >= 0".into()).into());
+        }
+    }
+
+    let goal_sport_type = normalize_optional_string(body.goal_sport_type.clone())
+        .map(|value| value.to_lowercase())
+        .map(|value| value.replace('-', "_"));
+    if let Some(value) = goal_sport_type.as_deref() {
+        if value != "running" && value != "trail_running" {
+            return Err(DomainError::BadRequest(
+                "Goal sport type must be one of: running, trail_running".into(),
+            )
+            .into());
+        }
+    }
+
+    let profile = AthleteProfile {
+        user_id: user.user_id,
+        goal_description: normalize_optional_string(body.goal_description.clone()),
+        goal_date,
+        goal_distance_km: body.goal_distance_km,
+        goal_target_time_seconds: body.goal_target_time_seconds,
+        goal_sport_type,
+        goal_elevation_gain_m: body.goal_elevation_gain_m,
+        additional_info: normalize_optional_string(body.additional_info.clone()),
+        updated_at: Utc::now(),
+    };
+
+    state.storage.upsert_athlete_profile(&profile).await?;
+    Ok(HttpResponse::Ok().json(profile))
+}
+
 pub async fn profile(
     state: web::Data<AppState>,
     user: AuthenticatedUser,
@@ -78,6 +251,8 @@ pub async fn profile(
     log::debug!("GET /auth/profile user_id={}", user.user_id);
 
     let u = state.storage.get_user_by_id(user.user_id).await?;
+    let identity_profile = state.storage.get_identity_profile(user.user_id).await?;
+    let athlete_profile = state.storage.get_athlete_profile(user.user_id).await?;
 
     let now = chrono::Utc::now();
     let this_year_start = chrono::NaiveDate::from_ymd_opt(now.year(), 1, 1)
@@ -111,6 +286,8 @@ pub async fn profile(
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "user": u,
+        "identity_profile": identity_profile,
+        "athlete_profile": athlete_profile,
         "stats": {
             "ytd": ytd,
             "last_year": last_year,

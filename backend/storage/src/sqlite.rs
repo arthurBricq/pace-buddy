@@ -2,9 +2,9 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use domain::invite_code::InviteCode;
 use domain::{
-    Activity, ActivityLap, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError,
-    ModelCostCategory, ModelCostTier, QuotaRequest, QuotaRequestStatus, RunningStats, StravaToken,
-    Training, TrainingInsight, User,
+    Activity, ActivityLap, ActivityStream, ActivityTag, AiChat, AiChatMessage, AthleteProfile,
+    DomainError, IdentityProfile, ModelCostCategory, ModelCostTier, QuotaRequest,
+    QuotaRequestStatus, RunningStats, StravaToken, Training, TrainingInsight, User,
 };
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow};
 use sqlx::Row;
@@ -45,6 +45,43 @@ impl SqliteStorage {
         .execute(pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create users table: {e}")))?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS identity_profiles (
+                user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                name TEXT,
+                age INTEGER,
+                email TEXT,
+                gender TEXT,
+                height_cm REAL,
+                weight_kg REAL,
+                updated_at TEXT NOT NULL
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to create identity_profiles table: {e}"))
+        })?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS athlete_profiles (
+                user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                goal_description TEXT,
+                goal_date TEXT,
+                goal_distance_km REAL,
+                goal_target_time_seconds INTEGER,
+                goal_sport_type TEXT,
+                goal_elevation_gain_m REAL,
+                additional_info TEXT,
+                updated_at TEXT NOT NULL
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to create athlete_profiles table: {e}"))
+        })?;
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS strava_tokens (
@@ -369,6 +406,52 @@ fn row_to_user(row: &SqliteRow) -> Result<User, DomainError> {
         created_at: parse_datetime(&created_at)?,
         mas_current,
         quota_balance_usd,
+    })
+}
+
+fn row_to_identity_profile(row: &SqliteRow) -> Result<IdentityProfile, DomainError> {
+    let user_id: String = row.get("user_id");
+    let name: Option<String> = row.get("name");
+    let age: Option<i32> = row.get("age");
+    let email: Option<String> = row.get("email");
+    let gender: Option<String> = row.get("gender");
+    let height_cm: Option<f64> = row.get("height_cm");
+    let weight_kg: Option<f64> = row.get("weight_kg");
+    let updated_at: String = row.get("updated_at");
+
+    Ok(IdentityProfile {
+        user_id: parse_uuid(&user_id)?,
+        name,
+        age,
+        email,
+        gender,
+        height_cm,
+        weight_kg,
+        updated_at: parse_datetime(&updated_at)?,
+    })
+}
+
+fn row_to_athlete_profile(row: &SqliteRow) -> Result<AthleteProfile, DomainError> {
+    let user_id: String = row.get("user_id");
+    let goal_description: Option<String> = row.get("goal_description");
+    let goal_date: Option<String> = row.get("goal_date");
+    let goal_distance_km: Option<f64> = row.get("goal_distance_km");
+    let goal_target_time_seconds: Option<i32> = row.get("goal_target_time_seconds");
+    let goal_sport_type: Option<String> = row.get("goal_sport_type");
+    let goal_elevation_gain_m: Option<f64> = row.get("goal_elevation_gain_m");
+    let additional_info: Option<String> = row.get("additional_info");
+    let updated_at: String = row.get("updated_at");
+
+    Ok(AthleteProfile {
+        user_id: parse_uuid(&user_id)?,
+        goal_description,
+        goal_date,
+        goal_distance_km,
+        goal_target_time_seconds,
+        goal_sport_type,
+        goal_elevation_gain_m,
+        additional_info,
+        updated_at: parse_datetime(&updated_at)?,
     })
 }
 
@@ -1496,6 +1579,102 @@ impl Storage for SqliteStorage {
             .execute(&self.pool)
             .await
             .map_err(|e| DomainError::Storage(format!("Failed to update user MAS: {e}")))?;
+
+        Ok(())
+    }
+
+    async fn get_identity_profile(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<IdentityProfile>, DomainError> {
+        let row = sqlx::query(
+            "SELECT user_id, name, age, email, gender, height_cm, weight_kg, updated_at
+             FROM identity_profiles
+             WHERE user_id = ?",
+        )
+        .bind(user_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get identity profile: {e}")))?;
+
+        row.map(|r| row_to_identity_profile(&r)).transpose()
+    }
+
+    async fn upsert_identity_profile(&self, profile: &IdentityProfile) -> Result<(), DomainError> {
+        sqlx::query(
+            "INSERT INTO identity_profiles (
+                user_id, name, age, email, gender, height_cm, weight_kg, updated_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(user_id) DO UPDATE SET
+                name = excluded.name,
+                age = excluded.age,
+                email = excluded.email,
+                gender = excluded.gender,
+                height_cm = excluded.height_cm,
+                weight_kg = excluded.weight_kg,
+                updated_at = excluded.updated_at",
+        )
+        .bind(profile.user_id.to_string())
+        .bind(profile.name.as_deref())
+        .bind(profile.age)
+        .bind(profile.email.as_deref())
+        .bind(profile.gender.as_deref())
+        .bind(profile.height_cm)
+        .bind(profile.weight_kg)
+        .bind(profile.updated_at.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to upsert identity profile: {e}")))?;
+
+        Ok(())
+    }
+
+    async fn get_athlete_profile(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<AthleteProfile>, DomainError> {
+        let row = sqlx::query(
+            "SELECT user_id, goal_description, goal_date, goal_distance_km, goal_target_time_seconds,
+                    goal_sport_type, goal_elevation_gain_m, additional_info, updated_at
+             FROM athlete_profiles
+             WHERE user_id = ?",
+        )
+        .bind(user_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get athlete profile: {e}")))?;
+
+        row.map(|r| row_to_athlete_profile(&r)).transpose()
+    }
+
+    async fn upsert_athlete_profile(&self, profile: &AthleteProfile) -> Result<(), DomainError> {
+        sqlx::query(
+            "INSERT INTO athlete_profiles (
+                user_id, goal_description, goal_date, goal_distance_km, goal_target_time_seconds,
+                goal_sport_type, goal_elevation_gain_m, additional_info, updated_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(user_id) DO UPDATE SET
+                goal_description = excluded.goal_description,
+                goal_date = excluded.goal_date,
+                goal_distance_km = excluded.goal_distance_km,
+                goal_target_time_seconds = excluded.goal_target_time_seconds,
+                goal_sport_type = excluded.goal_sport_type,
+                goal_elevation_gain_m = excluded.goal_elevation_gain_m,
+                additional_info = excluded.additional_info,
+                updated_at = excluded.updated_at",
+        )
+        .bind(profile.user_id.to_string())
+        .bind(profile.goal_description.as_deref())
+        .bind(profile.goal_date.as_deref())
+        .bind(profile.goal_distance_km)
+        .bind(profile.goal_target_time_seconds)
+        .bind(profile.goal_sport_type.as_deref())
+        .bind(profile.goal_elevation_gain_m)
+        .bind(profile.additional_info.as_deref())
+        .bind(profile.updated_at.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to upsert athlete profile: {e}")))?;
 
         Ok(())
     }

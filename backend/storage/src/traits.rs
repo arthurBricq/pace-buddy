@@ -2,9 +2,9 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use domain::invite_code::InviteCode;
 use domain::{
-    Activity, ActivityLap, ActivityStream, ActivityTag, AiChat, AiChatMessage, DomainError,
-    ModelCostTier, QuotaRequest, QuotaRequestStatus, RunningStats, StravaToken, Training,
-    TrainingInsight, User,
+    Activity, ActivityLap, ActivityStream, ActivityTag, AiChat, AiChatMessage, AthleteProfile,
+    DomainError, IdentityProfile, ModelCostTier, QuotaRequest, QuotaRequestStatus, RunningStats,
+    StravaToken, Training, TrainingInsight, User,
 };
 use uuid::Uuid;
 
@@ -18,6 +18,16 @@ pub trait Storage: Send + Sync {
     async fn list_users(&self) -> Result<Vec<User>, DomainError>;
     async fn update_user_mas(&self, user_id: Uuid, mas_kmh: Option<f64>)
         -> Result<(), DomainError>;
+    async fn get_identity_profile(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<IdentityProfile>, DomainError>;
+    async fn upsert_identity_profile(&self, profile: &IdentityProfile) -> Result<(), DomainError>;
+    async fn get_athlete_profile(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<AthleteProfile>, DomainError>;
+    async fn upsert_athlete_profile(&self, profile: &AthleteProfile) -> Result<(), DomainError>;
     async fn upsert_model_cost_tiers(&self, tiers: &[ModelCostTier]) -> Result<(), DomainError>;
     async fn list_model_cost_tiers(&self) -> Result<Vec<ModelCostTier>, DomainError>;
 

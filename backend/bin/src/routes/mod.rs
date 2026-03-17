@@ -28,6 +28,26 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         web::post().to(profile_routes::recompute_mas),
                     )
                     .route(
+                        "/onboarding/status",
+                        web::get().to(profile_routes::onboarding_status),
+                    )
+                    .route(
+                        "/profile/identity",
+                        web::get().to(profile_routes::get_identity_profile),
+                    )
+                    .route(
+                        "/profile/identity",
+                        web::put().to(profile_routes::upsert_identity_profile),
+                    )
+                    .route(
+                        "/profile/athlete",
+                        web::get().to(profile_routes::get_athlete_profile),
+                    )
+                    .route(
+                        "/profile/athlete",
+                        web::put().to(profile_routes::upsert_athlete_profile),
+                    )
+                    .route(
                         "/mas/estimates",
                         web::get().to(profile_routes::mas_estimates),
                     )

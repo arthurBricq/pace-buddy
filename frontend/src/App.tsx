@@ -14,6 +14,7 @@ import AiChatPage from './pages/AiChatPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import HelpPage from './pages/HelpPage';
+import OnboardingPage from './pages/OnboardingPage';
 
 function App() {
   return (
@@ -39,6 +40,14 @@ function App() {
             }
           />
           <Route path="/strava" element={<Navigate to="/profile" replace />} />
+          <Route
+            path="/onboarding"
+            element={
+              <AuthGuard>
+                <OnboardingPage />
+              </AuthGuard>
+            }
+          />
           <Route
             path="/trainings"
             element={

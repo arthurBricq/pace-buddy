@@ -8,6 +8,29 @@ export interface User {
   quota_balance_usd: number;
 }
 
+export interface IdentityProfile {
+  user_id: string;
+  name: string | null;
+  age: number | null;
+  email: string | null;
+  gender: string | null;
+  height_cm: number | null;
+  weight_kg: number | null;
+  updated_at: string;
+}
+
+export interface AthleteProfile {
+  user_id: string;
+  goal_description: string | null;
+  goal_date: string | null;
+  goal_distance_km: number | null;
+  goal_target_time_seconds: number | null;
+  goal_sport_type: 'running' | 'trail_running' | string | null;
+  goal_elevation_gain_m: number | null;
+  additional_info: string | null;
+  updated_at: string;
+}
+
 export interface QuotaRequestRecord {
   id: string;
   user_id: string;
@@ -178,6 +201,8 @@ export interface RunningStats {
 
 export interface ProfileResponse {
   user: User;
+  identity_profile: IdentityProfile | null;
+  athlete_profile: AthleteProfile | null;
   stats: {
     ytd: RunningStats;
     last_year: RunningStats;
