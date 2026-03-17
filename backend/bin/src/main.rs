@@ -5,6 +5,11 @@ mod middleware;
 mod routes;
 mod state;
 
+/// Adapters for traits defined in other crates
+mod adapters {
+    pub(crate) mod coach_memory_store_adapter;
+}
+
 use std::sync::Arc;
 
 use actix_cors::Cors;
@@ -130,9 +135,13 @@ async fn main() -> std::io::Result<()> {
     }
 
     let strava_client = Arc::new(strava_client);
+    let coach_memory = Arc::new(coach_memory::CoachMemory::new(
+        adapters::coach_memory_store_adapter::CoachMemoryStorageAdapter::new(storage.clone()),
+    ));
 
     let app_state = web::Data::new(AppState {
         storage,
+        coach_memory,
         strava_client: Arc::clone(&strava_client),
         jwt: Arc::new(jwt),
         frontend_url: cfg.frontend_url.clone(),

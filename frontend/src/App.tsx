@@ -13,8 +13,10 @@ import AiChatsListPage from './pages/AiChatsListPage';
 import AiChatPage from './pages/AiChatPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminUsersPage from './pages/AdminUsersPage';
+import AdminCoachContextPage from './pages/AdminCoachContextPage';
 import HelpPage from './pages/HelpPage';
 import OnboardingPage from './pages/OnboardingPage';
+import RunningCoachPage from './pages/RunningCoachPage';
 
 function App() {
   return (
@@ -81,6 +83,14 @@ function App() {
             }
           />
           <Route
+            path="/coach"
+            element={
+              <AuthGuard>
+                <RunningCoachPage />
+              </AuthGuard>
+            }
+          />
+          <Route
             path="/races"
             element={
               <AuthGuard>
@@ -117,6 +127,16 @@ function App() {
             }
           />
           <Route
+            path="/admin/coach-contexts/:userId"
+            element={
+              <AuthGuard>
+                <AdminGuard>
+                  <AdminCoachContextPage />
+                </AdminGuard>
+              </AuthGuard>
+            }
+          />
+          <Route
             path="/help"
             element={
               <AuthGuard>
@@ -124,7 +144,7 @@ function App() {
               </AuthGuard>
             }
           />
-          <Route path="*" element={<Navigate to="/activities" replace />} />
+          <Route path="*" element={<Navigate to="/coach" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

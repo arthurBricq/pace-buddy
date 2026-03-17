@@ -2,6 +2,7 @@ mod activity_routes;
 mod admin_routes;
 mod auth_routes;
 mod chat_routes;
+mod coach_routes;
 mod profile_routes;
 mod strava_routes;
 mod training_routes;
@@ -112,6 +113,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route("/stats", web::get().to(admin_routes::stats))
                     .route("/users", web::get().to(admin_routes::users_by_quota_spent))
                     .route(
+                        "/coach-contexts",
+                        web::get().to(admin_routes::list_coach_contexts),
+                    )
+                    .route(
+                        "/coach-contexts/{user_id}",
+                        web::get().to(admin_routes::get_coach_context),
+                    )
+                    .route(
                         "/quota-requests",
                         web::get().to(admin_routes::list_quota_requests),
                     )
@@ -158,6 +167,19 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route("/{id}", web::delete().to(chat_routes::delete_chat))
                     .route("/{id}/messages", web::post().to(chat_routes::send_message))
                     .route("/{id}/context", web::post().to(chat_routes::add_context)),
+            )
+            .service(
+                web::scope("/coach")
+                    .route("", web::get().to(coach_routes::get_coach))
+                    .route(
+                        "/settings",
+                        web::put().to(coach_routes::update_coach_settings),
+                    )
+                    .route(
+                        "/messages",
+                        web::post().to(coach_routes::send_coach_message),
+                    )
+                    .route("/reset", web::post().to(coach_routes::reset_coach)),
             ),
     );
 }

@@ -28,6 +28,25 @@ export interface AdminInviteCode {
   is_redeemable: boolean;
 }
 
+export interface AdminCoachContextRow {
+  user_id: string;
+  username: string;
+  display_name: string;
+  model: string;
+  personality: string;
+  settings_updated_at: string;
+  memory_updated_at: string;
+  state_updated_at: string;
+  last_interaction_at: string | null;
+  last_seen_activity_start_date: string | null;
+  pinned_facts_count: number;
+  episodic_memory_count: number;
+  rolling_summary: string;
+  active_coaching_plan: string;
+  message_count_since_normalization: number;
+  context_snapshot: string | null;
+}
+
 export interface CreateInviteCodePayload {
   created_for?: string;
   expires_in_days?: number;
@@ -45,6 +64,14 @@ export function getAdminStats(): Promise<AdminStats> {
 
 export function getAdminUsersByQuotaSpent(): Promise<AdminUserQuotaSpending[]> {
   return apiFetch<AdminUserQuotaSpending[]>('/admin/users');
+}
+
+export function getAdminCoachContexts(): Promise<AdminCoachContextRow[]> {
+  return apiFetch<AdminCoachContextRow[]>('/admin/coach-contexts');
+}
+
+export function getAdminCoachContext(userId: string): Promise<AdminCoachContextRow> {
+  return apiFetch<AdminCoachContextRow>(`/admin/coach-contexts/${userId}`);
 }
 
 export function getQuotaRequests(): Promise<QuotaRequestRecord[]> {

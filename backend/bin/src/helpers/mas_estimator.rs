@@ -162,8 +162,8 @@ mod tests {
     #[test]
     fn estimate_for_10k_is_consistent() {
         // 10k in 40min => avg 15.0 km/h, p=0.90 => MAS ~= 16.67 km/h
-        let mas = LastRaceEstimator::estimate_for_race(&make_race("Run", 10_000.0, 2400, 0))
-            .unwrap();
+        let mas =
+            LastRaceEstimator::estimate_for_race(&make_race("Run", 10_000.0, 2400, 0)).unwrap();
 
         assert!((mas - 16.6667).abs() < 0.01);
     }

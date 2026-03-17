@@ -5,6 +5,7 @@
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::fmt::Display;
 use thiserror::Error;
 
@@ -48,6 +49,15 @@ pub trait LlmClient: Send + Sync {
         &self,
         model: &str,
         messages: Vec<ChatMessage>,
+        reasoning_effort: Option<&str>,
+    ) -> Result<ChatCompletionResult, LlmError>;
+
+    /// Sends a chat completion request with strict JSON-schema output.
+    async fn chat_completion_with_schema(
+        &self,
+        model: &str,
+        messages: Vec<ChatMessage>,
+        json_schema: JsonSchemaDefinition,
         reasoning_effort: Option<&str>,
     ) -> Result<ChatCompletionResult, LlmError>;
 }
@@ -109,6 +119,42 @@ pub(crate) struct ChatCompletionRequest {
     temperature: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     reasoning: Option<ReasoningConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    response_format: Option<ResponseFormat>,
+}
+
+#[derive(Debug, Clone)]
+pub struct JsonSchemaDefinition {
+    pub name: String,
+    pub schema: Value,
+    pub strict: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct ResponseFormat {
+    #[serde(rename = "type")]
+    format_type: String,
+    json_schema: ResponseFormatJsonSchema,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct ResponseFormatJsonSchema {
+    name: String,
+    strict: bool,
+    schema: Value,
+}
+
+impl ResponseFormat {
+    pub(crate) fn from_json_schema(def: JsonSchemaDefinition) -> Self {
+        Self {
+            format_type: "json_schema".to_string(),
+            json_schema: ResponseFormatJsonSchema {
+                name: def.name,
+                strict: def.strict,
+                schema: def.schema,
+            },
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]

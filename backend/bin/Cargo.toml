@@ -8,6 +8,7 @@ default-run = "bin"
 actix-web = "4"
 actix-files = "0.6"
 actix-cors = "0.7"
+async-trait = "0.1"
 clap = { version = "4", features = ["derive"] }
 urlencoding = "2"
 auth = { path = "../auth" }
@@ -24,3 +25,4 @@ tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["v4"] }
 intervals = { path = "../intervals" }
 llm = { path = "../llm" }
+coach-memory = { path = "../coach-memory" }

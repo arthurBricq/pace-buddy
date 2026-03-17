@@ -1,6 +1,7 @@
 use crate::{
-    ChatCompletionRequest, ChatCompletionResponse, ChatCompletionResult, ChatMessage, LlmClient,
-    LlmError, LlmUsage, ModelInfo, ReasoningConfig,
+    ChatCompletionRequest, ChatCompletionResponse, ChatCompletionResult, ChatMessage,
+    JsonSchemaDefinition, LlmClient, LlmError, LlmUsage, ModelInfo, ReasoningConfig,
+    ResponseFormat,
 };
 use async_trait::async_trait;
 use reqwest::Client;
@@ -23,6 +24,59 @@ impl OpenRouterClient {
             api_key,
             base_url: "https://openrouter.ai/api/v1".to_string(),
         }
+    }
+
+    async fn send_chat_completion_request(
+        &self,
+        request: ChatCompletionRequest,
+    ) -> Result<ChatCompletionResult, LlmError> {
+        let response = self
+            .client
+            .post(format!("{}/chat/completions", self.base_url))
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Content-Type", "application/json")
+            .header("HTTP-Referer", "https://pacebuddy.app")
+            .header("X-Title", "Pace Buddy")
+            .json(&request)
+            .send()
+            .await?;
+
+        log::debug!("OpenRouter response: {:?}", response);
+
+        if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            return Err(LlmError::RateLimited);
+        }
+
+        if !response.status().is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(LlmError::Api(error_text));
+        }
+
+        let completion: ChatCompletionResponse = response.json().await?;
+        log::debug!("OpenRouter completion payload: {:?}", completion);
+
+        let usage = completion
+            .usage
+            .map(|u| LlmUsage {
+                prompt_tokens: u.prompt_tokens,
+                completion_tokens: u.completion_tokens,
+                total_tokens: u.total_tokens,
+                cost: u.cost.unwrap_or(0.0),
+            })
+            .unwrap_or_default();
+
+        let content = completion
+            .choices
+            .into_iter()
+            .next()
+            .and_then(|c| c.message.content)
+            .ok_or(LlmError::NoContent)?;
+
+        if content.trim().is_empty() {
+            return Err(LlmError::NoContent);
+        }
+
+        Ok(ChatCompletionResult { content, usage })
     }
 }
 
@@ -153,56 +207,34 @@ impl LlmClient for OpenRouterClient {
             max_tokens: None,
             temperature: Some(0.7),
             reasoning,
+            response_format: None,
         };
 
-        let response = self
-            .client
-            .post(format!("{}/chat/completions", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .header("HTTP-Referer", "https://pacebuddy.app")
-            .header("X-Title", "Pace Buddy")
-            .json(&request)
-            .send()
-            .await?;
+        self.send_chat_completion_request(request).await
+    }
 
-        log::debug!("OpenRouter response: {:?}", response);
+    async fn chat_completion_with_schema(
+        &self,
+        model: &str,
+        messages: Vec<ChatMessage>,
+        json_schema: JsonSchemaDefinition,
+        reasoning_effort: Option<&str>,
+    ) -> Result<ChatCompletionResult, LlmError> {
+        let reasoning = reasoning_effort.map(|effort| ReasoningConfig {
+            effort: Some(effort.to_string()),
+            max_tokens: None,
+            exclude: Some(false),
+        });
 
-        if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
-            return Err(LlmError::RateLimited);
-        }
+        let request = ChatCompletionRequest {
+            model: model.to_string(),
+            messages,
+            max_tokens: None,
+            temperature: Some(0.2),
+            reasoning,
+            response_format: Some(ResponseFormat::from_json_schema(json_schema)),
+        };
 
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            return Err(LlmError::Api(error_text));
-        }
-
-        let completion: ChatCompletionResponse = response.json().await?;
-
-        log::debug!("OpenRouter response: {:?}", completion);
-
-        let usage = completion
-            .usage
-            .map(|u| LlmUsage {
-                prompt_tokens: u.prompt_tokens,
-                completion_tokens: u.completion_tokens,
-                total_tokens: u.total_tokens,
-                cost: u.cost.unwrap_or(0.0),
-            })
-            .unwrap_or_default();
-
-        let content = completion
-            .choices
-            .into_iter()
-            .next()
-            .and_then(|c| c.message.content)
-            .ok_or(LlmError::NoContent)?;
-
-        // Treat empty responses as NoContent
-        if content.trim().is_empty() {
-            return Err(LlmError::NoContent);
-        }
-
-        Ok(ChatCompletionResult { content, usage })
+        self.send_chat_completion_request(request).await
     }
 }

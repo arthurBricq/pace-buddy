@@ -4,7 +4,9 @@ use domain::invite_code::InviteCode;
 use domain::{
     Activity, ActivityLap, ActivityStream, ActivityTag, AiChat, AiChatMessage, AthleteProfile,
     DomainError, IdentityProfile, ModelCostCategory, ModelCostTier, QuotaRequest,
-    QuotaRequestStatus, RunningStats, StravaToken, Training, TrainingInsight, User,
+    QuotaRequestStatus, RunningCoachMemory, RunningCoachMemoryData, RunningCoachMessage,
+    RunningCoachSettings, RunningCoachState, RunningStats, StravaToken, Training, TrainingInsight,
+    User,
 };
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow};
 use sqlx::Row;
@@ -307,6 +309,89 @@ impl SqliteStorage {
         .execute(pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create ai_chat_messages index: {e}")))?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS running_coach_settings (
+                user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                model TEXT NOT NULL,
+                personality TEXT NOT NULL,
+                volume_weeks INTEGER NOT NULL DEFAULT 8,
+                last_workouts_count INTEGER NOT NULL DEFAULT 8,
+                last_long_runs_count INTEGER NOT NULL DEFAULT 6,
+                last_races_count INTEGER NOT NULL DEFAULT 4,
+                new_activities_count INTEGER NOT NULL DEFAULT 8,
+                normalizer_every_n_messages INTEGER NOT NULL DEFAULT 6,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!(
+                "Failed to create running_coach_settings table: {e}"
+            ))
+        })?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS running_coach_memory (
+                user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                data_json TEXT NOT NULL,
+                message_count_since_normalization INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to create running_coach_memory table: {e}"))
+        })?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS running_coach_state (
+                user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                last_interaction_at TEXT,
+                last_seen_activity_start_date TEXT,
+                updated_at TEXT NOT NULL
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to create running_coach_state table: {e}"))
+        })?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS running_coach_messages (
+                id TEXT PRIMARY KEY NOT NULL,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                prompt_tokens INTEGER NOT NULL DEFAULT 0,
+                completion_tokens INTEGER NOT NULL DEFAULT 0,
+                total_tokens INTEGER NOT NULL DEFAULT 0,
+                cost REAL NOT NULL DEFAULT 0.0,
+                created_at TEXT NOT NULL
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!(
+                "Failed to create running_coach_messages table: {e}"
+            ))
+        })?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_running_coach_messages_user ON running_coach_messages(user_id, created_at ASC)"
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!(
+                "Failed to create running_coach_messages index: {e}"
+            ))
+        })?;
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS quota_requests (
@@ -734,6 +819,123 @@ fn row_to_ai_chat_message(row: &SqliteRow) -> Result<AiChatMessage, DomainError>
         context_label,
         created_at: parse_datetime(&created_at)?,
     })
+}
+
+fn row_to_running_coach_settings(row: &SqliteRow) -> Result<RunningCoachSettings, DomainError> {
+    let user_id: String = row.get("user_id");
+    let model: String = row.get("model");
+    let personality: String = row.get("personality");
+    let volume_weeks: i32 = row.get("volume_weeks");
+    let last_workouts_count: i32 = row.get("last_workouts_count");
+    let last_long_runs_count: i32 = row.get("last_long_runs_count");
+    let last_races_count: i32 = row.get("last_races_count");
+    let new_activities_count: i32 = row.get("new_activities_count");
+    let normalizer_every_n_messages: i32 = row.get("normalizer_every_n_messages");
+    let created_at: String = row.get("created_at");
+    let updated_at: String = row.get("updated_at");
+
+    Ok(RunningCoachSettings {
+        user_id: parse_uuid(&user_id)?,
+        model,
+        personality,
+        volume_weeks,
+        last_workouts_count,
+        last_long_runs_count,
+        last_races_count,
+        new_activities_count,
+        normalizer_every_n_messages,
+        created_at: parse_datetime(&created_at)?,
+        updated_at: parse_datetime(&updated_at)?,
+    })
+}
+
+fn row_to_running_coach_memory(row: &SqliteRow) -> Result<RunningCoachMemory, DomainError> {
+    let user_id: String = row.get("user_id");
+    let data_json: String = row.get("data_json");
+    let message_count_since_normalization: i32 = row.get("message_count_since_normalization");
+    let updated_at: String = row.get("updated_at");
+    let data: RunningCoachMemoryData = serde_json::from_str(&data_json).map_err(|e| {
+        DomainError::Storage(format!(
+            "Failed to deserialize running_coach_memory JSON: {e}"
+        ))
+    })?;
+
+    Ok(RunningCoachMemory {
+        user_id: parse_uuid(&user_id)?,
+        data,
+        message_count_since_normalization,
+        updated_at: parse_datetime(&updated_at)?,
+    })
+}
+
+fn row_to_running_coach_state(row: &SqliteRow) -> Result<RunningCoachState, DomainError> {
+    let user_id: String = row.get("user_id");
+    let last_interaction_at: Option<String> = row.get("last_interaction_at");
+    let last_seen_activity_start_date: Option<String> = row.get("last_seen_activity_start_date");
+    let updated_at: String = row.get("updated_at");
+
+    Ok(RunningCoachState {
+        user_id: parse_uuid(&user_id)?,
+        last_interaction_at: last_interaction_at
+            .as_deref()
+            .map(parse_datetime)
+            .transpose()?,
+        last_seen_activity_start_date: last_seen_activity_start_date
+            .as_deref()
+            .map(parse_datetime)
+            .transpose()?,
+        updated_at: parse_datetime(&updated_at)?,
+    })
+}
+
+fn row_to_running_coach_message(row: &SqliteRow) -> Result<RunningCoachMessage, DomainError> {
+    let id: String = row.get("id");
+    let user_id: String = row.get("user_id");
+    let role: String = row.get("role");
+    let content: String = row.get("content");
+    let prompt_tokens: i32 = row.get("prompt_tokens");
+    let completion_tokens: i32 = row.get("completion_tokens");
+    let total_tokens: i32 = row.get("total_tokens");
+    let cost: f64 = row.get("cost");
+    let created_at: String = row.get("created_at");
+
+    Ok(RunningCoachMessage {
+        id: parse_uuid(&id)?,
+        user_id: parse_uuid(&user_id)?,
+        role,
+        content,
+        prompt_tokens: prompt_tokens as u32,
+        completion_tokens: completion_tokens as u32,
+        total_tokens: total_tokens as u32,
+        cost,
+        created_at: parse_datetime(&created_at)?,
+    })
+}
+
+fn default_running_coach_settings(user_id: Uuid) -> RunningCoachSettings {
+    let now = Utc::now();
+    let mut settings = RunningCoachSettings::default();
+    settings.user_id = user_id;
+    settings.created_at = now;
+    settings.updated_at = now;
+    settings
+}
+
+fn default_running_coach_memory(user_id: Uuid) -> RunningCoachMemory {
+    let now = Utc::now();
+    let mut memory = RunningCoachMemory::default();
+    memory.user_id = user_id;
+    memory.updated_at = now;
+    memory
+}
+
+fn default_running_coach_state(user_id: Uuid) -> RunningCoachState {
+    RunningCoachState {
+        user_id,
+        last_interaction_at: None,
+        last_seen_activity_start_date: None,
+        updated_at: Utc::now(),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1889,6 +2091,272 @@ impl Storage for SqliteStorage {
     }
 
     // -----------------------------------------------------------------------
+    // Running Coach
+    // -----------------------------------------------------------------------
+    async fn get_or_create_running_coach_settings(
+        &self,
+        user_id: Uuid,
+    ) -> Result<RunningCoachSettings, DomainError> {
+        let row = sqlx::query(
+            "SELECT user_id, model, personality, volume_weeks, last_workouts_count,
+                    last_long_runs_count, last_races_count, new_activities_count,
+                    normalizer_every_n_messages, created_at, updated_at
+             FROM running_coach_settings
+             WHERE user_id = ?",
+        )
+        .bind(user_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get running coach settings: {e}")))?;
+
+        if let Some(row) = row {
+            return row_to_running_coach_settings(&row);
+        }
+
+        let settings = default_running_coach_settings(user_id);
+        self.upsert_running_coach_settings(&settings).await?;
+        Ok(settings)
+    }
+
+    async fn upsert_running_coach_settings(
+        &self,
+        settings: &RunningCoachSettings,
+    ) -> Result<(), DomainError> {
+        sqlx::query(
+            "INSERT INTO running_coach_settings (
+                user_id, model, personality, volume_weeks, last_workouts_count,
+                last_long_runs_count, last_races_count, new_activities_count,
+                normalizer_every_n_messages, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                model = excluded.model,
+                personality = excluded.personality,
+                volume_weeks = excluded.volume_weeks,
+                last_workouts_count = excluded.last_workouts_count,
+                last_long_runs_count = excluded.last_long_runs_count,
+                last_races_count = excluded.last_races_count,
+                new_activities_count = excluded.new_activities_count,
+                normalizer_every_n_messages = excluded.normalizer_every_n_messages,
+                updated_at = excluded.updated_at",
+        )
+        .bind(settings.user_id.to_string())
+        .bind(&settings.model)
+        .bind(&settings.personality)
+        .bind(settings.volume_weeks)
+        .bind(settings.last_workouts_count)
+        .bind(settings.last_long_runs_count)
+        .bind(settings.last_races_count)
+        .bind(settings.new_activities_count)
+        .bind(settings.normalizer_every_n_messages)
+        .bind(settings.created_at.to_rfc3339())
+        .bind(settings.updated_at.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to upsert running coach settings: {e}"))
+        })?;
+
+        Ok(())
+    }
+
+    async fn get_or_create_running_coach_memory(
+        &self,
+        user_id: Uuid,
+    ) -> Result<RunningCoachMemory, DomainError> {
+        let row = sqlx::query(
+            "SELECT user_id, data_json, message_count_since_normalization, updated_at
+             FROM running_coach_memory
+             WHERE user_id = ?",
+        )
+        .bind(user_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get running coach memory: {e}")))?;
+
+        if let Some(row) = row {
+            return row_to_running_coach_memory(&row);
+        }
+
+        let memory = default_running_coach_memory(user_id);
+        self.upsert_running_coach_memory(&memory).await?;
+        Ok(memory)
+    }
+
+    async fn upsert_running_coach_memory(
+        &self,
+        memory: &RunningCoachMemory,
+    ) -> Result<(), DomainError> {
+        let data_json = serde_json::to_string(&memory.data).map_err(|e| {
+            DomainError::Storage(format!("Failed to serialize running coach memory: {e}"))
+        })?;
+
+        sqlx::query(
+            "INSERT INTO running_coach_memory (
+                user_id, data_json, message_count_since_normalization, updated_at
+            ) VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                data_json = excluded.data_json,
+                message_count_since_normalization = excluded.message_count_since_normalization,
+                updated_at = excluded.updated_at",
+        )
+        .bind(memory.user_id.to_string())
+        .bind(data_json)
+        .bind(memory.message_count_since_normalization)
+        .bind(memory.updated_at.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to upsert running coach memory: {e}")))?;
+
+        Ok(())
+    }
+
+    async fn get_or_create_running_coach_state(
+        &self,
+        user_id: Uuid,
+    ) -> Result<RunningCoachState, DomainError> {
+        let row = sqlx::query(
+            "SELECT user_id, last_interaction_at, last_seen_activity_start_date, updated_at
+             FROM running_coach_state
+             WHERE user_id = ?",
+        )
+        .bind(user_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get running coach state: {e}")))?;
+
+        if let Some(row) = row {
+            return row_to_running_coach_state(&row);
+        }
+
+        let state = default_running_coach_state(user_id);
+        self.upsert_running_coach_state(&state).await?;
+        Ok(state)
+    }
+
+    async fn upsert_running_coach_state(
+        &self,
+        state: &RunningCoachState,
+    ) -> Result<(), DomainError> {
+        sqlx::query(
+            "INSERT INTO running_coach_state (
+                user_id, last_interaction_at, last_seen_activity_start_date, updated_at
+            ) VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                last_interaction_at = excluded.last_interaction_at,
+                last_seen_activity_start_date = excluded.last_seen_activity_start_date,
+                updated_at = excluded.updated_at",
+        )
+        .bind(state.user_id.to_string())
+        .bind(state.last_interaction_at.map(|v| v.to_rfc3339()))
+        .bind(state.last_seen_activity_start_date.map(|v| v.to_rfc3339()))
+        .bind(state.updated_at.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to upsert running coach state: {e}")))?;
+
+        Ok(())
+    }
+
+    async fn list_running_coach_messages(
+        &self,
+        user_id: Uuid,
+        limit: i64,
+    ) -> Result<Vec<RunningCoachMessage>, DomainError> {
+        let safe_limit = limit.max(1).min(500);
+        let rows = sqlx::query(
+            "SELECT id, user_id, role, content, prompt_tokens, completion_tokens, total_tokens, cost, created_at
+             FROM running_coach_messages
+             WHERE user_id = ?
+             ORDER BY created_at DESC
+             LIMIT ?",
+        )
+        .bind(user_id.to_string())
+        .bind(safe_limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to list running coach messages: {e}")))?;
+
+        let mut messages: Vec<RunningCoachMessage> = rows
+            .iter()
+            .map(row_to_running_coach_message)
+            .collect::<Result<Vec<_>, _>>()?;
+        messages.reverse();
+        Ok(messages)
+    }
+
+    async fn store_running_coach_message(
+        &self,
+        msg: &RunningCoachMessage,
+    ) -> Result<(), DomainError> {
+        sqlx::query(
+            "INSERT INTO running_coach_messages (
+                id, user_id, role, content, prompt_tokens, completion_tokens, total_tokens, cost, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(msg.id.to_string())
+        .bind(msg.user_id.to_string())
+        .bind(&msg.role)
+        .bind(&msg.content)
+        .bind(msg.prompt_tokens as i32)
+        .bind(msg.completion_tokens as i32)
+        .bind(msg.total_tokens as i32)
+        .bind(msg.cost)
+        .bind(msg.created_at.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to store running coach message: {e}")))?;
+
+        Ok(())
+    }
+
+    async fn clear_running_coach_data(&self, user_id: Uuid) -> Result<(), DomainError> {
+        let user_id = user_id.to_string();
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| DomainError::Storage(format!("Failed to start transaction: {e}")))?;
+
+        sqlx::query("DELETE FROM running_coach_messages WHERE user_id = ?")
+            .bind(&user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| {
+                DomainError::Storage(format!("Failed to clear running coach messages: {e}"))
+            })?;
+
+        sqlx::query("DELETE FROM running_coach_memory WHERE user_id = ?")
+            .bind(&user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| {
+                DomainError::Storage(format!("Failed to clear running coach memory: {e}"))
+            })?;
+
+        sqlx::query("DELETE FROM running_coach_state WHERE user_id = ?")
+            .bind(&user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| {
+                DomainError::Storage(format!("Failed to clear running coach state: {e}"))
+            })?;
+
+        sqlx::query("DELETE FROM running_coach_settings WHERE user_id = ?")
+            .bind(&user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| {
+                DomainError::Storage(format!("Failed to clear running coach settings: {e}"))
+            })?;
+
+        tx.commit().await.map_err(|e| {
+            DomainError::Storage(format!("Failed to commit running coach reset: {e}"))
+        })?;
+
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------
     // Insight lookup
     // -----------------------------------------------------------------------
     async fn get_training_insight_by_id(
@@ -2293,6 +2761,10 @@ impl SqliteStorage {
 
         // Drop child tables first, then parent tables.
         for table in [
+            "running_coach_messages",
+            "running_coach_state",
+            "running_coach_memory",
+            "running_coach_settings",
             "ai_chat_messages",
             "ai_chats",
             "training_insights",

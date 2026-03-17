@@ -3,7 +3,8 @@ use chrono::{DateTime, Utc};
 use domain::invite_code::InviteCode;
 use domain::{
     Activity, ActivityLap, ActivityStream, ActivityTag, AiChat, AiChatMessage, AthleteProfile,
-    DomainError, IdentityProfile, ModelCostTier, QuotaRequest, QuotaRequestStatus, RunningStats,
+    DomainError, IdentityProfile, ModelCostTier, QuotaRequest, QuotaRequestStatus,
+    RunningCoachMemory, RunningCoachMessage, RunningCoachSettings, RunningCoachState, RunningStats,
     StravaToken, Training, TrainingInsight, User,
 };
 use uuid::Uuid;
@@ -144,6 +145,42 @@ pub trait Storage: Send + Sync {
     // AI Chat Messages
     async fn store_ai_chat_message(&self, msg: &AiChatMessage) -> Result<(), DomainError>;
     async fn get_ai_chat_messages(&self, chat_id: Uuid) -> Result<Vec<AiChatMessage>, DomainError>;
+
+    // Running Coach
+    async fn get_or_create_running_coach_settings(
+        &self,
+        user_id: Uuid,
+    ) -> Result<RunningCoachSettings, DomainError>;
+    async fn upsert_running_coach_settings(
+        &self,
+        settings: &RunningCoachSettings,
+    ) -> Result<(), DomainError>;
+    async fn get_or_create_running_coach_memory(
+        &self,
+        user_id: Uuid,
+    ) -> Result<RunningCoachMemory, DomainError>;
+    async fn upsert_running_coach_memory(
+        &self,
+        memory: &RunningCoachMemory,
+    ) -> Result<(), DomainError>;
+    async fn get_or_create_running_coach_state(
+        &self,
+        user_id: Uuid,
+    ) -> Result<RunningCoachState, DomainError>;
+    async fn upsert_running_coach_state(
+        &self,
+        state: &RunningCoachState,
+    ) -> Result<(), DomainError>;
+    async fn list_running_coach_messages(
+        &self,
+        user_id: Uuid,
+        limit: i64,
+    ) -> Result<Vec<RunningCoachMessage>, DomainError>;
+    async fn store_running_coach_message(
+        &self,
+        msg: &RunningCoachMessage,
+    ) -> Result<(), DomainError>;
+    async fn clear_running_coach_data(&self, user_id: Uuid) -> Result<(), DomainError>;
 
     // Insight lookup
     async fn get_training_insight_by_id(

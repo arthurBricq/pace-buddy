@@ -1,8 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use crate::adapters::coach_memory_store_adapter::CoachMemoryStorageAdapter;
 use crate::helpers::mas_estimator::{list_race_activities, LastRaceEstimator, MasEstimator};
 use auth::JwtService;
+use coach_memory::CoachMemory as CoachMemoryService;
 use domain::DomainError;
 use llm::open_router::OpenRouterClient;
 use storage::{SqliteStorage, Storage};
@@ -20,8 +22,11 @@ pub enum ActivitiesSyncStatus {
     Failed(String),
 }
 
+pub type AppCoachMemory = CoachMemoryService<CoachMemoryStorageAdapter>;
+
 pub struct AppState {
     pub storage: Arc<SqliteStorage>,
+    pub coach_memory: Arc<AppCoachMemory>,
     pub strava_client: Arc<StravaClient>,
     pub jwt: Arc<JwtService>,
     pub frontend_url: String,

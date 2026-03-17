@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod ai_chat;
+pub mod coach;
 pub mod error;
 pub mod invite_code;
 pub mod lap;
@@ -15,6 +16,10 @@ pub mod user;
 
 pub use activity::{Activity, ActivityTag};
 pub use ai_chat::{AiChat, AiChatMessage};
+pub use coach::{
+    RunningCoachMemory, RunningCoachMemoryData, RunningCoachMessage, RunningCoachSettings,
+    RunningCoachState,
+};
 pub use error::DomainError;
 pub use invite_code::InviteCode;
 pub use lap::ActivityLap;

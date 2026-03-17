@@ -42,6 +42,26 @@ pub struct AdminInviteCode {
     is_redeemable: bool,
 }
 
+#[derive(Serialize)]
+pub struct AdminCoachContextRow {
+    user_id: String,
+    username: String,
+    display_name: String,
+    model: String,
+    personality: String,
+    settings_updated_at: String,
+    memory_updated_at: String,
+    state_updated_at: String,
+    last_interaction_at: Option<String>,
+    last_seen_activity_start_date: Option<String>,
+    pinned_facts_count: usize,
+    episodic_memory_count: usize,
+    rolling_summary: String,
+    active_coaching_plan: String,
+    message_count_since_normalization: i32,
+    context_snapshot: Option<String>,
+}
+
 /// Verify the authenticated user is the admin by checking their Strava athlete ID.
 async fn verify_admin(
     state: &web::Data<AppState>,
@@ -138,6 +158,88 @@ pub async fn users_by_quota_spent(
     });
 
     Ok(HttpResponse::Ok().json(leaderboard))
+}
+
+pub async fn list_coach_contexts(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+) -> Result<HttpResponse, AppError> {
+    verify_admin(&state, &user).await?;
+
+    let users = state.storage.list_users().await?;
+    let mut rows = Vec::with_capacity(users.len());
+
+    for u in users {
+        rows.push(build_admin_coach_context_row(&state, &u, false).await?);
+    }
+
+    rows.sort_by(|a, b| a.username.cmp(&b.username));
+
+    Ok(HttpResponse::Ok().json(rows))
+}
+
+pub async fn get_coach_context(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+    path: web::Path<Uuid>,
+) -> Result<HttpResponse, AppError> {
+    verify_admin(&state, &user).await?;
+    let coach_user_id = path.into_inner();
+    let coach_user = state.storage.get_user_by_id(coach_user_id).await?;
+    let row = build_admin_coach_context_row(&state, &coach_user, true).await?;
+    Ok(HttpResponse::Ok().json(row))
+}
+
+async fn build_admin_coach_context_row(
+    state: &web::Data<AppState>,
+    user: &domain::User,
+    include_snapshot: bool,
+) -> Result<AdminCoachContextRow, AppError> {
+    let settings = state
+        .storage
+        .get_or_create_running_coach_settings(user.id)
+        .await?;
+    let memory = state
+        .storage
+        .get_or_create_running_coach_memory(user.id)
+        .await?;
+    let coach_state = state
+        .storage
+        .get_or_create_running_coach_state(user.id)
+        .await?;
+
+    let context_snapshot = if include_snapshot {
+        Some(
+            state
+                .coach_memory
+                .build_context(user.id, &settings, &coach_state, &memory.data)
+                .await?
+                .content,
+        )
+    } else {
+        None
+    };
+
+    Ok(AdminCoachContextRow {
+        user_id: user.id.to_string(),
+        username: user.username.clone(),
+        display_name: user.display_name.clone(),
+        model: settings.model,
+        personality: settings.personality,
+        settings_updated_at: settings.updated_at.to_rfc3339(),
+        memory_updated_at: memory.updated_at.to_rfc3339(),
+        state_updated_at: coach_state.updated_at.to_rfc3339(),
+        last_interaction_at: coach_state.last_interaction_at.map(|v| v.to_rfc3339()),
+        last_seen_activity_start_date: coach_state
+            .last_seen_activity_start_date
+            .map(|v| v.to_rfc3339()),
+        pinned_facts_count: memory.data.pinned_facts.len(),
+        episodic_memory_count: memory.data.episodic_memory.len(),
+        rolling_summary: memory.data.rolling_summary,
+        active_coaching_plan: memory.data.active_coaching_plan,
+        message_count_since_normalization: memory.message_count_since_normalization,
+        context_snapshot,
+    })
 }
 
 pub async fn list_quota_requests(

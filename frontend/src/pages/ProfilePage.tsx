@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { getProfile, getAiCostSummary, getQuotaStatus, requestQuota } from '../api/auth';
+import { getProfile } from '../api/auth';
 import { syncActivities } from '../api/activities';
 import { getStravaStatus, getStravaLink, disconnectStrava } from '../api/strava';
-import type { ProfileResponse, RunningStats, StravaStatus, AiCostSummary, QuotaStatus } from '../types';
+import type { ProfileResponse, RunningStats, StravaStatus } from '../types';
 import Navbar from '../components/Navbar';
 
 function formatDistance(meters: number): string {
@@ -61,11 +61,6 @@ function StatsCard({ title, stats }: { title: string; stats: RunningStats }) {
   );
 }
 
-function formatCost(cost: number): string {
-  if (cost === 0) return '$0';
-  return `$${cost.toFixed(4)}`;
-}
-
 function formatGoalTargetTime(seconds: number | null): string {
   if (!seconds || seconds <= 0) return '-';
   const h = Math.floor(seconds / 3600);
@@ -87,8 +82,6 @@ export default function ProfilePage() {
   const [searchParams] = useSearchParams();
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [stravaStatus, setStravaStatus] = useState<StravaStatus | null>(null);
-  const [aiCostSummary, setAiCostSummary] = useState<AiCostSummary | null>(null);
-  const [quotaStatus, setQuotaStatus] = useState<QuotaStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(searchParams.get('error') || '');
   const [resyncing, setResyncing] = useState(false);
@@ -101,13 +94,9 @@ export default function ProfilePage() {
         return null;
       }),
       getStravaStatus().catch(() => null),
-      getAiCostSummary().catch(() => null),
-      getQuotaStatus().catch(() => null),
-    ]).then(([p, s, a, q]) => {
+    ]).then(([p, s]) => {
       setProfile(p);
       setStravaStatus(s);
-      setAiCostSummary(a);
-      setQuotaStatus(q);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -333,118 +322,6 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* AI Cost Summary Section */}
-        {aiCostSummary && (
-          <div className="card">
-            <h2 className="text-lg font-semibold mb-4">AI Usage</h2>
-
-            {/* Quota */}
-            {quotaStatus && (
-              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <span className="text-sm text-gray-500">AI Budget Remaining:</span>
-                    <span className="ml-2 text-lg font-bold text-green-600">
-                      ${quotaStatus.balance_usd.toFixed(2)}
-                    </span>
-                  </div>
-                  {quotaStatus.has_pending_request ? (
-                    <span className="text-sm text-amber-600 font-medium">Request pending...</span>
-                  ) : (
-                    <button
-                      onClick={async () => {
-                        try {
-                          await requestQuota();
-                          setQuotaStatus({ ...quotaStatus, has_pending_request: true });
-                        } catch (err: any) {
-                          setError(err.message);
-                        }
-                      }}
-                      className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700"
-                    >
-                      Request More Tokens
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="mb-6">
-              <div className="flex items-baseline gap-2">
-                <span className="text-sm text-gray-500">Total Cost:</span>
-                <span className="text-2xl font-bold text-purple-600">
-                  {formatCost(aiCostSummary.total_cost)}
-                </span>
-              </div>
-            </div>
-
-            {aiCostSummary.expensive_requests.length > 0 && (
-              <div>
-                <h3 className="text-md font-medium text-gray-700 mb-3">
-                  Most Expensive Requests
-                </h3>
-                <div className="space-y-2">
-                  {aiCostSummary.expensive_requests.slice(0, 10).map((req) => (
-                    <div
-                      key={req.id}
-                      className="flex flex-col gap-2 p-3 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`text-xs px-2 py-1 rounded ${
-                              req.type === 'insight'
-                                ? 'bg-purple-100 text-purple-700'
-                                : 'bg-blue-100 text-blue-700'
-                            }`}
-                          >
-                            {req.type === 'insight' ? 'Insight' : 'Chat'}
-                          </span>
-                          {req.type === 'insight' && req.training_id ? (
-                            <Link
-                              to={`/trainings/${req.training_id}`}
-                              className="text-sm font-medium text-gray-800 hover:text-purple-600"
-                            >
-                              {req.title}
-                            </Link>
-                          ) : req.type === 'chat' ? (
-                            <Link
-                              to={`/chats/${req.id}`}
-                              className="text-sm font-medium text-gray-800 hover:text-purple-600"
-                            >
-                              {req.title}
-                            </Link>
-                          ) : (
-                            <span className="text-sm font-medium text-gray-800">
-                              {req.title}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                          {req.model && (
-                            <span className="font-mono">{req.model.split('/').pop()}</span>
-                          )}
-                          <span>
-                            {new Date(req.created_at).toLocaleDateString(undefined, {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="text-sm font-semibold text-gray-700 sm:ml-4">
-                        {formatCost(req.cost)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

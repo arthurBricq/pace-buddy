@@ -293,6 +293,62 @@ export interface ChatListItem {
   updated_at: string;
 }
 
+export interface RunningCoachSettings {
+  user_id: string;
+  model: string;
+  personality: string;
+  volume_weeks: number;
+  last_workouts_count: number;
+  last_long_runs_count: number;
+  last_races_count: number;
+  new_activities_count: number;
+  normalizer_every_n_messages: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RunningCoachMemoryData {
+  pinned_facts: string[];
+  active_coaching_plan: string;
+  episodic_memory: string[];
+  rolling_summary: string;
+}
+
+export interface RunningCoachMemory {
+  user_id: string;
+  data: RunningCoachMemoryData;
+  message_count_since_normalization: number;
+  updated_at: string;
+}
+
+export interface RunningCoachState {
+  user_id: string;
+  last_interaction_at: string | null;
+  last_seen_activity_start_date: string | null;
+  updated_at: string;
+}
+
+export interface RunningCoachMessage {
+  id: string;
+  user_id: string;
+  role: string;
+  content: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  cost: number;
+  created_at: string;
+}
+
+export interface RunningCoachResponse {
+  settings: RunningCoachSettings;
+  memory: RunningCoachMemory;
+  state: RunningCoachState;
+  messages: RunningCoachMessage[];
+  total_cost: number;
+  total_tokens: number;
+}
+
 export interface MASEstimate {
   date: string;
   mas_kmh: number;

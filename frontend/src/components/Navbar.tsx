@@ -55,10 +55,11 @@ export default function Navbar() {
     <nav className="navbar-root">
       <div className="navbar-inner">
         <div className="flex items-center gap-4">
-          <Link to="/activities" className="navbar-brand" aria-label="PaceBuddy">
+          <Link to="/coach" className="navbar-brand" aria-label="PaceBuddy">
             <img src="/pace-buddy-logo.svg" alt="PaceBuddy" className="navbar-brand-logo" />
           </Link>
           <div className="navbar-links-desktop">
+            <NavLink to="/coach">Running Coach</NavLink>
             <NavLink to="/activities">Activities</NavLink>
             <NavLink to="/trainings">Trainings</NavLink>
             <NavLink to="/chats">AI Chats</NavLink>
@@ -91,6 +92,9 @@ export default function Navbar() {
       {menuOpen && (
         <div className="navbar-mobile-panel">
           <div className="navbar-mobile-links">
+            <NavLink to="/coach" mobile onClick={() => setMenuOpen(false)}>
+              Running Coach
+            </NavLink>
             <NavLink to="/activities" mobile onClick={() => setMenuOpen(false)}>
               Activities
             </NavLink>

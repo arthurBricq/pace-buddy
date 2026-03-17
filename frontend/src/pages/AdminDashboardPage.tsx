@@ -10,7 +10,9 @@ import {
   createInviteCode,
   revokeInviteCode,
   type AdminStats,
+  type AdminCoachContextRow,
   type AdminInviteCode,
+  getAdminCoachContexts,
 } from '../api/admin';
 import type { QuotaRequestRecord } from '../types';
 import Navbar from '../components/Navbar';
@@ -28,12 +30,14 @@ export default function AdminDashboardPage() {
   const [inviteCustomCode, setInviteCustomCode] = useState('');
   const [createdInviteCode, setCreatedInviteCode] = useState<string | null>(null);
   const [isCreatingInvite, setIsCreatingInvite] = useState(false);
+  const [coachContexts, setCoachContexts] = useState<AdminCoachContextRow[]>([]);
 
   const loadData = () => {
     setNotice(null);
     getAdminStats().then(setStats).catch((e) => setError(e.message));
     getQuotaRequests().then(setRequests).catch(() => {});
     listInviteCodes().then(setInviteCodes).catch(() => {});
+    getAdminCoachContexts().then(setCoachContexts).catch(() => {});
   };
 
   useEffect(loadData, []);
@@ -141,6 +145,64 @@ export default function AdminDashboardPage() {
             </div>
           </div>
         )}
+
+        <div className="card">
+          <h3 className="text-lg font-semibold mb-4">AI Coach Contexts</h3>
+          {coachContexts.length === 0 ? (
+            <p className="text-sm text-gray-500">No coach contexts yet.</p>
+          ) : (
+            <div className="data-table-wrap">
+              <table className="data-table">
+                <thead className="bg-gray-50 text-gray-600">
+                  <tr>
+                    <th className="text-left px-4 py-3">User</th>
+                    <th className="text-left px-4 py-3">Model</th>
+                    <th className="text-right px-4 py-3">Pinned</th>
+                    <th className="text-right px-4 py-3">Episodic</th>
+                    <th className="text-right px-4 py-3">Norm Counter</th>
+                    <th className="text-left px-4 py-3">Last Interaction</th>
+                    <th className="text-left px-4 py-3">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {coachContexts.map((ctx) => (
+                    <tr key={ctx.user_id} className="hover:bg-gray-50 align-top">
+                      <td className="px-4 py-3">
+                        <div className="text-sm font-medium">{ctx.display_name || ctx.username}</div>
+                        <div className="text-xs text-gray-500">{ctx.username}</div>
+                      </td>
+                      <td className="px-4 py-3 text-xs font-mono text-gray-600">
+                        {ctx.model}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600">
+                        {ctx.pinned_facts_count}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600">
+                        {ctx.episodic_memory_count}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600">
+                        {ctx.message_count_since_normalization}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-500">
+                        {ctx.last_interaction_at
+                          ? new Date(ctx.last_interaction_at).toLocaleString()
+                          : 'Never'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link
+                          to={`/admin/coach-contexts/${ctx.user_id}`}
+                          className="text-sm text-blue-600 hover:underline"
+                        >
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
 
         <div className="card">
           <h3 className="text-lg font-semibold mb-4">Pending Quota Requests</h3>
