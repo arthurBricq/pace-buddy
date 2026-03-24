@@ -169,6 +169,7 @@ mod tests {
             active_coaching_plan: "existing plan".to_string(),
             episodic_memory: (0..19).map(|i| format!("episode-{i}")).collect(),
             rolling_summary: "existing summary".to_string(),
+            recent_tool_results: vec!["tool-1".to_string()],
         };
 
         classifier.apply_output(
@@ -199,5 +200,6 @@ mod tests {
         assert_eq!(current.episodic_memory.last().unwrap(), "episode-21");
         assert_eq!(current.active_coaching_plan, "new plan");
         assert_eq!(current.rolling_summary, "new summary");
+        assert_eq!(current.recent_tool_results, vec!["tool-1".to_string()]);
     }
 }

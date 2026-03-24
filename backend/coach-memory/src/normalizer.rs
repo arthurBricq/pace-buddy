@@ -45,7 +45,7 @@ impl MemoryNormalizer {
             .await
             .map_err(|e| DomainError::Internal(format!("Memory normalizer call failed: {e}")))?;
 
-        parse_normalizer_output(&result.content)
+        parse_normalizer_output(&result.content, &memory.recent_tool_results)
     }
 }
 
@@ -81,13 +81,17 @@ fn normalizer_schema() -> serde_json::Value {
     })
 }
 
-pub(crate) fn parse_normalizer_output(raw: &str) -> Result<RunningCoachMemoryData, DomainError> {
+pub(crate) fn parse_normalizer_output(
+    raw: &str,
+    recent_tool_results: &[String],
+) -> Result<RunningCoachMemoryData, DomainError> {
     let normalized = parse_json_response::<MemoryNormalizerOutput>(raw, "memory normalizer")?;
     Ok(RunningCoachMemoryData {
         pinned_facts: normalized.pinned_facts,
         active_coaching_plan: normalized.active_coaching_plan,
         episodic_memory: normalized.episodic_memory,
         rolling_summary: normalized.rolling_summary,
+        recent_tool_results: recent_tool_results.to_vec(),
     })
 }
 
@@ -106,7 +110,8 @@ mod tests {
 }
 ```"#;
 
-        let parsed = parse_normalizer_output(raw).expect("normalizer output should parse");
+        let parsed =
+            parse_normalizer_output(raw, &["tool summary".to_string()]).expect("normalizer output should parse");
         assert_eq!(parsed.pinned_facts, vec!["Race in 6 weeks".to_string()]);
         assert_eq!(
             parsed.active_coaching_plan,
@@ -117,5 +122,6 @@ mod tests {
             vec!["Skipped Tuesday due to calf soreness".to_string()]
         );
         assert_eq!(parsed.rolling_summary, "Good consistency this week.");
+        assert_eq!(parsed.recent_tool_results, vec!["tool summary".to_string()]);
     }
 }

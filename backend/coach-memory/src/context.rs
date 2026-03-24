@@ -199,11 +199,23 @@ pub async fn build_coach_context(
         }
     }
 
+    content.push_str("\n## Recent tool results\n");
+    content
+        .push_str("Compact summaries of recent session lookup tool usage from prior exchanges.\n");
+    if memory.recent_tool_results.is_empty() {
+        content.push_str("- None yet.\n");
+    } else {
+        for item in &memory.recent_tool_results {
+            content.push_str(&format!("- {}\n", item));
+        }
+    }
+
     content.push_str("\n## Coach memory snapshot\n");
     if memory.pinned_facts.is_empty()
         && memory.active_coaching_plan.trim().is_empty()
         && memory.episodic_memory.is_empty()
         && memory.rolling_summary.trim().is_empty()
+        && memory.recent_tool_results.is_empty()
     {
         content.push_str("- No memory yet.\n");
     } else {
@@ -525,15 +537,16 @@ mod tests {
             coach_messages: messages,
         };
 
-        let bundle = build_coach_context(
-            &store,
-            user_id,
-            &settings,
-            &state,
-            &RunningCoachMemoryData::default(),
-        )
-        .await
-        .expect("context should build");
+        let memory = RunningCoachMemoryData {
+            recent_tool_results: vec![
+                "get_last_sessions -> 1 match: Easy Run on 2026-03-23".to_string()
+            ],
+            ..RunningCoachMemoryData::default()
+        };
+
+        let bundle = build_coach_context(&store, user_id, &settings, &state, &memory)
+            .await
+            .expect("context should build");
 
         assert!(bundle.content.contains(&format!(
             "## Recent user prompts (last {}, no coach answers)",
@@ -542,6 +555,10 @@ mod tests {
         assert!(bundle.content.contains("u-14"));
         assert!(!bundle.content.contains("u-0"));
         assert!(!bundle.content.contains("a-14"));
+        assert!(bundle.content.contains("## Recent tool results"));
+        assert!(bundle
+            .content
+            .contains("get_last_sessions -> 1 match: Easy Run on 2026-03-23"));
         assert_eq!(
             bundle.latest_seen_activity_start_date,
             Some(now - Duration::days(1))

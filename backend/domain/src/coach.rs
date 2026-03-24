@@ -41,11 +41,13 @@ impl Default for RunningCoachSettings {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct RunningCoachMemoryData {
     pub pinned_facts: Vec<String>,
     pub active_coaching_plan: String,
     pub episodic_memory: Vec<String>,
     pub rolling_summary: String,
+    pub recent_tool_results: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

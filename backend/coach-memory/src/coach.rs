@@ -4,9 +4,7 @@ use domain::{
     DomainError, RunningCoachMemory, RunningCoachMemoryData, RunningCoachMessage,
     RunningCoachSettings, RunningCoachState,
 };
-use llm::{
-    ChatCompletionResult, ChatMessage, LlmClient, LlmUsage, ToolCall, ToolChoice, ToolDefinition,
-};
+use llm::{ChatMessage, LlmClient, LlmUsage, ToolCall, ToolChoice, ToolDefinition};
 use uuid::Uuid;
 
 use crate::{
@@ -20,7 +18,14 @@ pub struct CoachMemory<S: CoachMemoryDataStore> {
 #[async_trait]
 pub trait CoachToolExecutor: Send + Sync {
     fn tool_definitions(&self) -> Vec<ToolDefinition>;
-    async fn execute_tool_call(&self, user_id: Uuid, call: &ToolCall) -> Result<String, DomainError>;
+    async fn execute_tool_call(
+        &self,
+        user_id: Uuid,
+        call: &ToolCall,
+    ) -> Result<String, DomainError>;
+    fn summarize_tool_result(&self, _call: &ToolCall, _tool_output: &str) -> Option<String> {
+        None
+    }
 }
 
 const COACH_SYSTEM_PROMPT: &str = "You are a persistent running coach.
@@ -40,6 +45,13 @@ If multiple plausible matches are returned, ask the user to choose one session b
 Only use get_session_detail once an activity_id is unambiguous.";
 
 const MAX_TOOL_LOOP_STEPS: usize = 4;
+const MAX_RECENT_TOOL_RESULTS: usize = 6;
+
+struct CoachReplyOutcome {
+    content: String,
+    usage: LlmUsage,
+    recent_tool_results: Vec<String>,
+}
 
 impl<S: CoachMemoryDataStore> CoachMemory<S> {
     pub fn new(store: S) -> Self {
@@ -183,6 +195,15 @@ impl<S: CoachMemoryDataStore> CoachMemory<S> {
             history.len()
         );
         for msg in history {
+            if msg.role != "user" && msg.role != "assistant" {
+                log::warn!(
+                    "coach.send_message ignoring unexpected history role user_id={} role={} message_id={}",
+                    user_id,
+                    msg.role,
+                    msg.id
+                );
+                continue;
+            }
             llm_messages.push(ChatMessage::new(msg.role, msg.content));
         }
 
@@ -195,6 +216,10 @@ impl<S: CoachMemoryDataStore> CoachMemory<S> {
                 tool_executor,
             )
             .await?;
+        merge_recent_tool_results(
+            &mut memory.data.recent_tool_results,
+            result.recent_tool_results,
+        );
         log::info!(
             "coach.send_message llm_call_done user_id={} prompt_tokens={} completion_tokens={} total_tokens={} real_cost={:.6}",
             user_id,
@@ -269,12 +294,19 @@ impl<S: CoachMemoryDataStore> CoachMemory<S> {
         mut llm_messages: Vec<ChatMessage>,
         user_id: Uuid,
         tool_executor: Option<&(dyn CoachToolExecutor + Send + Sync)>,
-    ) -> Result<ChatCompletionResult, DomainError> {
+    ) -> Result<CoachReplyOutcome, DomainError> {
         if let Some(executor) = tool_executor {
             let tools = executor.tool_definitions();
             if !tools.is_empty() {
                 return self
-                    .complete_with_tools(llm_client, model, &mut llm_messages, user_id, executor, tools)
+                    .complete_with_tools(
+                        llm_client,
+                        model,
+                        &mut llm_messages,
+                        user_id,
+                        executor,
+                        tools,
+                    )
                     .await;
             }
         }
@@ -284,10 +316,16 @@ impl<S: CoachMemoryDataStore> CoachMemory<S> {
             model,
             llm_messages.len()
         );
-        llm_client
+
+        let result = llm_client
             .chat_completion(model, llm_messages, None)
             .await
-            .map_err(|e| DomainError::Internal(format!("LLM call failed: {e}")))
+            .map_err(|e| DomainError::Internal(format!("LLM call failed: {e}")))?;
+        Ok(CoachReplyOutcome {
+            content: result.content,
+            usage: result.usage,
+            recent_tool_results: Vec::new(),
+        })
     }
 
     async fn complete_with_tools(
@@ -298,8 +336,9 @@ impl<S: CoachMemoryDataStore> CoachMemory<S> {
         user_id: Uuid,
         executor: &(dyn CoachToolExecutor + Send + Sync),
         tools: Vec<ToolDefinition>,
-    ) -> Result<ChatCompletionResult, DomainError> {
+    ) -> Result<CoachReplyOutcome, DomainError> {
         let mut usage_total = LlmUsage::default();
+        let mut recent_tool_results = Vec::new();
 
         for step in 0..MAX_TOOL_LOOP_STEPS {
             log::info!(
@@ -331,9 +370,10 @@ impl<S: CoachMemoryDataStore> CoachMemory<S> {
                     ));
                 }
 
-                return Ok(ChatCompletionResult {
+                return Ok(CoachReplyOutcome {
                     content,
                     usage: usage_total,
+                    recent_tool_results,
                 });
             }
 
@@ -349,6 +389,9 @@ impl<S: CoachMemoryDataStore> CoachMemory<S> {
                     })
                     .to_string(),
                 };
+                if let Some(summary) = executor.summarize_tool_result(&call, &tool_output) {
+                    push_recent_tool_result(&mut recent_tool_results, summary);
+                }
 
                 llm_messages.push(ChatMessage::tool(call.id.clone(), tool_output));
             }
@@ -368,6 +411,27 @@ fn accumulate_usage(target: &mut LlmUsage, incoming: &LlmUsage) {
         .saturating_add(incoming.completion_tokens);
     target.total_tokens = target.total_tokens.saturating_add(incoming.total_tokens);
     target.cost += incoming.cost;
+}
+
+fn merge_recent_tool_results(target: &mut Vec<String>, additions: Vec<String>) {
+    for addition in additions {
+        push_recent_tool_result(target, addition);
+    }
+}
+
+fn push_recent_tool_result(target: &mut Vec<String>, summary: String) {
+    let trimmed = summary.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+    if target.iter().any(|existing| existing == trimmed) {
+        return;
+    }
+    target.push(trimmed.to_string());
+    if target.len() > MAX_RECENT_TOOL_RESULTS {
+        let start = target.len() - MAX_RECENT_TOOL_RESULTS;
+        *target = target[start..].to_vec();
+    }
 }
 
 #[cfg(test)]
@@ -394,7 +458,7 @@ mod tests {
         user: User,
         messages: Arc<Mutex<Vec<RunningCoachMessage>>>,
         settings: RunningCoachSettings,
-        memory: RunningCoachMemory,
+        memory: Arc<Mutex<RunningCoachMemory>>,
         state: RunningCoachState,
     }
 
@@ -428,9 +492,13 @@ mod tests {
                 user,
                 messages: Arc::new(Mutex::new(Vec::new())),
                 settings,
-                memory,
+                memory: Arc::new(Mutex::new(memory)),
                 state,
             }
+        }
+
+        async fn saved_memory(&self) -> RunningCoachMemory {
+            self.memory.lock().await.clone()
         }
     }
 
@@ -447,7 +515,7 @@ mod tests {
             &self,
             _user_id: Uuid,
         ) -> Result<RunningCoachMemory, DomainError> {
-            Ok(self.memory.clone())
+            Ok(self.memory.lock().await.clone())
         }
 
         async fn get_or_create_running_coach_state(
@@ -466,8 +534,9 @@ mod tests {
 
         async fn upsert_running_coach_memory(
             &self,
-            _memory: &RunningCoachMemory,
+            memory: &RunningCoachMemory,
         ) -> Result<(), DomainError> {
+            *self.memory.lock().await = memory.clone();
             Ok(())
         }
 
@@ -586,7 +655,8 @@ mod tests {
             _reasoning_effort: Option<&str>,
         ) -> Result<ChatCompletionResult, LlmError> {
             Ok(ChatCompletionResult {
-                content: "{\"meaningful\":false,\"pinned_facts\":[],\"episodic_memory\":[]}".to_string(),
+                content: "{\"meaningful\":false,\"pinned_facts\":[],\"episodic_memory\":[]}"
+                    .to_string(),
                 usage: usage(0, 0, 0, 0.0),
             })
         }
@@ -799,5 +869,82 @@ mod tests {
             }
             other => panic!("unexpected error: {other}"),
         }
+    }
+
+    #[tokio::test]
+    async fn tool_loop_persists_compact_recent_tool_results() {
+        let user_id = Uuid::new_v4();
+        let store = FakeStore::new(user_id);
+        let coach = CoachMemory::new(store);
+        let llm = FakeLlm::new(vec![
+            ToolCompletionResult {
+                content: None,
+                tool_calls: vec![tool_call(
+                    "call_1",
+                    "search_sessions",
+                    serde_json::json!({ "query": "Lunch run" }),
+                )],
+                finish_reason: Some("tool_calls".to_string()),
+                usage: usage(4, 2, 6, 0.01),
+            },
+            ToolCompletionResult {
+                content: Some("That session looked controlled.".to_string()),
+                tool_calls: vec![],
+                finish_reason: Some("stop".to_string()),
+                usage: usage(4, 4, 8, 0.01),
+            },
+        ]);
+
+        struct SummarizingExecutor;
+
+        #[async_trait]
+        impl CoachToolExecutor for SummarizingExecutor {
+            fn tool_definitions(&self) -> Vec<ToolDefinition> {
+                vec![ToolDefinition {
+                    name: "search_sessions".to_string(),
+                    description: "search".to_string(),
+                    parameters: serde_json::json!({
+                        "type": "object",
+                        "properties": { "query": { "type": "string" } },
+                        "required": ["query"]
+                    }),
+                }]
+            }
+
+            async fn execute_tool_call(
+                &self,
+                _user_id: Uuid,
+                _call: &ToolCall,
+            ) -> Result<String, DomainError> {
+                Ok(
+                    "{\"matches\":[{\"activity_id\":\"93d3cd28-a734-4b25-9e5d-113ee5f640a7\",\"name\":\"Lunch Run\",\"start_date\":\"2026-03-03 10:49:49 UTC\"}]}"
+                        .to_string(),
+                )
+            }
+
+            fn summarize_tool_result(
+                &self,
+                _call: &ToolCall,
+                _tool_output: &str,
+            ) -> Option<String> {
+                Some(
+                    "search_sessions(query='Lunch run') -> 1 match: Lunch Run on 2026-03-03 (93d3cd28-a734-4b25-9e5d-113ee5f640a7)"
+                        .to_string(),
+                )
+            }
+        }
+
+        let executor = SummarizingExecutor;
+
+        coach
+            .send_message_with_tools(&llm, user_id, "Show me my lunch run", &executor)
+            .await
+            .expect("coach response");
+
+        let saved_memory = coach.store.saved_memory().await;
+        assert_eq!(saved_memory.data.recent_tool_results.len(), 1);
+        assert!(saved_memory.data.recent_tool_results[0].contains("Lunch Run"));
+        assert!(saved_memory.data.recent_tool_results[0]
+            .contains("93d3cd28-a734-4b25-9e5d-113ee5f640a7"));
     }
 }

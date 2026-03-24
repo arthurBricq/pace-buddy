@@ -162,7 +162,8 @@ impl CoachToolExecutor for AppCoachToolExecutor {
             "search_sessions" => self.search_sessions(user_id, &call.arguments).await,
             "get_last_sessions" => self.get_last_sessions(user_id, &call.arguments).await,
             "get_sessions_in_time_range" => {
-                self.get_sessions_in_time_range(user_id, &call.arguments).await
+                self.get_sessions_in_time_range(user_id, &call.arguments)
+                    .await
             }
             "get_session_detail" => self.get_session_detail(user_id, &call.arguments).await,
             other => {
@@ -184,6 +185,10 @@ impl CoachToolExecutor for AppCoachToolExecutor {
                 .to_string())
             }
         }
+    }
+
+    fn summarize_tool_result(&self, call: &ToolCall, tool_output: &str) -> Option<String> {
+        summarize_tool_result(call, tool_output)
     }
 }
 
@@ -282,7 +287,8 @@ impl AppCoachToolExecutor {
             user_id,
             limit,
             sport_type.as_deref().unwrap_or("any"),
-            tag.map(|v| v.to_string()).unwrap_or_else(|| "any".to_string())
+            tag.map(|v| v.to_string())
+                .unwrap_or_else(|| "any".to_string())
         );
 
         let activities = self.state.storage.get_activities(user_id, 500, 0).await?;
@@ -595,11 +601,126 @@ fn serialize_match(activity: &Activity, score: i64) -> Value {
     })
 }
 
+fn summarize_tool_result(call: &ToolCall, tool_output: &str) -> Option<String> {
+    let payload: Value = serde_json::from_str(tool_output).ok()?;
+    match call.name.as_str() {
+        "search_sessions" => summarize_match_tool("search_sessions", &call.arguments, &payload),
+        "get_last_sessions" => summarize_match_tool("get_last_sessions", &call.arguments, &payload),
+        "get_sessions_in_time_range" => {
+            summarize_match_tool("get_sessions_in_time_range", &call.arguments, &payload)
+        }
+        "get_session_detail" => summarize_session_detail_tool(&call.arguments, &payload),
+        _ => None,
+    }
+}
+
+fn summarize_match_tool(tool_name: &str, arguments: &Value, payload: &Value) -> Option<String> {
+    let matches = payload.get("matches")?.as_array()?;
+    let match_count = matches.len();
+    let top_matches = matches
+        .iter()
+        .take(2)
+        .filter_map(compact_match_label)
+        .collect::<Vec<_>>();
+    let summary = if top_matches.is_empty() {
+        format!(
+            "{} -> {} match(es)",
+            summarize_tool_args(tool_name, arguments),
+            match_count
+        )
+    } else {
+        format!(
+            "{} -> {} match(es): {}",
+            summarize_tool_args(tool_name, arguments),
+            match_count,
+            top_matches.join("; ")
+        )
+    };
+    Some(summary.chars().take(280).collect())
+}
+
+fn summarize_session_detail_tool(arguments: &Value, payload: &Value) -> Option<String> {
+    let activity_id = payload
+        .get("activity_id")
+        .and_then(Value::as_str)
+        .or_else(|| arguments.get("activity_id").and_then(Value::as_str))?;
+    let detail_mode = payload
+        .get("detail_mode")
+        .and_then(Value::as_str)
+        .or_else(|| arguments.get("detail_mode").and_then(Value::as_str))
+        .unwrap_or("auto");
+    Some(format!(
+        "get_session_detail(activity_id={}, detail_mode={}) -> loaded detailed session context",
+        activity_id, detail_mode
+    ))
+}
+
+fn summarize_tool_args(tool_name: &str, arguments: &Value) -> String {
+    match tool_name {
+        "search_sessions" => format!(
+            "search_sessions(query='{}')",
+            arguments
+                .get("query")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+        ),
+        "get_last_sessions" => {
+            let limit = arguments.get("limit").and_then(Value::as_u64).unwrap_or(1);
+            let sport = arguments.get("sport_type").and_then(Value::as_str);
+            let tag = arguments.get("tag").and_then(Value::as_str);
+            format!(
+                "get_last_sessions(limit={}, sport_type={}, tag={})",
+                limit,
+                sport.unwrap_or("any"),
+                tag.unwrap_or("any")
+            )
+        }
+        "get_sessions_in_time_range" => format!(
+            "get_sessions_in_time_range(start_date={}, end_date={}, sport_type={}, tag={})",
+            arguments
+                .get("start_date")
+                .and_then(Value::as_str)
+                .unwrap_or("?"),
+            arguments
+                .get("end_date")
+                .and_then(Value::as_str)
+                .unwrap_or("?"),
+            arguments
+                .get("sport_type")
+                .and_then(Value::as_str)
+                .unwrap_or("any"),
+            arguments
+                .get("tag")
+                .and_then(Value::as_str)
+                .unwrap_or("any")
+        ),
+        _ => tool_name.to_string(),
+    }
+}
+
+fn compact_match_label(value: &Value) -> Option<String> {
+    let activity_id = value.get("activity_id")?.as_str()?;
+    let name = value
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("session");
+    let date = value
+        .get("start_date")
+        .and_then(Value::as_str)
+        .and_then(|raw| raw.split_whitespace().next())
+        .unwrap_or("unknown-date");
+    Some(format!("{} on {} ({})", name, date, activity_id))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{build_last_session_matches, build_search_matches, build_time_range_matches};
+    use super::{
+        build_last_session_matches, build_search_matches, build_time_range_matches,
+        summarize_tool_result,
+    };
     use chrono::{Duration, NaiveDate, Utc};
     use domain::{Activity, ActivityTag};
+    use llm::ToolCall;
     use uuid::Uuid;
 
     fn sample_activity(name: &str, date_offset_days: i64, tag: ActivityTag) -> Activity {
@@ -666,11 +787,18 @@ mod tests {
             sample_activity("Latest Race", 0, ActivityTag::Race),
         ];
 
-        let matches = build_last_session_matches(&activities, 2, Some("Run"), Some(ActivityTag::Race));
+        let matches =
+            build_last_session_matches(&activities, 2, Some("Run"), Some(ActivityTag::Race));
 
         assert_eq!(matches.len(), 2);
-        assert_eq!(matches[0].get("name").and_then(|v| v.as_str()), Some("Latest Race"));
-        assert_eq!(matches[1].get("name").and_then(|v| v.as_str()), Some("Older Race"));
+        assert_eq!(
+            matches[0].get("name").and_then(|v| v.as_str()),
+            Some("Latest Race")
+        );
+        assert_eq!(
+            matches[1].get("name").and_then(|v| v.as_str()),
+            Some("Older Race")
+        );
     }
 
     #[test]
@@ -686,7 +814,38 @@ mod tests {
         let matches = build_time_range_matches(&activities, start, end, 10, Some("Run"), None);
 
         assert_eq!(matches.len(), 2);
-        assert_eq!(matches[0].get("name").and_then(|v| v.as_str()), Some("Mar 05"));
-        assert_eq!(matches[1].get("name").and_then(|v| v.as_str()), Some("Mar 03"));
+        assert_eq!(
+            matches[0].get("name").and_then(|v| v.as_str()),
+            Some("Mar 05")
+        );
+        assert_eq!(
+            matches[1].get("name").and_then(|v| v.as_str()),
+            Some("Mar 03")
+        );
+    }
+
+    #[test]
+    fn tool_result_summary_is_compact_and_includes_activity_id() {
+        let call = ToolCall {
+            id: "call_1".to_string(),
+            name: "get_last_sessions".to_string(),
+            arguments: serde_json::json!({ "limit": 1 }),
+            arguments_raw: "{\"limit\":1}".to_string(),
+            arguments_parse_error: None,
+        };
+        let output = serde_json::json!({
+            "matches": [{
+                "activity_id": "93d3cd28-a734-4b25-9e5d-113ee5f640a7",
+                "name": "Lunch Run",
+                "start_date": "2026-03-03 10:49:49 UTC"
+            }]
+        })
+        .to_string();
+
+        let summary = summarize_tool_result(&call, &output).expect("summary");
+
+        assert!(summary.contains("get_last_sessions"));
+        assert!(summary.contains("Lunch Run"));
+        assert!(summary.contains("93d3cd28-a734-4b25-9e5d-113ee5f640a7"));
     }
 }
