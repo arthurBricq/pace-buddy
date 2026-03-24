@@ -263,12 +263,13 @@ fn format_activity_line(activity: &Activity) -> String {
         "N/A".to_string()
     };
     format!(
-        "{} ({}) - {:.1} km in {} at {}, tag={}",
+        "{} ({}) - {:.1} km in {} at {}, elevation +{:.0} m, tag={}",
         activity.name,
         activity.start_date.format("%Y-%m-%d"),
         distance_km,
         format_duration(activity.moving_time),
         pace,
+        activity.total_elevation_gain,
         activity.tag
     )
 }
@@ -492,6 +493,7 @@ mod tests {
         assert!(bundle
             .content
             .contains("get_last_sessions -> 1 match: Easy Run on 2026-03-23"));
+        assert!(bundle.content.contains("elevation +100 m"));
         assert_eq!(
             bundle.latest_seen_activity_start_date,
             Some(now - Duration::days(1))

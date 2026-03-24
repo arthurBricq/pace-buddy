@@ -596,6 +596,7 @@ fn serialize_match(activity: &Activity, score: i64) -> Value {
         "sport_type": activity.sport_type,
         "distance_km": ((activity.distance / 1000.0) * 100.0).round() / 100.0,
         "moving_time_s": activity.moving_time,
+        "elevation_gain_m": activity.total_elevation_gain.round() as i64,
         "pace": format_pace_from_activity(activity.distance, activity.moving_time),
         "score": score,
     })
@@ -765,6 +766,12 @@ mod tests {
             .and_then(|v| v.as_str())
             .expect("activity_id");
         assert!(Uuid::parse_str(id).is_ok());
+        assert_eq!(
+            matches[0]
+                .get("elevation_gain_m")
+                .and_then(|v| v.as_i64()),
+            Some(100)
+        );
     }
 
     #[test]
