@@ -43,10 +43,10 @@ pub async fn send_message(
 
     // Add system message if it exists, otherwise use default
     if let Some(system_msg) = system_messages.first() {
-        llm_messages.push(ChatMessage {
-            role: system_msg.role.clone(),
-            content: system_msg.content.clone(),
-        });
+        llm_messages.push(ChatMessage::new(
+            system_msg.role.clone(),
+            system_msg.content.clone(),
+        ));
     } else {
         llm_messages.push(ChatMessage::system(DEFAULT_SYSTEM_PROMPT));
     }
@@ -73,10 +73,7 @@ pub async fn send_message(
     }
 
     for msg in &conversation_messages {
-        llm_messages.push(ChatMessage {
-            role: msg.role.clone(),
-            content: msg.content.clone(),
-        });
+        llm_messages.push(ChatMessage::new(msg.role.clone(), msg.content.clone()));
     }
     llm_messages.push(ChatMessage::user(user_content));
 

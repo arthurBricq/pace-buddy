@@ -8,6 +8,7 @@ mod state;
 /// Adapters for traits defined in other crates
 mod adapters {
     pub(crate) mod coach_memory_store_adapter;
+    pub(crate) mod coach_tools;
 }
 
 use std::sync::Arc;

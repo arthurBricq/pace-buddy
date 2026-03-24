@@ -2,6 +2,7 @@ pub mod activity_sync_helper;
 pub mod activity_description;
 pub mod context_builder;
 pub mod conversation_manager;
+pub mod formatting;
 pub mod insight_builder;
 pub mod invite_code_helper;
 pub mod mas_estimator;

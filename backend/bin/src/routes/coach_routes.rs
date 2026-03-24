@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use storage::Storage;
 
 use crate::errors::AppError;
+use crate::adapters::coach_tools::AppCoachToolExecutor;
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
 
@@ -150,10 +151,11 @@ pub async fn send_coach_message(
         .as_ref()
         .ok_or_else(|| AppError(DomainError::Internal("LLM not configured".into())))?;
     let llm_arc: std::sync::Arc<dyn LlmClient> = llm_client.clone();
+    let tool_executor = AppCoachToolExecutor::new(state.clone());
 
     let assistant_message = state
         .coach_memory
-        .send_message(llm_arc.as_ref(), user.user_id, content)
+        .send_message_with_tools(llm_arc.as_ref(), user.user_id, content, &tool_executor)
         .await?;
 
     let billed_cost = state.cost_to_user_quota(assistant_message.cost);

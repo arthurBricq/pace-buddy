@@ -6,7 +6,7 @@ mod store;
 mod updater;
 
 pub use classifier::{MemoryClassifier, MemoryClassifierOutput};
-pub use coach::CoachMemory;
+pub use coach::{CoachMemory, CoachToolExecutor};
 pub use context::{build_coach_context, CoachContextBundle, COACH_HISTORY};
 pub use normalizer::{MemoryNormalizer, MemoryNormalizerOutput};
 pub use store::CoachMemoryDataStore;

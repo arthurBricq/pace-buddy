@@ -8,6 +8,7 @@ use storage::SqliteStorage;
 use storage::Storage;
 use uuid::Uuid;
 
+use crate::helpers::formatting::format_pace_from_activity;
 use crate::helpers::runner_profile_helper;
 
 #[derive(Deserialize)]
@@ -85,14 +86,7 @@ async fn build_last_activities(
     for a in &activities {
         let dist_km = a.distance / 1000.0;
         let duration_min = a.moving_time as f64 / 60.0;
-        let pace = if a.distance > 0.0 {
-            let pace_s_per_km = a.moving_time as f64 / (a.distance / 1000.0);
-            let pm = pace_s_per_km as i32 / 60;
-            let ps = pace_s_per_km as i32 % 60;
-            format!("{}:{:02}/km", pm, ps)
-        } else {
-            "N/A".to_string()
-        };
+        let pace = format_pace(a.distance, a.moving_time);
         let hr = a
             .average_heartrate
             .map(|h| format!(", HR {:.0}bpm", h))
@@ -256,14 +250,7 @@ async fn build_activity_detail(
     let hours = a.moving_time / 3600;
     let mins = (a.moving_time % 3600) / 60;
     let secs = a.moving_time % 60;
-    let pace = if a.distance > 0.0 {
-        let pace_s = a.moving_time as f64 / (a.distance / 1000.0);
-        let pm = pace_s as i32 / 60;
-        let ps = pace_s as i32 % 60;
-        format!("{}:{:02}/km", pm, ps)
-    } else {
-        "N/A".to_string()
-    };
+    let pace = format_pace(a.distance, a.moving_time);
 
     let mut content = format!("# Activity: {}\n\n", a.name);
     content.push_str(&format!(
@@ -539,14 +526,7 @@ async fn build_training_recap(
     for a in &activities {
         let dist_km = a.distance / 1000.0;
         let duration_min = a.moving_time as f64 / 60.0;
-        let pace = if a.distance > 0.0 {
-            let pace_s = a.moving_time as f64 / (a.distance / 1000.0);
-            let pm = pace_s as i32 / 60;
-            let ps = pace_s as i32 % 60;
-            format!("{}:{:02}/km", pm, ps)
-        } else {
-            "N/A".to_string()
-        };
+        let pace = format_pace(a.distance, a.moving_time);
         let hr = a
             .average_heartrate
             .map(|h| format!(", HR {:.0}bpm", h))
@@ -570,14 +550,7 @@ async fn build_training_recap(
         for a in long_runs {
             let dist_km = a.distance / 1000.0;
             let duration_min = a.moving_time as f64 / 60.0;
-            let pace = if a.distance > 0.0 {
-                let pace_s = a.moving_time as f64 / (a.distance / 1000.0);
-                let pm = pace_s as i32 / 60;
-                let ps = pace_s as i32 % 60;
-                format!("{}:{:02}/km", pm, ps)
-            } else {
-                "N/A".to_string()
-            };
+            let pace = format_pace(a.distance, a.moving_time);
             content.push_str(&format!(
                 "- **{}** ({}): {:.1}km, {:.0}min, {}\n",
                 a.name,
@@ -625,13 +598,7 @@ fn is_quality_activity(activity: &Activity) -> bool {
 }
 
 fn format_pace(distance_m: f64, moving_time_s: i32) -> String {
-    if distance_m <= 0.0 {
-        return "N/A".to_string();
-    }
-    let pace_s = moving_time_s as f64 / (distance_m / 1000.0);
-    let pm = pace_s as i32 / 60;
-    let ps = pace_s as i32 % 60;
-    format!("{pm}:{ps:02}/km")
+    format_pace_from_activity(distance_m, moving_time_s)
 }
 
 fn format_activity_line(activity: &Activity) -> String {

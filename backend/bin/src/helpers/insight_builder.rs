@@ -7,6 +7,7 @@ use storage::SqliteStorage;
 use storage::Storage;
 use uuid::Uuid;
 
+use crate::helpers::formatting::{format_pace_from_activity, format_pace_from_seconds};
 use crate::helpers::runner_profile_helper;
 use crate::state::AppState;
 
@@ -50,14 +51,7 @@ pub async fn build_insight_context(
         if activity.tag == domain::ActivityTag::LongRun {
             let dist_km = activity.distance / 1000.0;
             let duration_min = activity.moving_time as f64 / 60.0;
-            let pace = if activity.distance > 0.0 {
-                let pace_s = activity.moving_time as f64 / (activity.distance / 1000.0);
-                let pm = pace_s as i32 / 60;
-                let ps = pace_s as i32 % 60;
-                format!("{}:{:02}/km", pm, ps)
-            } else {
-                "N/A".to_string()
-            };
+            let pace = format_pace_from_activity(activity.distance, activity.moving_time);
             long_run_descriptions.push(format!(
                 "- {} ({}): {:.1}km, {:.0}min, pace {}",
                 activity.name,
@@ -78,15 +72,12 @@ pub async fn build_insight_context(
                     result.reps.len()
                 );
                 for rep in &result.reps {
-                    let pace_min = (rep.avg_pace_s_per_km / 60.0).floor() as i32;
-                    let pace_sec = (rep.avg_pace_s_per_km % 60.0).round() as i32;
                     let mut line = format!(
-                        "- Rep {}: {:.0}m in {:.0}s, pace {}:{:02}/km",
+                        "- Rep {}: {:.0}m in {:.0}s, pace {}",
                         rep.rep_index + 1,
                         rep.distance_m,
                         rep.duration_s,
-                        pace_min,
-                        pace_sec,
+                        format_pace_from_seconds(rep.avg_pace_s_per_km),
                     );
                     if let Some(pct) = rep.pct_mas {
                         line.push_str(&format!(", {:.0}% MAS", pct * 100.0));

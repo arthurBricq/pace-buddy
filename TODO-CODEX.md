@@ -30,11 +30,12 @@ Goal: produce precise Markdown descriptions for a single activity, with mode-spe
 - [x] Strava fallback only when needed for missing detail.
 
 ### Acceptance criteria
-- [ ] Interval-tagged run includes reps/recoveries and pace details.
-- [ ] Race-tagged run includes race-focused pacing summary.
-- [ ] Long-run tagged run includes endurance-focused pacing summary.
-- [ ] Normal run includes compact precise summary.
-- [ ] Output is deterministic enough for LLM prompting.
+- [x] Interval-tagged run includes reps/recoveries and pace details.
+- [x] Race-tagged run includes race-focused pacing summary.
+- [x] Long-run tagged run includes endurance-focused pacing summary.
+- [x] Normal run includes compact precise summary.
+- [x] Output is deterministic enough for LLM prompting.
+- [~] Real DB currently contains only `normal` tagged runs; manual live validation for `intervals`/`race`/`long_run` remains pending once such sessions exist.
 
 ### Tests
 - [x] Unit test: mode selection (`auto`).
@@ -52,7 +53,7 @@ Goal: produce precise Markdown descriptions for a single activity, with mode-spe
       load streams/laps from DB,
       fallback to Strava if needed,
       call `state.resolve_intervals(...)` only when interval detail is required.
-- [ ] Reuse formatting fragments from:
+- [x] Reuse formatting fragments from:
       `backend/bin/src/helpers/context_builder.rs`,
       `backend/bin/src/helpers/insight_builder.rs`.
 - [x] Keep section order stable:
@@ -65,15 +66,15 @@ Goal: produce precise Markdown descriptions for a single activity, with mode-spe
 - [x] Add unit tests in the new module for mode dispatch and section presence.
 
 ## Milestone 2 — OpenRouter Tool-Calling Plumbing
-- [ ] Add request fields: `tools`, `tool_choice`, `parallel_tool_calls`.
-- [ ] Parse assistant `tool_calls` and `finish_reason=tool_calls`.
-- [ ] Add tool-capable completion interface in `llm` crate.
+- [x] Add request fields: `tools`, `tool_choice`, `parallel_tool_calls`.
+- [x] Parse assistant `tool_calls` and `finish_reason=tool_calls`.
+- [x] Add tool-capable completion interface in `llm` crate.
 
 ## Milestone 3 — Coach Tool Loop + DB Query Tools
-- [ ] Add coach loop: call model -> execute tools -> call model until final answer.
-- [ ] Add `search_sessions` tool (returns candidate sessions + canonical UUID).
-- [ ] Add `get_session_detail(activity_id, detail_mode)` tool (uses Milestone 1 output).
-- [ ] Ambiguity policy: ask user to choose if multiple candidates.
+- [x] Add coach loop: call model -> execute tools -> call model until final answer.
+- [x] Add `search_sessions` tool (returns candidate sessions + canonical UUID).
+- [x] Add `get_session_detail(activity_id, detail_mode)` tool (uses Milestone 1 output).
+- [x] Ambiguity policy: ask user to choose if multiple candidates.
 
 ## Milestone 4 — Hardening
 - [ ] Fallback behavior when tool-calling unsupported.
@@ -81,4 +82,4 @@ Goal: produce precise Markdown descriptions for a single activity, with mode-spe
 - [ ] End-to-end tests and logging.
 
 ## Current focus
-- [~] Milestone 1 — Session Text Description Engine
+- [~] Milestone 4 — Hardening

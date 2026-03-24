@@ -5,6 +5,7 @@ use storage::Storage;
 use strava_client::{strava_laps_to_domain, strava_streams_to_domain};
 use uuid::Uuid;
 
+use crate::helpers::formatting::{format_duration_hms, format_pace_from_activity, format_pace_from_seconds};
 use crate::helpers::strava_token_helper::get_valid_access_token;
 use crate::state::AppState;
 
@@ -178,7 +179,7 @@ async fn build_mode_analysis(
                             rep.rep_index + 1,
                             rep.distance_m,
                             rep.duration_s,
-                            pace_to_text(rep.avg_pace_s_per_km),
+                            format_pace_from_seconds(rep.avg_pace_s_per_km),
                         );
                         if let Some(pct) = rep.pct_mas {
                             line.push_str(&format!(", {:.0}% MAS", pct * 100.0));
@@ -204,8 +205,8 @@ async fn build_mode_analysis(
             if let Some(split) = compute_half_split(streams) {
                 out.push_str(&format!(
                     "- Estimated first half pace: {}\n- Estimated second half pace: {}\n- Split trend: {}\n",
-                    pace_to_text(split.first_half_pace_s_per_km),
-                    pace_to_text(split.second_half_pace_s_per_km),
+                    format_pace_from_seconds(split.first_half_pace_s_per_km),
+                    format_pace_from_seconds(split.second_half_pace_s_per_km),
                     split.trend
                 ));
             } else {
@@ -216,9 +217,9 @@ async fn build_mode_analysis(
                 out.push_str(&format!(
                     "- Lap pacing ({} laps): avg {}, fastest {}, slowest {}\n",
                     lap_summary.count,
-                    pace_to_text(lap_summary.avg_pace_s_per_km),
-                    pace_to_text(lap_summary.fastest_pace_s_per_km),
-                    pace_to_text(lap_summary.slowest_pace_s_per_km)
+                    format_pace_from_seconds(lap_summary.avg_pace_s_per_km),
+                    format_pace_from_seconds(lap_summary.fastest_pace_s_per_km),
+                    format_pace_from_seconds(lap_summary.slowest_pace_s_per_km)
                 ));
             } else {
                 out.push_str("- Lap pacing unavailable\n");
@@ -232,8 +233,8 @@ async fn build_mode_analysis(
             if let Some(split) = compute_half_split(streams) {
                 out.push_str(&format!(
                     "- First half pace: {}\n- Second half pace: {}\n",
-                    pace_to_text(split.first_half_pace_s_per_km),
-                    pace_to_text(split.second_half_pace_s_per_km)
+                    format_pace_from_seconds(split.first_half_pace_s_per_km),
+                    format_pace_from_seconds(split.second_half_pace_s_per_km)
                 ));
             }
 
@@ -250,9 +251,9 @@ async fn build_mode_analysis(
             if let Some(lap_summary) = summarize_lap_pacing(laps) {
                 out.push_str(&format!(
                     "- Lap consistency: avg {}, fastest {}, slowest {}\n",
-                    pace_to_text(lap_summary.avg_pace_s_per_km),
-                    pace_to_text(lap_summary.fastest_pace_s_per_km),
-                    pace_to_text(lap_summary.slowest_pace_s_per_km)
+                    format_pace_from_seconds(lap_summary.avg_pace_s_per_km),
+                    format_pace_from_seconds(lap_summary.fastest_pace_s_per_km),
+                    format_pace_from_seconds(lap_summary.slowest_pace_s_per_km)
                 ));
             }
 
@@ -264,8 +265,8 @@ async fn build_mode_analysis(
             if let Some(split) = compute_half_split(streams) {
                 out.push_str(&format!(
                     "- First half pace: {}\n- Second half pace: {}\n",
-                    pace_to_text(split.first_half_pace_s_per_km),
-                    pace_to_text(split.second_half_pace_s_per_km)
+                    format_pace_from_seconds(split.first_half_pace_s_per_km),
+                    format_pace_from_seconds(split.second_half_pace_s_per_km)
                 ));
             } else {
                 out.push_str("- Split detail unavailable (missing time/distance streams)\n");
@@ -275,9 +276,9 @@ async fn build_mode_analysis(
                 out.push_str(&format!(
                     "- Key splits from laps ({}): avg {}, fastest {}, slowest {}\n",
                     lap_summary.count,
-                    pace_to_text(lap_summary.avg_pace_s_per_km),
-                    pace_to_text(lap_summary.fastest_pace_s_per_km),
-                    pace_to_text(lap_summary.slowest_pace_s_per_km)
+                    format_pace_from_seconds(lap_summary.avg_pace_s_per_km),
+                    format_pace_from_seconds(lap_summary.fastest_pace_s_per_km),
+                    format_pace_from_seconds(lap_summary.slowest_pace_s_per_km)
                 ));
             }
 
@@ -308,11 +309,11 @@ fn render_description(
 
     out.push_str("## Core Metrics\n");
     out.push_str(&format!("- Distance: {:.2} km\n", activity.distance / 1000.0));
-    out.push_str(&format!("- Moving time: {}\n", format_duration(activity.moving_time)));
-    out.push_str(&format!("- Elapsed time: {}\n", format_duration(activity.elapsed_time)));
+    out.push_str(&format!("- Moving time: {}\n", format_duration_hms(activity.moving_time)));
+    out.push_str(&format!("- Elapsed time: {}\n", format_duration_hms(activity.elapsed_time)));
     out.push_str(&format!(
         "- Average pace: {}\n",
-        pace_to_text(activity_pace_s_per_km(activity))
+        format_pace_from_activity(activity.distance, activity.moving_time)
     ));
     out.push_str(&format!(
         "- Average speed: {:.2} km/h\n",
@@ -354,35 +355,6 @@ fn render_description(
     }
 
     out
-}
-
-fn activity_pace_s_per_km(activity: &Activity) -> f64 {
-    if activity.distance > 0.0 {
-        activity.moving_time as f64 / (activity.distance / 1000.0)
-    } else {
-        0.0
-    }
-}
-
-fn format_duration(total_seconds: i32) -> String {
-    let seconds = total_seconds.max(0);
-    let h = seconds / 3600;
-    let m = (seconds % 3600) / 60;
-    let s = seconds % 60;
-    if h > 0 {
-        format!("{h}h{m:02}m{s:02}s")
-    } else {
-        format!("{m}m{s:02}s")
-    }
-}
-
-fn pace_to_text(seconds_per_km: f64) -> String {
-    if !seconds_per_km.is_finite() || seconds_per_km <= 0.0 {
-        return "N/A".to_string();
-    }
-    let minutes = (seconds_per_km / 60.0).floor() as i64;
-    let seconds = (seconds_per_km.round() as i64) % 60;
-    format!("{minutes}:{seconds:02}/km")
 }
 
 #[derive(Debug, Clone, Copy)]
