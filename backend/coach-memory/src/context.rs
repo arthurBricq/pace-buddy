@@ -9,8 +9,6 @@ use uuid::Uuid;
 
 use crate::store::CoachMemoryDataStore;
 
-pub const COACH_HISTORY: usize = 10;
-
 pub struct CoachContextBundle {
     pub content: String,
     pub latest_seen_activity_start_date: Option<chrono::DateTime<Utc>>,
@@ -77,19 +75,6 @@ pub async fn build_coach_context(
         .map(|a| a.start_date)
         .max()
         .or(state.last_seen_activity_start_date);
-
-    let history_fetch_limit = (COACH_HISTORY as i64) * 10;
-    let coach_messages = store
-        .list_running_coach_messages(user_id, history_fetch_limit)
-        .await?;
-    let mut recent_user_prompts: Vec<_> = coach_messages
-        .into_iter()
-        .filter(|m| m.role == "user")
-        .collect();
-    if recent_user_prompts.len() > COACH_HISTORY {
-        let start = recent_user_prompts.len() - COACH_HISTORY;
-        recent_user_prompts = recent_user_prompts[start..].to_vec();
-    }
 
     let today = Utc::now().format("%Y-%m-%d").to_string();
     let mut content = String::new();
@@ -179,25 +164,6 @@ pub async fn build_coach_context(
         ));
     }
     push_activity_lines(&mut content, &new_activities);
-
-    content.push_str(&format!(
-        "\n## Recent user prompts (last {}, no coach answers)\n",
-        COACH_HISTORY
-    ));
-    content.push_str(
-        "These are the recent user questions only, included to avoid repeating already-addressed guidance.\n",
-    );
-    if recent_user_prompts.is_empty() {
-        content.push_str("- None yet.\n");
-    } else {
-        for msg in &recent_user_prompts {
-            content.push_str(&format!(
-                "- [{}] {}\n",
-                msg.created_at.format("%Y-%m-%d"),
-                msg.content
-            ));
-        }
-    }
 
     content.push_str("\n## Recent tool results\n");
     content
@@ -346,7 +312,7 @@ mod tests {
     };
     use uuid::Uuid;
 
-    use super::{build_coach_context, CoachMemoryDataStore, COACH_HISTORY};
+    use super::{build_coach_context, CoachMemoryDataStore};
 
     struct FakeStore {
         user: User,
@@ -459,7 +425,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn includes_only_last_user_prompts_and_tracks_latest_new_activity() {
+    async fn includes_recent_tool_results_and_tracks_latest_new_activity() {
         let user_id = Uuid::new_v4();
         let now = chrono::Utc::now();
         let settings = RunningCoachSettings {
@@ -472,32 +438,6 @@ mod tests {
             last_seen_activity_start_date: Some(now - Duration::days(5)),
             updated_at: now,
         };
-
-        let mut messages = Vec::new();
-        for idx in 0..15 {
-            messages.push(RunningCoachMessage {
-                id: Uuid::new_v4(),
-                user_id,
-                role: "user".to_string(),
-                content: format!("u-{idx}"),
-                prompt_tokens: 0,
-                completion_tokens: 0,
-                total_tokens: 0,
-                cost: 0.0,
-                created_at: now - Duration::days((20 - idx) as i64),
-            });
-            messages.push(RunningCoachMessage {
-                id: Uuid::new_v4(),
-                user_id,
-                role: "assistant".to_string(),
-                content: format!("a-{idx}"),
-                prompt_tokens: 0,
-                completion_tokens: 0,
-                total_tokens: 0,
-                cost: 0.0,
-                created_at: now - Duration::days((20 - idx) as i64),
-            });
-        }
 
         let recent_activities = vec![
             fake_activity(
@@ -534,7 +474,7 @@ mod tests {
             athlete_profile: None,
             activities_in_range: recent_activities.clone(),
             activities_recent: recent_activities,
-            coach_messages: messages,
+            coach_messages: Vec::new(),
         };
 
         let memory = RunningCoachMemoryData {
@@ -548,13 +488,6 @@ mod tests {
             .await
             .expect("context should build");
 
-        assert!(bundle.content.contains(&format!(
-            "## Recent user prompts (last {}, no coach answers)",
-            COACH_HISTORY
-        )));
-        assert!(bundle.content.contains("u-14"));
-        assert!(!bundle.content.contains("u-0"));
-        assert!(!bundle.content.contains("a-14"));
         assert!(bundle.content.contains("## Recent tool results"));
         assert!(bundle
             .content
