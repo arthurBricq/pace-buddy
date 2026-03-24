@@ -1,4 +1,5 @@
 pub mod activity_sync_helper;
+pub mod activity_description;
 pub mod context_builder;
 pub mod conversation_manager;
 pub mod insight_builder;

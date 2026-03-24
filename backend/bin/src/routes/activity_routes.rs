@@ -1,9 +1,11 @@
 use actix_web::{web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use storage::Storage;
+use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::errors::AppError;
+use crate::helpers::activity_description::{build_activity_description, ActivityDescriptionMode};
 use crate::helpers::activity_sync_helper::sync_user_activities;
 use crate::helpers::strava_data_helper::{
     fetch_polyline, load_and_cache_laps, load_and_cache_streams,
@@ -105,6 +107,7 @@ pub async fn get_activity(
     state: web::Data<AppState>,
     user: AuthenticatedUser,
     path: web::Path<Uuid>,
+    query: web::Query<GetActivityQuery>,
 ) -> Result<HttpResponse, AppError> {
     let activity_id = path.into_inner();
     log::info!("GET /activities/{activity_id} user={}", user.user_id);
@@ -145,16 +148,29 @@ pub async fn get_activity(
         activity.summary_polyline = polyline;
     }
 
+    let description = if let Some(raw_mode) = query.description_mode.as_deref() {
+        let mode = ActivityDescriptionMode::from_str(raw_mode)?;
+        Some(build_activity_description(state.get_ref(), user.user_id, activity_id, mode).await?)
+    } else {
+        None
+    };
+
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "activity": activity,
         "streams": streams,
         "laps": laps,
+        "description": description,
     })))
 }
 
 #[derive(Deserialize)]
 pub struct TagUpdateRequest {
     pub tag: String,
+}
+
+#[derive(Deserialize)]
+pub struct GetActivityQuery {
+    pub description_mode: Option<String>,
 }
 
 #[derive(Deserialize)]
