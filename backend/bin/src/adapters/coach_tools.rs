@@ -51,14 +51,14 @@ impl CoachToolExecutor for AppCoachToolExecutor {
             },
             ToolDefinition {
                 name: "get_last_sessions".to_string(),
-                description: "Get the most recent sessions, optionally filtered by sport type or activity tag.".to_string(),
+                description: "Get the most recent sessions, optionally filtered by sport type or activity tag, with additional metadata such as distance, pace and elevation gain.".to_string(),
                 parameters: json!({
                     "type": "object",
                     "properties": {
                         "limit": {
                             "type": "integer",
                             "minimum": 1,
-                            "maximum": 20,
+                            "maximum": 100,
                             "description": "How many recent sessions to return. Default 1."
                         },
                         "sport_type": {
@@ -767,9 +767,7 @@ mod tests {
             .expect("activity_id");
         assert!(Uuid::parse_str(id).is_ok());
         assert_eq!(
-            matches[0]
-                .get("elevation_gain_m")
-                .and_then(|v| v.as_i64()),
+            matches[0].get("elevation_gain_m").and_then(|v| v.as_i64()),
             Some(100)
         );
     }
