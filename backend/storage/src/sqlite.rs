@@ -9,7 +9,7 @@ use domain::{
     User,
 };
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow};
-use sqlx::Row;
+use sqlx::{Error as SqlxError, Row};
 use uuid::Uuid;
 
 use crate::traits::Storage;
@@ -315,6 +315,7 @@ impl SqliteStorage {
                 user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 model TEXT NOT NULL,
                 personality TEXT NOT NULL,
+                consider_trail_runs_as_runs INTEGER NOT NULL DEFAULT 0,
                 volume_weeks INTEGER NOT NULL DEFAULT 8,
                 last_workouts_count INTEGER NOT NULL DEFAULT 8,
                 last_long_runs_count INTEGER NOT NULL DEFAULT 6,
@@ -332,6 +333,23 @@ impl SqliteStorage {
                 "Failed to create running_coach_settings table: {e}"
             ))
         })?;
+
+        match sqlx::query(
+            "ALTER TABLE running_coach_settings
+             ADD COLUMN consider_trail_runs_as_runs INTEGER NOT NULL DEFAULT 0",
+        )
+        .execute(pool)
+        .await
+        {
+            Ok(_) => {}
+            Err(SqlxError::Database(db_err))
+                if db_err.message().contains("duplicate column name") => {}
+            Err(e) => {
+                return Err(DomainError::Storage(format!(
+                    "Failed to ensure running_coach_settings.consider_trail_runs_as_runs column: {e}"
+                )));
+            }
+        }
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS running_coach_memory (
@@ -825,6 +843,7 @@ fn row_to_running_coach_settings(row: &SqliteRow) -> Result<RunningCoachSettings
     let user_id: String = row.get("user_id");
     let model: String = row.get("model");
     let personality: String = row.get("personality");
+    let consider_trail_runs_as_runs: bool = row.get("consider_trail_runs_as_runs");
     let volume_weeks: i32 = row.get("volume_weeks");
     let last_workouts_count: i32 = row.get("last_workouts_count");
     let last_long_runs_count: i32 = row.get("last_long_runs_count");
@@ -838,6 +857,7 @@ fn row_to_running_coach_settings(row: &SqliteRow) -> Result<RunningCoachSettings
         user_id: parse_uuid(&user_id)?,
         model,
         personality,
+        consider_trail_runs_as_runs,
         volume_weeks,
         last_workouts_count,
         last_long_runs_count,
@@ -2098,7 +2118,8 @@ impl Storage for SqliteStorage {
         user_id: Uuid,
     ) -> Result<RunningCoachSettings, DomainError> {
         let row = sqlx::query(
-            "SELECT user_id, model, personality, volume_weeks, last_workouts_count,
+            "SELECT user_id, model, personality, consider_trail_runs_as_runs,
+                    volume_weeks, last_workouts_count,
                     last_long_runs_count, last_races_count, new_activities_count,
                     normalizer_every_n_messages, created_at, updated_at
              FROM running_coach_settings
@@ -2124,13 +2145,15 @@ impl Storage for SqliteStorage {
     ) -> Result<(), DomainError> {
         sqlx::query(
             "INSERT INTO running_coach_settings (
-                user_id, model, personality, volume_weeks, last_workouts_count,
+                user_id, model, personality, consider_trail_runs_as_runs,
+                volume_weeks, last_workouts_count,
                 last_long_runs_count, last_races_count, new_activities_count,
                 normalizer_every_n_messages, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET
                 model = excluded.model,
                 personality = excluded.personality,
+                consider_trail_runs_as_runs = excluded.consider_trail_runs_as_runs,
                 volume_weeks = excluded.volume_weeks,
                 last_workouts_count = excluded.last_workouts_count,
                 last_long_runs_count = excluded.last_long_runs_count,
@@ -2142,6 +2165,7 @@ impl Storage for SqliteStorage {
         .bind(settings.user_id.to_string())
         .bind(&settings.model)
         .bind(&settings.personality)
+        .bind(settings.consider_trail_runs_as_runs)
         .bind(settings.volume_weeks)
         .bind(settings.last_workouts_count)
         .bind(settings.last_long_runs_count)

@@ -26,6 +26,7 @@ export default function CoachSettingsModal({
 
   const [model, setModel] = useState('google/gemini-2.5-flash');
   const [personality, setPersonality] = useState('');
+  const [considerTrailRunsAsRuns, setConsiderTrailRunsAsRuns] = useState(false);
   const [volumeWeeks, setVolumeWeeks] = useState(8);
   const [lastWorkoutsCount, setLastWorkoutsCount] = useState(8);
   const [lastLongRunsCount, setLastLongRunsCount] = useState(6);
@@ -38,6 +39,7 @@ export default function CoachSettingsModal({
     if (initial) {
       setModel(initial.model);
       setPersonality(initial.personality);
+      setConsiderTrailRunsAsRuns(initial.consider_trail_runs_as_runs);
       setVolumeWeeks(initial.volume_weeks);
       setLastWorkoutsCount(initial.last_workouts_count);
       setLastLongRunsCount(initial.last_long_runs_count);
@@ -96,6 +98,7 @@ export default function CoachSettingsModal({
     ...initial,
     model,
     personality: personality.trim(),
+    consider_trail_runs_as_runs: considerTrailRunsAsRuns,
     volume_weeks: volumeWeeks,
     last_workouts_count: lastWorkoutsCount,
     last_long_runs_count: lastLongRunsCount,
@@ -160,6 +163,23 @@ export default function CoachSettingsModal({
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
               placeholder="Opinionated but constructive running coach..."
             />
+          </div>
+
+          <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={considerTrailRunsAsRuns}
+                onChange={(e) => setConsiderTrailRunsAsRuns(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+              />
+              <div>
+                <p className="text-sm font-medium text-gray-800">Consider trail runs as runs</p>
+                <p className="mt-1 text-xs text-gray-600">
+                  When enabled, coach requests for runs also include Strava TrailRun activities.
+                </p>
+              </div>
+            </label>
           </div>
 
           <div>

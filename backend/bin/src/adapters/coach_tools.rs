@@ -4,7 +4,9 @@ use actix_web::web;
 use async_trait::async_trait;
 use chrono::{Duration, NaiveDate, TimeZone, Utc};
 use coach_memory::CoachToolExecutor;
-use domain::{Activity, ActivityTag, DomainError};
+use domain::{
+    coach_sport_type_matches_filter, Activity, ActivityTag, DomainError, RunningCoachSettings,
+};
 use llm::{ToolCall, ToolDefinition};
 use serde_json::{json, Value};
 use storage::Storage;
@@ -282,17 +284,24 @@ impl AppCoachToolExecutor {
             .clamp(1, 20) as usize;
         let sport_type = extract_optional_sport_type(args);
         let tag = extract_optional_tag(args)?;
+        let settings = self
+            .state
+            .storage
+            .get_or_create_running_coach_settings(user_id)
+            .await?;
         log::info!(
-            "Coach tool get_last_sessions user_id={} limit={} sport_type={} tag={}",
+            "Coach tool get_last_sessions user_id={} limit={} sport_type={} tag={} trail_as_run={}",
             user_id,
             limit,
             sport_type.as_deref().unwrap_or("any"),
             tag.map(|v| v.to_string())
-                .unwrap_or_else(|| "any".to_string())
+                .unwrap_or_else(|| "any".to_string()),
+            settings.consider_trail_runs_as_runs
         );
 
         let activities = self.state.storage.get_activities(user_id, 500, 0).await?;
-        let matches = build_last_session_matches(&activities, limit, sport_type.as_deref(), tag);
+        let matches =
+            build_last_session_matches(&activities, &settings, limit, sport_type.as_deref(), tag);
         log::info!(
             "Coach tool get_last_sessions user_id={} scanned={} matches={}",
             user_id,
@@ -347,19 +356,26 @@ impl AppCoachToolExecutor {
             .clamp(1, 20) as usize;
         let sport_type = extract_optional_sport_type(args);
         let tag = extract_optional_tag(args)?;
+        let settings = self
+            .state
+            .storage
+            .get_or_create_running_coach_settings(user_id)
+            .await?;
         log::info!(
-            "Coach tool get_sessions_in_time_range user_id={} start_date={} end_date={} limit={} sport_type={} tag={}",
+            "Coach tool get_sessions_in_time_range user_id={} start_date={} end_date={} limit={} sport_type={} tag={} trail_as_run={}",
             user_id,
             start_date,
             end_date,
             limit,
             sport_type.as_deref().unwrap_or("any"),
-            tag.map(|v| v.to_string()).unwrap_or_else(|| "any".to_string())
+            tag.map(|v| v.to_string()).unwrap_or_else(|| "any".to_string()),
+            settings.consider_trail_runs_as_runs
         );
 
         let activities = self.state.storage.get_activities(user_id, 500, 0).await?;
         let matches = build_time_range_matches(
             &activities,
+            &settings,
             start_date,
             end_date,
             limit,
@@ -495,26 +511,26 @@ fn parse_yyyy_mm_dd(raw: &str, field_name: &str) -> Result<NaiveDate, DomainErro
 }
 
 fn activity_matches_filters(
+    settings: &RunningCoachSettings,
     activity: &Activity,
     sport_type: Option<&str>,
     tag: Option<ActivityTag>,
 ) -> bool {
-    let sport_matches = sport_type
-        .map(|expected| activity.sport_type.eq_ignore_ascii_case(expected))
-        .unwrap_or(true);
+    let sport_matches = coach_sport_type_matches_filter(settings, &activity.sport_type, sport_type);
     let tag_matches = tag.map(|expected| activity.tag == expected).unwrap_or(true);
     sport_matches && tag_matches
 }
 
 fn build_last_session_matches(
     activities: &[Activity],
+    settings: &RunningCoachSettings,
     limit: usize,
     sport_type: Option<&str>,
     tag: Option<ActivityTag>,
 ) -> Vec<Value> {
     let mut filtered: Vec<&Activity> = activities
         .iter()
-        .filter(|activity| activity_matches_filters(activity, sport_type, tag))
+        .filter(|activity| activity_matches_filters(settings, activity, sport_type, tag))
         .collect();
     filtered.sort_by(|a, b| b.start_date.cmp(&a.start_date));
 
@@ -527,6 +543,7 @@ fn build_last_session_matches(
 
 fn build_time_range_matches(
     activities: &[Activity],
+    settings: &RunningCoachSettings,
     start_date: NaiveDate,
     end_date: NaiveDate,
     limit: usize,
@@ -547,7 +564,7 @@ fn build_time_range_matches(
     let mut filtered: Vec<&Activity> = activities
         .iter()
         .filter(|activity| activity.start_date >= start_at && activity.start_date < end_exclusive)
-        .filter(|activity| activity_matches_filters(activity, sport_type, tag))
+        .filter(|activity| activity_matches_filters(settings, activity, sport_type, tag))
         .collect();
     filtered.sort_by(|a, b| b.start_date.cmp(&a.start_date));
 
@@ -720,18 +737,41 @@ mod tests {
         summarize_tool_result,
     };
     use chrono::{Duration, NaiveDate, Utc};
-    use domain::{Activity, ActivityTag};
+    use domain::{Activity, ActivityTag, RunningCoachSettings};
     use llm::ToolCall;
     use uuid::Uuid;
 
     fn sample_activity(name: &str, date_offset_days: i64, tag: ActivityTag) -> Activity {
+        sample_activity_with_sport_type(name, date_offset_days, tag, "Run")
+    }
+
+    fn sample_activity_with_sport_type(
+        name: &str,
+        date_offset_days: i64,
+        tag: ActivityTag,
+        sport_type: &str,
+    ) -> Activity {
+        sample_activity_with_start_date(
+            name,
+            Utc::now() - Duration::days(date_offset_days),
+            tag,
+            sport_type,
+        )
+    }
+
+    fn sample_activity_with_start_date(
+        name: &str,
+        start_date: chrono::DateTime<Utc>,
+        tag: ActivityTag,
+        sport_type: &str,
+    ) -> Activity {
         Activity {
             id: Uuid::new_v4(),
             user_id: Uuid::new_v4(),
             strava_id: 1,
             name: name.to_string(),
-            sport_type: "Run".to_string(),
-            start_date: Utc::now() - Duration::days(date_offset_days),
+            sport_type: sport_type.to_string(),
+            start_date,
             elapsed_time: 3600,
             moving_time: 3500,
             distance: 10_000.0,
@@ -748,6 +788,13 @@ mod tests {
             workout_type: None,
             streams_fetched_at: None,
             created_at: Utc::now(),
+        }
+    }
+
+    fn settings(consider_trail_runs_as_runs: bool) -> RunningCoachSettings {
+        RunningCoachSettings {
+            consider_trail_runs_as_runs,
+            ..RunningCoachSettings::default()
         }
     }
 
@@ -792,8 +839,13 @@ mod tests {
             sample_activity("Latest Race", 0, ActivityTag::Race),
         ];
 
-        let matches =
-            build_last_session_matches(&activities, 2, Some("Run"), Some(ActivityTag::Race));
+        let matches = build_last_session_matches(
+            &activities,
+            &settings(false),
+            2,
+            Some("Run"),
+            Some(ActivityTag::Race),
+        );
 
         assert_eq!(matches.len(), 2);
         assert_eq!(
@@ -809,14 +861,49 @@ mod tests {
     #[test]
     fn time_range_matches_are_inclusive_by_day() {
         let activities = vec![
-            sample_activity("Mar 01", 23, ActivityTag::Normal),
-            sample_activity("Mar 03", 21, ActivityTag::Intervals),
-            sample_activity("Mar 05", 19, ActivityTag::Normal),
+            sample_activity_with_start_date(
+                "Mar 01",
+                NaiveDate::from_ymd_opt(2026, 3, 1)
+                    .expect("valid date")
+                    .and_hms_opt(8, 0, 0)
+                    .expect("valid time")
+                    .and_utc(),
+                ActivityTag::Normal,
+                "Run",
+            ),
+            sample_activity_with_start_date(
+                "Mar 03",
+                NaiveDate::from_ymd_opt(2026, 3, 3)
+                    .expect("valid date")
+                    .and_hms_opt(8, 0, 0)
+                    .expect("valid time")
+                    .and_utc(),
+                ActivityTag::Intervals,
+                "Run",
+            ),
+            sample_activity_with_start_date(
+                "Mar 05",
+                NaiveDate::from_ymd_opt(2026, 3, 5)
+                    .expect("valid date")
+                    .and_hms_opt(8, 0, 0)
+                    .expect("valid time")
+                    .and_utc(),
+                ActivityTag::Normal,
+                "Run",
+            ),
         ];
 
         let start = NaiveDate::from_ymd_opt(2026, 3, 3).expect("valid date");
         let end = NaiveDate::from_ymd_opt(2026, 3, 5).expect("valid date");
-        let matches = build_time_range_matches(&activities, start, end, 10, Some("Run"), None);
+        let matches = build_time_range_matches(
+            &activities,
+            &settings(false),
+            start,
+            end,
+            10,
+            Some("Run"),
+            None,
+        );
 
         assert_eq!(matches.len(), 2);
         assert_eq!(
@@ -852,5 +939,46 @@ mod tests {
         assert!(summary.contains("get_last_sessions"));
         assert!(summary.contains("Lunch Run"));
         assert!(summary.contains("93d3cd28-a734-4b25-9e5d-113ee5f640a7"));
+    }
+
+    #[test]
+    fn run_filter_optionally_includes_trail_runs() {
+        let activities = vec![
+            sample_activity_with_sport_type("Road Run", 2, ActivityTag::Normal, "Run"),
+            sample_activity_with_sport_type("Trail Run", 1, ActivityTag::Normal, "TrailRun"),
+        ];
+
+        let without_trails =
+            build_last_session_matches(&activities, &settings(false), 10, Some("Run"), None);
+        let with_trails =
+            build_last_session_matches(&activities, &settings(true), 10, Some("Run"), None);
+
+        assert_eq!(without_trails.len(), 1);
+        assert_eq!(
+            without_trails[0].get("name").and_then(|v| v.as_str()),
+            Some("Road Run")
+        );
+        assert_eq!(with_trails.len(), 2);
+        assert_eq!(
+            with_trails[0].get("name").and_then(|v| v.as_str()),
+            Some("Trail Run")
+        );
+    }
+
+    #[test]
+    fn explicit_trail_run_filter_remains_specific() {
+        let activities = vec![
+            sample_activity_with_sport_type("Road Run", 2, ActivityTag::Normal, "Run"),
+            sample_activity_with_sport_type("Trail Run", 1, ActivityTag::Normal, "TrailRun"),
+        ];
+
+        let matches =
+            build_last_session_matches(&activities, &settings(true), 10, Some("TrailRun"), None);
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(
+            matches[0].get("name").and_then(|v| v.as_str()),
+            Some("Trail Run")
+        );
     }
 }

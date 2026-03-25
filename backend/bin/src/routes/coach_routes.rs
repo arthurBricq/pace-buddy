@@ -7,8 +7,8 @@ use llm::LlmClient;
 use serde::{Deserialize, Serialize};
 use storage::Storage;
 
-use crate::errors::AppError;
 use crate::adapters::coach_tools::AppCoachToolExecutor;
+use crate::errors::AppError;
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
 
@@ -33,6 +33,7 @@ pub struct CoachSendMessageRequest {
 pub struct CoachSettingsRequest {
     pub model: String,
     pub personality: String,
+    pub consider_trail_runs_as_runs: bool,
     pub volume_weeks: i32,
     pub last_workouts_count: i32,
     pub last_long_runs_count: i32,
@@ -103,6 +104,7 @@ pub async fn update_coach_settings(
 
     settings.model = model.to_string();
     settings.personality = personality.to_string();
+    settings.consider_trail_runs_as_runs = body.consider_trail_runs_as_runs;
     settings.volume_weeks = clamp(body.volume_weeks, 1, 24, 8);
     settings.last_workouts_count = clamp(body.last_workouts_count, 1, 25, 8);
     settings.last_long_runs_count = clamp(body.last_long_runs_count, 1, 25, 6);

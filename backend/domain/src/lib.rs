@@ -17,8 +17,9 @@ pub mod user;
 pub use activity::{Activity, ActivityTag};
 pub use ai_chat::{AiChat, AiChatMessage};
 pub use coach::{
-    RunningCoachMemory, RunningCoachMemoryData, RunningCoachMessage, RunningCoachSettings,
-    RunningCoachState,
+    coach_considers_sport_type_as_run, coach_sport_type_matches_filter, RunningCoachMemory,
+    RunningCoachMemoryData, RunningCoachMessage, RunningCoachSettings, RunningCoachState,
+    RUN_SPORT_TYPE, TRAIL_RUN_SPORT_TYPE,
 };
 pub use error::DomainError;
 pub use invite_code::InviteCode;

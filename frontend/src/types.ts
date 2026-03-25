@@ -297,6 +297,7 @@ export interface RunningCoachSettings {
   user_id: string;
   model: string;
   personality: string;
+  consider_trail_runs_as_runs: boolean;
   volume_weeks: number;
   last_workouts_count: number;
   last_long_runs_count: number;

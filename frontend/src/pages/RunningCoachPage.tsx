@@ -74,6 +74,7 @@ export default function RunningCoachPage() {
     const updated = await updateCoachSettings({
       model: next.model,
       personality: next.personality,
+      consider_trail_runs_as_runs: next.consider_trail_runs_as_runs,
       volume_weeks: next.volume_weeks,
       last_workouts_count: next.last_workouts_count,
       last_long_runs_count: next.last_long_runs_count,

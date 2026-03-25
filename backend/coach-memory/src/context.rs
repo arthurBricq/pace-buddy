@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 
 use chrono::{Datelike, Duration, Utc};
 use domain::{
-    Activity, ActivityTag, DomainError, RunningCoachMemoryData, RunningCoachSettings,
-    RunningCoachState,
+    coach_considers_sport_type_as_run, Activity, ActivityTag, DomainError, RunningCoachMemoryData,
+    RunningCoachSettings, RunningCoachState,
 };
 use uuid::Uuid;
 
@@ -42,17 +42,17 @@ pub async fn build_coach_context(
 
     let workouts: Vec<&Activity> = activities_recent
         .iter()
-        .filter(|a| is_run(a) && a.tag == ActivityTag::Intervals)
+        .filter(|a| is_run(settings, a) && a.tag == ActivityTag::Intervals)
         .take(workouts_count)
         .collect();
     let long_runs: Vec<&Activity> = activities_recent
         .iter()
-        .filter(|a| is_run(a) && a.tag == ActivityTag::LongRun)
+        .filter(|a| is_run(settings, a) && a.tag == ActivityTag::LongRun)
         .take(long_runs_count)
         .collect();
     let races: Vec<&Activity> = activities_recent
         .iter()
-        .filter(|a| is_race(a))
+        .filter(|a| is_race(settings, a))
         .take(races_count)
         .collect();
 
@@ -84,6 +84,14 @@ pub async fn build_coach_context(
     if let Some(mas) = user.mas_current {
         content.push_str(&format!("- MAS: {:.1} km/h\n", mas));
     }
+    content.push_str(&format!(
+        "- Coach run scope: {}\n",
+        if settings.consider_trail_runs_as_runs {
+            "Run and TrailRun are both treated as runs"
+        } else {
+            "Only Run is treated as a run"
+        }
+    ));
 
     content.push_str("\n## User profile\n");
     if let Some(identity) = identity_profile {
@@ -119,8 +127,10 @@ pub async fn build_coach_context(
     }
 
     content.push_str(&format!("\n## Volume over last {} weeks\n", volume_weeks));
-    let run_activities_window: Vec<&Activity> =
-        activities_in_window.iter().filter(|a| is_run(a)).collect();
+    let run_activities_window: Vec<&Activity> = activities_in_window
+        .iter()
+        .filter(|a| is_run(settings, a))
+        .collect();
     let total_distance_km: f64 = run_activities_window
         .iter()
         .map(|a| a.distance)
@@ -290,12 +300,13 @@ fn format_duration_i64(seconds: i64) -> String {
     }
 }
 
-fn is_run(activity: &Activity) -> bool {
-    activity.sport_type == "Run"
+fn is_run(settings: &RunningCoachSettings, activity: &Activity) -> bool {
+    coach_considers_sport_type_as_run(settings, &activity.sport_type)
 }
 
-fn is_race(activity: &Activity) -> bool {
-    is_run(activity) && (activity.tag == ActivityTag::Race || activity.workout_type == Some(1))
+fn is_race(settings: &RunningCoachSettings, activity: &Activity) -> bool {
+    is_run(settings, activity)
+        && (activity.tag == ActivityTag::Race || activity.workout_type == Some(1))
 }
 
 fn clamp(value: i32, min: i32, max: i32, fallback: i32) -> i32 {
@@ -494,10 +505,71 @@ mod tests {
             .content
             .contains("get_last_sessions -> 1 match: Easy Run on 2026-03-23"));
         assert!(bundle.content.contains("elevation +100 m"));
+        assert!(bundle.content.contains("Only Run is treated as a run"));
         assert_eq!(
             bundle.latest_seen_activity_start_date,
             Some(now - Duration::days(1))
         );
+    }
+
+    #[tokio::test]
+    async fn trail_runs_are_included_in_context_when_setting_is_enabled() {
+        let user_id = Uuid::new_v4();
+        let now = chrono::Utc::now();
+        let settings = RunningCoachSettings {
+            user_id,
+            consider_trail_runs_as_runs: true,
+            ..RunningCoachSettings::default()
+        };
+        let state = RunningCoachState {
+            user_id,
+            last_interaction_at: None,
+            last_seen_activity_start_date: None,
+            updated_at: now,
+        };
+
+        let trail_run = fake_activity_with_sport_type(
+            user_id,
+            "Mountain Trail",
+            now - Duration::days(1),
+            ActivityTag::LongRun,
+            "TrailRun",
+        );
+        let road_run = fake_activity(
+            user_id,
+            "Road Workout",
+            now - Duration::days(2),
+            ActivityTag::Intervals,
+        );
+
+        let store = FakeStore {
+            user: User {
+                id: user_id,
+                username: "runner".to_string(),
+                display_name: "Runner".to_string(),
+                email: None,
+                created_at: now,
+                mas_current: Some(17.4),
+                quota_balance_usd: 1.0,
+            },
+            identity_profile: None,
+            athlete_profile: None,
+            activities_in_range: vec![trail_run.clone(), road_run.clone()],
+            activities_recent: vec![trail_run, road_run],
+            coach_messages: Vec::new(),
+        };
+
+        let memory = RunningCoachMemoryData::default();
+        let bundle = build_coach_context(&store, user_id, &settings, &state, &memory)
+            .await
+            .expect("context should build");
+
+        assert!(bundle
+            .content
+            .contains("Run and TrailRun are both treated as runs"));
+        assert!(bundle.content.contains("## Last 1 long runs"));
+        assert!(bundle.content.contains("Mountain Trail"));
+        assert!(bundle.content.contains("- Runs: 2"));
     }
 
     fn fake_activity(
@@ -506,12 +578,22 @@ mod tests {
         start_date: chrono::DateTime<chrono::Utc>,
         tag: ActivityTag,
     ) -> Activity {
+        fake_activity_with_sport_type(user_id, name, start_date, tag, "Run")
+    }
+
+    fn fake_activity_with_sport_type(
+        user_id: Uuid,
+        name: &str,
+        start_date: chrono::DateTime<chrono::Utc>,
+        tag: ActivityTag,
+        sport_type: &str,
+    ) -> Activity {
         Activity {
             id: Uuid::new_v4(),
             user_id,
             strava_id: 1,
             name: name.to_string(),
-            sport_type: "Run".to_string(),
+            sport_type: sport_type.to_string(),
             start_date,
             elapsed_time: 3600,
             moving_time: 3540,

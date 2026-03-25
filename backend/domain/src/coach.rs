@@ -5,12 +5,15 @@ use uuid::Uuid;
 pub const DEFAULT_COACH_MODEL: &str = "google/gemini-2.5-flash";
 pub const DEFAULT_COACH_PERSONALITY: &str =
     "Direct and practical running coach. Be concise, specific, and evidence-based.";
+pub const RUN_SPORT_TYPE: &str = "Run";
+pub const TRAIL_RUN_SPORT_TYPE: &str = "TrailRun";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunningCoachSettings {
     pub user_id: Uuid,
     pub model: String,
     pub personality: String,
+    pub consider_trail_runs_as_runs: bool,
     pub volume_weeks: i32,
     pub last_workouts_count: i32,
     pub last_long_runs_count: i32,
@@ -28,6 +31,7 @@ impl Default for RunningCoachSettings {
             user_id: Uuid::nil(),
             model: DEFAULT_COACH_MODEL.to_string(),
             personality: DEFAULT_COACH_PERSONALITY.to_string(),
+            consider_trail_runs_as_runs: false,
             volume_weeks: 8,
             last_workouts_count: 8,
             last_long_runs_count: 6,
@@ -37,6 +41,29 @@ impl Default for RunningCoachSettings {
             created_at: now,
             updated_at: now,
         }
+    }
+}
+
+pub fn coach_considers_sport_type_as_run(
+    settings: &RunningCoachSettings,
+    sport_type: &str,
+) -> bool {
+    sport_type.eq_ignore_ascii_case(RUN_SPORT_TYPE)
+        || (settings.consider_trail_runs_as_runs
+            && sport_type.eq_ignore_ascii_case(TRAIL_RUN_SPORT_TYPE))
+}
+
+pub fn coach_sport_type_matches_filter(
+    settings: &RunningCoachSettings,
+    activity_sport_type: &str,
+    requested_sport_type: Option<&str>,
+) -> bool {
+    match requested_sport_type {
+        None => true,
+        Some(expected) if expected.eq_ignore_ascii_case(RUN_SPORT_TYPE) => {
+            coach_considers_sport_type_as_run(settings, activity_sport_type)
+        }
+        Some(expected) => activity_sport_type.eq_ignore_ascii_case(expected),
     }
 }
 
