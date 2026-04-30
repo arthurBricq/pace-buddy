@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { getProfile } from '../api/auth';
+import { getProfile, getQuotaStatus, requestQuota } from '../api/auth';
 import { syncActivities } from '../api/activities';
 import { getStravaStatus, getStravaLink, disconnectStrava } from '../api/strava';
-import type { ProfileResponse, RunningStats, StravaStatus } from '../types';
+import type { ProfileResponse, QuotaStatus, RunningStats, StravaStatus } from '../types';
 import Navbar from '../components/Navbar';
 
 function formatDistance(meters: number): string {
@@ -78,25 +78,41 @@ function formatGoalSportType(value: string | null): string {
   return value;
 }
 
+function formatQuotaAmount(amount: number): string {
+  return `$${amount.toFixed(2)}`;
+}
+
+function errorMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  return fallback;
+}
+
 export default function ProfilePage() {
   const [searchParams] = useSearchParams();
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [stravaStatus, setStravaStatus] = useState<StravaStatus | null>(null);
+  const [quotaStatus, setQuotaStatus] = useState<QuotaStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(searchParams.get('error') || '');
   const [resyncing, setResyncing] = useState(false);
   const [resyncNotice, setResyncNotice] = useState('');
+  const [quotaRequesting, setQuotaRequesting] = useState(false);
+  const [quotaNotice, setQuotaNotice] = useState('');
+  const [quotaError, setQuotaError] = useState('');
 
   useEffect(() => {
     Promise.all([
-      getProfile().catch((e) => {
-        setError(e.message);
+      getProfile().catch((err: unknown) => {
+        setError(errorMessage(err, 'Failed to load profile'));
         return null;
       }),
       getStravaStatus().catch(() => null),
-    ]).then(([p, s]) => {
+      getQuotaStatus().catch(() => null),
+    ]).then(([p, s, q]) => {
       setProfile(p);
       setStravaStatus(s);
+      setQuotaStatus(q);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -104,8 +120,8 @@ export default function ProfilePage() {
     try {
       const { url } = await getStravaLink();
       window.location.href = url;
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to start Strava linking'));
     }
   };
 
@@ -114,8 +130,8 @@ export default function ProfilePage() {
     try {
       await disconnectStrava();
       setStravaStatus({ linked: false });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to disconnect Strava'));
     }
   };
 
@@ -130,10 +146,32 @@ export default function ProfilePage() {
       } else {
         setResyncNotice(`Strava resync requested. ${result.synced} activity(ies) synchronized.`);
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to request Strava resync');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to request Strava resync'));
     } finally {
       setResyncing(false);
+    }
+  };
+
+  const handleRequestQuota = async () => {
+    setQuotaError('');
+    setQuotaNotice('');
+    setQuotaRequesting(true);
+    try {
+      const request = await requestQuota();
+      setQuotaStatus((current) => current
+        ? {
+            ...current,
+            has_pending_request: true,
+            requests: [request, ...current.requests],
+          }
+        : current
+      );
+      setQuotaNotice('Quota request sent. An admin can now review it.');
+    } catch (err) {
+      setQuotaError(errorMessage(err, 'Failed to request more AI quota'));
+    } finally {
+      setQuotaRequesting(false);
     }
   };
 
@@ -276,6 +314,40 @@ export default function ProfilePage() {
           <StatsCard title="Year to Date" stats={stats.ytd} />
           <StatsCard title="Last Year" stats={stats.last_year} />
           <StatsCard title="All Time" stats={stats.all_time} />
+        </div>
+
+        <div className="card">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">AI quota</h2>
+              {quotaStatus ? (
+                <p className="text-sm text-gray-500 mt-1">
+                  Remaining budget:{' '}
+                  <span className="font-semibold text-green-700">
+                    {formatQuotaAmount(quotaStatus.balance_usd)}
+                  </span>
+                </p>
+              ) : (
+                <p className="text-sm text-gray-500 mt-1">Quota status unavailable.</p>
+              )}
+            </div>
+
+            {quotaStatus && (
+              quotaStatus.has_pending_request ? (
+                <span className="text-sm text-amber-600 font-medium">Request pending...</span>
+              ) : (
+                <button
+                  onClick={handleRequestQuota}
+                  disabled={quotaRequesting}
+                  className="text-sm bg-purple-600 text-white px-3 py-1.5 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {quotaRequesting ? 'Requesting...' : 'Request More Tokens'}
+                </button>
+              )
+            )}
+          </div>
+          {quotaNotice && <p className="text-green-700 text-sm mt-3">{quotaNotice}</p>}
+          {quotaError && <p className="text-red-600 text-sm mt-3">{quotaError}</p>}
         </div>
 
         {/* Strava Connection Section */}
