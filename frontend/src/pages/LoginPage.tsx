@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { startStravaAuth } from '../api/auth';
 
-const chatPreview = [
+const coachPreview = [
   'Review my last track session. What did I execute well, and what should I adjust?',
   'Is my current training block balanced for a 10K goal?',
   'Suggest a VO2max interval session for this week based on my recent load.',
@@ -62,10 +62,10 @@ const featureCards = [
     points: ['Block-level progress views', 'Weekly and monthly narratives', 'Action-oriented adjustment ideas'],
   },
   {
-    id: 'chat',
-    title: 'Ask anything, with context',
+    id: 'coach',
+    title: 'Ask the coach anything',
     description:
-      'Chat with a coach-style LLM grounded in your real training context, so answers stay specific and useful instead of generic.',
+      'Work with a coach-style LLM grounded in your real training context, so answers stay specific and useful instead of generic.',
     points: ['Context-aware coaching answers', 'Session-aware follow-up questions', 'Clear next-step recommendations'],
   },
 ];
@@ -171,7 +171,7 @@ export default function LoginPage() {
             </p>
             <p className="hero-body">
               PaceBuddy analyzes your interval sessions and
-              training blocks, then lets you chat with a coach-style LLM that actually knows your context.
+              training blocks, then gives you a coach-style LLM that actually knows your context.
             </p>
             {error && <p className="brand-error">{error}</p>}
           </div>
@@ -180,14 +180,14 @@ export default function LoginPage() {
         <section className="brand-section brand-section-compact">
           <div className="brand-container">
             <div className="brand-panel">
-              <h2 className="panel-title">Chat preview</h2>
+              <h2 className="panel-title">Coach prompts</h2>
               <p className="panel-description">
                 Example context-aware prompts runners ask when training with PaceBuddy.
               </p>
-              <div className="chat-preview">
-                {chatPreview.map((prompt) => (
-                  <article className="chat-item" key={prompt}>
-                    <p className="chat-item-prompt">{prompt}</p>
+              <div className="coach-preview">
+                {coachPreview.map((prompt) => (
+                  <article className="coach-item" key={prompt}>
+                    <p className="coach-item-prompt">{prompt}</p>
                   </article>
                 ))}
               </div>
@@ -227,7 +227,7 @@ export default function LoginPage() {
                 <article className="control-card">
                   <h3 className="control-title">2. Shape your coach character</h3>
                   <p className="control-description">
-                    Select the coaching tone you want in chat so feedback feels personal and actionable.
+                    Select the coaching tone you want so feedback feels personal and actionable.
                   </p>
                   <div className="coach-style-row">
                     {coachStyles.map((style) => (

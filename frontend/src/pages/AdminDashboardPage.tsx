@@ -356,7 +356,7 @@ export default function AdminDashboardPage() {
         <div className="card border border-red-200">
           <h3 className="text-lg font-semibold text-red-700 mb-2">Danger Zone</h3>
           <p className="text-sm text-gray-600 mb-4">
-            Delete all data in the database (users, activities, trainings, chats, quota requests).
+            Delete all data in the database (users, activities, trainings, coach state, quota requests).
             This is intended for development only.
           </p>
           <button

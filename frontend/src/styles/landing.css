@@ -248,20 +248,20 @@
     font-size: 1.01rem;
   }
 
-  .chat-preview {
+  .coach-preview {
     margin-top: 1.5rem;
     display: grid;
     gap: 0.9rem;
   }
 
-  .chat-item {
+  .coach-item {
     border-radius: var(--radius-md);
     border: 1px solid #ebdfd3;
     background: linear-gradient(180deg, #ffffff 0%, #fffdfa 100%);
     padding: 0.9rem 1rem;
   }
 
-  .chat-item-prompt {
+  .coach-item-prompt {
     font-size: 0.97rem;
     font-weight: 600;
     color: #3d2734;
@@ -471,7 +471,7 @@
       padding: 1.95rem 0;
     }
 
-    .chat-preview {
+    .coach-preview {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 

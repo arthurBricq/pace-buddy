@@ -2,10 +2,10 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use domain::invite_code::InviteCode;
 use domain::{
-    Activity, ActivityLap, ActivityStream, ActivityTag, AiChat, AiChatMessage, AthleteProfile,
-    DomainError, IdentityProfile, ModelCostTier, QuotaRequest, QuotaRequestStatus,
-    RunningCoachMemory, RunningCoachMessage, RunningCoachSettings, RunningCoachState, RunningStats,
-    StravaToken, Training, TrainingInsight, User,
+    Activity, ActivityLap, ActivityStream, ActivityTag, AthleteProfile, DomainError,
+    IdentityProfile, ModelCostTier, QuotaRequest, QuotaRequestStatus, RunningCoachMemory,
+    RunningCoachMessage, RunningCoachSettings, RunningCoachState, RunningStats, StravaToken,
+    Training, TrainingInsight, User,
 };
 use uuid::Uuid;
 
@@ -123,28 +123,6 @@ pub trait Storage: Send + Sync {
         training_id: Uuid,
         user_id: Uuid,
     ) -> Result<Vec<TrainingInsight>, DomainError>;
-
-    // AI Chats
-    async fn create_ai_chat(&self, chat: &AiChat) -> Result<(), DomainError>;
-    async fn get_ai_chat(&self, id: Uuid, user_id: Uuid) -> Result<AiChat, DomainError>;
-    async fn get_ai_chat_by_source_insight(
-        &self,
-        user_id: Uuid,
-        insight_id: Uuid,
-    ) -> Result<Option<AiChat>, DomainError>;
-    async fn list_ai_chats(&self, user_id: Uuid) -> Result<Vec<AiChat>, DomainError>;
-    async fn update_ai_chat_title(
-        &self,
-        id: Uuid,
-        user_id: Uuid,
-        title: &str,
-    ) -> Result<(), DomainError>;
-    async fn delete_ai_chat(&self, id: Uuid, user_id: Uuid) -> Result<(), DomainError>;
-    async fn touch_ai_chat(&self, id: Uuid) -> Result<(), DomainError>;
-
-    // AI Chat Messages
-    async fn store_ai_chat_message(&self, msg: &AiChatMessage) -> Result<(), DomainError>;
-    async fn get_ai_chat_messages(&self, chat_id: Uuid) -> Result<Vec<AiChatMessage>, DomainError>;
 
     // Running Coach
     async fn get_or_create_running_coach_settings(

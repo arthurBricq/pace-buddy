@@ -116,21 +116,6 @@ export interface StravaStatus {
   athlete_id?: number;
 }
 
-export interface ExpensiveRequest {
-  id: string;
-  type: 'insight' | 'chat';
-  title: string;
-  model: string | null;
-  cost: number;
-  created_at: string;
-  training_id?: string | null;
-}
-
-export interface AiCostSummary {
-  total_cost: number;
-  expensive_requests: ExpensiveRequest[];
-}
-
 // Interval parsing types
 
 export type IntervalAlgorithm = 'speed_based' | 'manual_laps';
@@ -247,50 +232,6 @@ export interface ModelCostTier {
   model_name: string;
   category: ModelCostCategory;
   computed_at: string;
-}
-
-export interface AiChat {
-  id: string;
-  user_id: string;
-  training_id: string | null;
-  source_insight_id: string | null;
-  source_insight_cost: number;
-  title: string;
-  model: string;
-  conversation_length?: number | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AiChatMessage {
-  id: string;
-  chat_id: string;
-  role: string;
-  content: string;
-  prompt_tokens: number;
-  completion_tokens: number;
-  total_tokens: number;
-  cost: number;
-  context_label: string | null;
-  created_at: string;
-}
-
-export interface ChatResponse {
-  chat: AiChat;
-  messages: AiChatMessage[];
-  total_cost: number;
-  total_tokens: number;
-}
-
-export interface ChatListItem {
-  id: string;
-  title: string;
-  model: string;
-  training_id: string | null;
-  message_count: number;
-  total_cost: number;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface RunningCoachSettings {

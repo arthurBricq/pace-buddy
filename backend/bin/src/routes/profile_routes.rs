@@ -1,12 +1,11 @@
 use crate::errors::AppError;
-use crate::helpers::conversation_manager;
 use crate::helpers::mas_estimator::{build_race_mas_estimates, list_race_activities};
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
 use actix_web::{web, HttpResponse};
 use chrono::{Datelike, Utc};
 use domain::{AthleteProfile, DomainError, IdentityProfile};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use storage::Storage;
 use uuid::Uuid;
 
@@ -294,65 +293,6 @@ pub async fn profile(
             "all_time": all_time,
         }
     })))
-}
-
-#[derive(Serialize)]
-pub struct AiCostSummary {
-    pub total_cost: f64,
-    pub expensive_requests: Vec<ExpensiveRequest>,
-}
-
-#[derive(Serialize)]
-pub struct ExpensiveRequest {
-    pub id: String,
-    pub r#type: String, // currently "chat"
-    pub title: String,
-    pub model: Option<String>,
-    pub cost: f64,
-    pub created_at: String,
-    pub training_id: Option<String>,
-}
-
-pub async fn ai_cost_summary(
-    state: web::Data<AppState>,
-    user: AuthenticatedUser,
-) -> Result<HttpResponse, AppError> {
-    log::debug!("GET /auth/ai-cost-summary user_id={}", user.user_id);
-    let mut expensive_requests = Vec::new();
-    let mut total_cost = 0.0;
-
-    // Get all chats and their messages (chat-level insight cost + message costs)
-    let chats = state.storage.list_ai_chats(user.user_id).await?;
-    for chat in chats {
-        let messages = state.storage.get_ai_chat_messages(chat.id).await?;
-        let chat_cost = state.cost_to_user_quota(conversation_manager::effective_chat_cost_raw(
-            &chat, &messages,
-        ));
-        total_cost += chat_cost;
-        if chat_cost > 0.0 {
-            expensive_requests.push(ExpensiveRequest {
-                id: chat.id.to_string(),
-                r#type: "chat".to_string(),
-                title: chat.title,
-                model: Some(chat.model),
-                cost: chat_cost,
-                created_at: chat.created_at.to_rfc3339(),
-                training_id: chat.training_id.map(|id| id.to_string()),
-            });
-        }
-    }
-
-    // Sort by cost descending
-    expensive_requests.sort_by(|a, b| {
-        b.cost
-            .partial_cmp(&a.cost)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
-
-    Ok(HttpResponse::Ok().json(AiCostSummary {
-        total_cost,
-        expensive_requests,
-    }))
 }
 
 pub async fn quota_status(

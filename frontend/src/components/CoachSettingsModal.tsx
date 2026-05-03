@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getModelCostTiers, listModels } from '../api/chats';
+import { getModelCostTiers, listModels } from '../api/models';
 import type { ModelCostCategory, ModelCostTier, ModelInfo, RunningCoachSettings } from '../types';
 
 interface CoachSettingsModalProps {

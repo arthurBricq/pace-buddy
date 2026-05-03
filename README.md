@@ -6,8 +6,7 @@ It combines:
 
 - deep interval parsing for workout analysis,
 - training-block summaries and AI insights,
-- contextual AI chats,
-- and a persistent "Running Coach" chat with memory.
+- and a persistent "Running Coach" with automatic context and memory.
 
 This README describes the current implemented state of the product.
 
@@ -19,8 +18,7 @@ The current app provides these user-facing areas:
 - First-login onboarding to build runner profile context.
 - Activity list + detail pages with tagging and interval parsing.
 - Training blocks (date-range based) with AI insight generation.
-- Generic AI chats with manual context injection.
-- A persistent Running Coach chat with automatic context + memory.
+- A persistent Running Coach with automatic context and memory.
 - MAS (Maximum Aerobic Speed) estimation from race-tagged activities.
 - Quota/cost system (backend-enforced; admin-managed approvals).
 - Admin pages for users/quota/invites/coach context inspection.
@@ -53,8 +51,8 @@ Core backend crates:
 ### 2) Onboarding (Required for New Users)
 
 - Two-step onboarding is enforced via auth guard:
-  - General presentation (identity profile)
-  - Sport presentation (athlete profile / goals)
+    - General presentation (identity profile)
+    - Sport presentation (athlete profile / goals)
 - All fields are optional at product level, with validation on numeric/date formats.
 
 ### 3) Activities and Interval Analysis
@@ -62,54 +60,39 @@ Core backend crates:
 - Activities are synced from Strava (initial sync + manual resync + webhook updates).
 - Users can tag sessions: `normal`, `intervals`, `long_run`, `race`.
 - Activity detail includes:
-  - stats,
-  - map polyline,
-  - streams/laps chart,
-  - interval recap when tagged as `intervals`.
+    - stats,
+    - map polyline,
+    - streams/laps chart,
+    - interval recap when tagged as `intervals`.
 - Interval algorithm can be switched per activity:
-  - `speed_based`
-  - `manual_laps`
+    - `speed_based`
+    - `manual_laps`
 - Parsed interval results are cached in DB.
 
 ### 4) Trainings and AI Insights
 
 - A training is a date range with metadata (name, description, race distance/objective).
 - Training detail derives quality sessions in that date window and exposes AI insight generation:
-  - Critical overview
-  - Interval suggestions
-- Insights are persisted and can be turned into AI chats.
+    - Critical overview
+    - Interval suggestions
+- Insights are persisted for later review.
 
-### 5) AI Chats (Manual Context)
-
-- Users can create standalone chats or chats from insights.
-- Context can be injected manually from a context panel:
-  - last activities,
-  - last long runs,
-  - last race efforts,
-  - last N days summary,
-  - this week vs last week,
-  - this month vs last month,
-  - runner profile presentation,
-  - activity detail,
-  - weekly stats range,
-  - training recap.
-
-### 6) Running Coach (Persistent Single Coach)
+### 5) Running Coach (Persistent Single Coach)
 
 - Dedicated `/coach` page with one persistent conversation stream.
 - Coach settings include:
-  - model selection,
-  - personality,
-  - context-window parameters (volume weeks, counts, etc.),
-  - memory normalization cadence.
+    - model selection,
+    - personality,
+    - context-window parameters (volume weeks, counts, etc.),
+    - memory normalization cadence.
 - Coach context is rebuilt each exchange from:
-  - current profile,
-  - recent activities and quality sessions,
-  - new activities since last exchange,
-  - compact coach memory snapshot.
+    - current profile,
+    - recent activities and quality sessions,
+    - new activities since last exchange,
+    - compact coach memory snapshot.
 - Memory update pipeline:
-  - classifier extracts meaningful items,
-  - normalizer periodically compacts memory.
+    - classifier extracts meaningful items,
+    - normalizer periodically compacts memory.
 
 ## Interval Parsing Algorithm
 
@@ -129,8 +112,8 @@ A manual-lap parser is also available for lap-driven workouts.
 
 - MAS is estimated from race-tagged activities using the latest eligible race.
 - Users can:
-  - recompute automatically,
-  - manually override MAS.
+    - recompute automatically,
+    - manually override MAS.
 - MAS is used in interval recap outputs and coach context when available.
 
 ## Cost and Quota Model
@@ -153,21 +136,29 @@ For compliance intent and policy notes, see `COMPLIANCE.md`.
 
 Implemented route groups:
 
-- `/api/auth/*` (session, onboarding/profile, MAS, quota, cost summary)
+- `/api/auth/*` (session, onboarding/profile, MAS, quota)
 - `/api/strava/*` (linking, callback, status, disconnect, webhook)
 - `/api/activities/*` (sync, listing, detail, tags, intervals)
 - `/api/trainings/*` (CRUD, activities, insights)
-- `/api/chats/*` (CRUD, messaging, context injection, models, cost tiers)
+- `/api/llm/*` (model listing and cost tiers)
 - `/api/coach/*` (state, settings, messaging, reset)
 - `/api/admin/*` (stats, users, quota requests, invite codes, coach contexts, delete-all)
 
 ## Local Development
 
+When you run locally, you can't use the same API tokens as the production app. This is because the web-hooks uses the
+API tokens, and it is not possible to have to instances running at the same time.
+
+In my case, I use
+
+- my real strava account for the production run, and run with firefox.
+- a test account (2047536092) for the development run, with my personal **proton** address, with google chrome
+
 ### Prerequisites
 
 - Rust toolchain (stable)
 - Node.js + npm
-- Strava API credentials
+- Strava test API credentials
 - (Optional) OpenRouter API key for AI features
 
 ### Backend
@@ -175,14 +166,7 @@ Implemented route groups:
 From `backend/`:
 
 ```bash
-cargo run -p bin
-```
-
-Useful options:
-
-```bash
-cargo run -p bin -- --fresh-start
-cargo run -p bin -- --static-serving ../frontend/dist
+ADMIN_STRAVA_ID=2047536092 RUST_LOG=info cargo run
 ```
 
 ### Frontend
@@ -238,7 +222,6 @@ Notes:
 
 - No migration framework by design (schema is initialized directly on startup).
 - Frontend lint baseline is not yet clean.
-- Some product surfaces overlap (Trainings vs AI Chats vs Coach) and are still being consolidated.
 - Quota request UX is backend-ready and admin-ready, but user-facing profile actions are still limited.
 
 ## Deployment

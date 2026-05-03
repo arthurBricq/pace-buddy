@@ -1,8 +1,8 @@
 mod activity_routes;
 mod admin_routes;
 mod auth_routes;
-mod chat_routes;
 mod coach_routes;
+mod llm_routes;
 mod profile_routes;
 mod strava_routes;
 mod training_routes;
@@ -53,10 +53,6 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         web::get().to(profile_routes::mas_estimates),
                     )
                     .route("/profile", web::get().to(profile_routes::profile))
-                    .route(
-                        "/ai-cost-summary",
-                        web::get().to(profile_routes::ai_cost_summary),
-                    )
                     .route("/quota", web::get().to(profile_routes::quota_status))
                     .route(
                         "/quota/request",
@@ -150,23 +146,12 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     ),
             )
             .service(
-                web::scope("/chats")
-                    .route("", web::post().to(chat_routes::create_chat))
-                    .route("", web::get().to(chat_routes::list_chats))
-                    .route("/models", web::get().to(chat_routes::list_models))
+                web::scope("/llm")
+                    .route("/models", web::get().to(llm_routes::list_models))
                     .route(
                         "/models/cost-tiers",
-                        web::get().to(chat_routes::list_model_cost_tiers),
-                    )
-                    .route(
-                        "/from-insight/{insight_id}",
-                        web::post().to(chat_routes::create_from_insight),
-                    )
-                    .route("/{id}", web::get().to(chat_routes::get_chat))
-                    .route("/{id}", web::patch().to(chat_routes::update_chat))
-                    .route("/{id}", web::delete().to(chat_routes::delete_chat))
-                    .route("/{id}/messages", web::post().to(chat_routes::send_message))
-                    .route("/{id}/context", web::post().to(chat_routes::add_context)),
+                        web::get().to(llm_routes::list_model_cost_tiers),
+                    ),
             )
             .service(
                 web::scope("/coach")

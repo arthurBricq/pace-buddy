@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getModelCostTiers } from '../api/chats';
+import { getModelCostTiers } from '../api/models';
 import Navbar from '../components/Navbar';
 import type { ModelCostCategory, ModelCostTier } from '../types';
 
@@ -83,10 +83,11 @@ export default function HelpPage() {
               </p>
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900 mb-1">What is an LLM chat?</h3>
+              <h3 className="font-semibold text-gray-900 mb-1">What is the Running Coach?</h3>
               <p>
-                An LLM chat is your coaching conversation with AI. You can start from scratch, or
-                continue from a training insight, and add contextual data directly in the chat.
+                The Running Coach is a persistent AI coach with automatic training context and
+                memory. It uses your profile, recent activity data, and coaching settings for
+                specific follow-up advice.
               </p>
             </div>
           </div>

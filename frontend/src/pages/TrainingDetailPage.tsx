@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react';
-import {useParams, Link, useNavigate} from 'react-router-dom';
+import {useParams, Link} from 'react-router-dom';
 import {
   getTraining,
   getTrainingActivities,
@@ -10,8 +10,7 @@ import type {Training, Activity, TrainingInsightResponse, TrainingInsightRecord}
 import ReactMarkdown from 'react-markdown';
 import Navbar from '../components/Navbar';
 import TagBadge from '../components/TagBadge';
-import {createChatFromInsight} from '../api/chats';
-import ChatSettingsModal from '../components/ChatSettingsModal';
+import ModelPickerModal from '../components/ModelPickerModal';
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -40,7 +39,6 @@ function formatCost(cost: number | null | undefined): string {
 
 export default function TrainingDetailPage() {
   const {id} = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const [training, setTraining] = useState<Training | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,9 +50,6 @@ export default function TrainingDetailPage() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [insightError, setInsightError] = useState('');
   const [insightHistory, setInsightHistory] = useState<TrainingInsightRecord[]>([]);
-  const [currentInsightId, setCurrentInsightId] = useState<string | null>(null);
-  const [currentInsightModel, setCurrentInsightModel] = useState<string>('google/gemini-2.5-flash');
-  const [showChatSettings, setShowChatSettings] = useState(false);
   const [showInsightSettings, setShowInsightSettings] = useState(false);
   const [pendingPromptType, setPendingPromptType] = useState<'overview' | 'suggestions'>('overview');
 
@@ -80,8 +75,6 @@ export default function TrainingDetailPage() {
     try {
       const result = await getTrainingInsight(id, promptType, model);
       setInsightResult(result);
-      setCurrentInsightId(result.id);
-      setCurrentInsightModel(model);
       // Refresh history to include the newly persisted insight
       listTrainingInsights(id).then(setInsightHistory).catch(() => {
       });
@@ -99,8 +92,6 @@ export default function TrainingDetailPage() {
       full_prompt: record.full_prompt,
       response: record.response,
     });
-    setCurrentInsightId(record.id);
-    setCurrentInsightModel(record.model ?? 'google/gemini-2.5-flash');
     setShowPrompt(false);
     setInsightError('');
   };
@@ -285,18 +276,6 @@ export default function TrainingDetailPage() {
                         <ReactMarkdown>{insightResult.response}</ReactMarkdown>
                       </div>
                     </div>
-
-                    {/* Continue to Chat button */}
-                    {currentInsightId && (
-                      <div className="flex justify-center pt-2">
-                        <button
-                          onClick={() => setShowChatSettings(true)}
-                          className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 text-sm"
-                        >
-                          Continue to Chat
-                        </button>
-                      </div>
-                    )}
                   </>
                 )}
               </div>
@@ -307,36 +286,15 @@ export default function TrainingDetailPage() {
         {error && <p className="text-red-600 text-sm">{error}</p>}
 
         {/* Insight Settings Modal (model selection before generating) */}
-        <ChatSettingsModal
+        <ModelPickerModal
           isOpen={showInsightSettings}
           onClose={() => setShowInsightSettings(false)}
           onConfirm={(model) => {
             setShowInsightSettings(false);
             handleInsight(pendingPromptType, model);
           }}
-          hideConversationLength
           title={pendingPromptType === 'overview' ? 'Critical Overview' : 'Interval Suggestions'}
           confirmLabel="Generate"
-        />
-
-        {/* Chat Settings Modal (conversation length only, model inherited from insight) */}
-        <ChatSettingsModal
-          isOpen={showChatSettings}
-          onClose={() => setShowChatSettings(false)}
-          defaultModel={currentInsightModel}
-          hideModelSelector
-          title="Continue to Chat"
-          confirmLabel="Start Chat"
-          onConfirm={async (model, conversationLength) => {
-            if (!currentInsightId) return;
-            setShowChatSettings(false);
-            try {
-              const chat = await createChatFromInsight(currentInsightId, model, conversationLength);
-              navigate(`/chats/${chat.id}`);
-            } catch (err: any) {
-              setInsightError(err.message || 'Failed to create chat');
-            }
-          }}
         />
 
         <div>

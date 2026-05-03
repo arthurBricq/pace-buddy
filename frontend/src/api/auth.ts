@@ -94,24 +94,6 @@ export async function upsertAthleteProfile(payload: UpsertAthleteProfilePayload)
   });
 }
 
-export interface ExpensiveRequest {
-  id: string;
-  type: 'insight' | 'chat';
-  title: string;
-  model: string | null;
-  cost: number;
-  created_at: string;
-}
-
-export interface AiCostSummary {
-  total_cost: number;
-  expensive_requests: ExpensiveRequest[];
-}
-
-export async function getAiCostSummary() {
-  return apiFetch<AiCostSummary>('/auth/ai-cost-summary');
-}
-
 export async function getQuotaStatus() {
   return apiFetch<QuotaStatus>('/auth/quota');
 }

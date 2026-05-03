@@ -571,26 +571,6 @@
     box-shadow: var(--shadow-card);
   }
 
-  .chat-context-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 40;
-    background: rgba(34, 7, 19, 0.46);
-  }
-
-  .chat-context-drawer {
-    position: fixed;
-    inset-block: 0;
-    right: 0;
-    z-index: 50;
-    display: flex;
-    flex-direction: column;
-    width: 85vw;
-    max-width: 22rem;
-    border-left: 1px solid #e2d2c0;
-    background: var(--color-white);
-    box-shadow: var(--shadow-card);
-  }
 }
 
 @media (min-width: 640px) {
@@ -658,17 +638,6 @@
       align-self: flex-end;
     }
 
-    .chat-context-overlay {
-      display: none;
-    }
-
-    .chat-context-drawer {
-      position: static;
-      z-index: auto;
-      width: 18rem;
-      max-width: none;
-      box-shadow: none;
-    }
   }
 }
 

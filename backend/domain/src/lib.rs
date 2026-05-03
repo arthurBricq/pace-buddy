@@ -1,5 +1,4 @@
 pub mod activity;
-pub mod ai_chat;
 pub mod coach;
 pub mod error;
 pub mod invite_code;
@@ -15,7 +14,6 @@ pub mod training_insight;
 pub mod user;
 
 pub use activity::{Activity, ActivityTag};
-pub use ai_chat::{AiChat, AiChatMessage};
 pub use coach::{
     coach_considers_sport_type_as_run, coach_sport_type_matches_filter, RunningCoachMemory,
     RunningCoachMemoryData, RunningCoachMessage, RunningCoachSettings, RunningCoachState,
