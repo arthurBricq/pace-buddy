@@ -29,8 +29,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         web::post().to(profile_routes::recompute_mas),
                     )
                     .route(
-                        "/onboarding/status",
-                        web::get().to(profile_routes::onboarding_status),
+                        "/profile/status",
+                        web::get().to(profile_routes::runner_profile_status),
                     )
                     .route(
                         "/profile/identity",

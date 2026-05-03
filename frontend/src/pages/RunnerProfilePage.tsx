@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   getAthleteProfile,
   getIdentityProfile,
@@ -68,9 +68,22 @@ function formatDurationFromSeconds(value: number | null): string {
     .padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
-export default function OnboardingPage() {
+function errorMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  return fallback;
+}
+
+function safeReturnTo(value: string | null): string {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/profile';
+  return value;
+}
+
+export default function RunnerProfilePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { refresh } = useAuth();
+  const returnTo = safeReturnTo(searchParams.get('returnTo'));
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -124,14 +137,14 @@ export default function OnboardingPage() {
           });
         }
       })
-      .catch((err: any) => {
-        setError(err.message || 'Failed to load onboarding data');
+      .catch((err: unknown) => {
+        setError(errorMessage(err, 'Failed to load runner profile'));
       })
       .finally(() => setLoading(false));
   }, []);
 
   const stepTitle = useMemo(() => {
-    return step === 1 ? 'General presentation' : 'Sport presentation';
+    return step === 1 ? 'About You' : 'Running Goals';
   }, [step]);
 
   const handleContinue = () => {
@@ -169,9 +182,9 @@ export default function OnboardingPage() {
       });
 
       await refresh();
-      navigate('/profile', { replace: true });
-    } catch (err: any) {
-      setError(err.message || 'Failed to save onboarding data');
+      navigate(returnTo, { replace: true });
+    } catch (err: unknown) {
+      setError(errorMessage(err, 'Failed to save runner profile'));
     } finally {
       setSaving(false);
     }
@@ -182,7 +195,7 @@ export default function OnboardingPage() {
       <div className="app-shell">
         <Navbar />
         <div className="page-container-compact">
-          <p className="text-gray-500">Loading onboarding...</p>
+          <p className="text-gray-500">Loading runner profile...</p>
         </div>
       </div>
     );
@@ -194,8 +207,11 @@ export default function OnboardingPage() {
       <div className="page-container-compact section-stack">
         <div className="card">
           <p className="text-xs text-gray-500">Step {step} / 2</p>
-          <h1 className="text-2xl font-bold mt-1">Onboarding</h1>
+          <h1 className="text-2xl font-bold mt-1">Runner Profile</h1>
           <p className="text-sm text-gray-600 mt-2">{stepTitle}</p>
+          <p className="text-sm text-gray-600 mt-3">
+            Every field is optional. Blank fields are ignored by your coach.
+          </p>
         </div>
 
         {error && (
@@ -369,6 +385,16 @@ export default function OnboardingPage() {
                   }
                 />
               </label>
+              <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                <p className="text-xs font-medium text-gray-700">Optional ideas</p>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-gray-600">
+                  <li>Injury history or current limitations</li>
+                  <li>Weekly schedule constraints</li>
+                  <li>Preferred terrain or running environment</li>
+                  <li>Training preferences or things to avoid</li>
+                  <li>Race priorities, motivation, or coaching style preferences</li>
+                </ul>
+              </div>
             </div>
             <div className="mt-6 flex gap-3">
               <button
@@ -385,7 +411,7 @@ export default function OnboardingPage() {
                 onClick={handleSubmit}
                 disabled={saving}
               >
-                {saving ? 'Saving...' : 'Finish onboarding'}
+                {saving ? 'Saving...' : 'Save Runner Profile'}
               </button>
             </div>
           </div>

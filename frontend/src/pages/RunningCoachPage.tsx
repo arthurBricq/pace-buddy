@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import Navbar from '../components/Navbar';
 import CoachSettingsModal from '../components/CoachSettingsModal';
@@ -132,6 +133,12 @@ export default function RunningCoachPage() {
               <span className="font-mono">{coach.settings.model.split('/').pop()}</span>
               <span>{coach.total_tokens.toLocaleString()} tokens</span>
               <span>{formatCost(coach.total_cost)}</span>
+              <Link
+                to="/runner-profile?returnTo=/coach"
+                className="px-3 py-1 rounded text-xs font-medium transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200"
+              >
+                Runner Profile
+              </Link>
               <button
                 onClick={() => setShowSettings(true)}
                 className="px-3 py-1 rounded text-xs font-medium transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200"

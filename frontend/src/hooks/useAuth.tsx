@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { User } from '../types';
-import { getMe, getOnboardingStatus, logout as apiLogout } from '../api/auth';
+import { getMe, getRunnerProfileStatus, logout as apiLogout } from '../api/auth';
 
 interface AuthCtx {
   user: User | null;
   loading: boolean;
-  needsOnboarding: boolean;
+  needsRunnerProfile: boolean;
   refresh: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -13,7 +13,7 @@ interface AuthCtx {
 const AuthContext = createContext<AuthCtx>({
   user: null,
   loading: true,
-  needsOnboarding: false,
+  needsRunnerProfile: false,
   refresh: async () => {},
   logout: async () => {},
 });
@@ -21,21 +21,21 @@ const AuthContext = createContext<AuthCtx>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [needsRunnerProfile, setNeedsRunnerProfile] = useState(false);
 
   const refresh = async () => {
     try {
       const u = await getMe();
       setUser(u);
       try {
-        const status = await getOnboardingStatus();
-        setNeedsOnboarding(status.needs_onboarding);
+        const status = await getRunnerProfileStatus();
+        setNeedsRunnerProfile(status.needs_runner_profile);
       } catch {
-        setNeedsOnboarding(false);
+        setNeedsRunnerProfile(false);
       }
     } catch {
       setUser(null);
-      setNeedsOnboarding(false);
+      setNeedsRunnerProfile(false);
     } finally {
       setLoading(false);
     }
@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     await apiLogout();
     setUser(null);
-    setNeedsOnboarding(false);
+    setNeedsRunnerProfile(false);
   };
 
   useEffect(() => {
@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, needsOnboarding, refresh, logout }}>
+    <AuthContext.Provider value={{ user, loading, needsRunnerProfile, refresh, logout }}>
       {children}
     </AuthContext.Provider>
   );

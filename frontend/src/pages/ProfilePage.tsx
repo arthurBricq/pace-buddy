@@ -210,15 +210,18 @@ export default function ProfilePage() {
             Member since {new Date(user.created_at).toLocaleDateString()}
           </p>
           <div className="mt-4">
-            <Link to="/onboarding" className="text-sm text-purple-700 hover:text-purple-900 underline">
-              Edit onboarding profile
+            <Link
+              to="/runner-profile?returnTo=/profile"
+              className="text-sm text-purple-700 hover:text-purple-900 underline"
+            >
+              Edit Runner Profile
             </Link>
           </div>
         </div>
 
         <div className="grid gap-6 sm:grid-cols-2">
           <div className="card">
-            <h2 className="text-lg font-semibold mb-4">General presentation</h2>
+            <h2 className="text-lg font-semibold mb-4">About You</h2>
             {identityProfile ? (
               <div className="space-y-3">
                 <div className="flex justify-between gap-4">
@@ -258,7 +261,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="card">
-            <h2 className="text-lg font-semibold mb-4">Sport presentation</h2>
+            <h2 className="text-lg font-semibold mb-4">Running Goals</h2>
             {athleteProfile ? (
               <div className="space-y-3">
                 <div className="flex justify-between gap-4">

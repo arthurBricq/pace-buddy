@@ -104,11 +104,11 @@ pub struct UpsertAthleteProfileRequest {
     pub additional_info: Option<String>,
 }
 
-pub async fn onboarding_status(
+pub async fn runner_profile_status(
     state: web::Data<AppState>,
     user: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
-    log::debug!("GET /auth/onboarding/status user_id={}", user.user_id);
+    log::debug!("GET /auth/profile/status user_id={}", user.user_id);
     let has_identity_profile = state
         .storage
         .get_identity_profile(user.user_id)
@@ -121,7 +121,7 @@ pub async fn onboarding_status(
         .is_some();
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
-        "needs_onboarding": !(has_identity_profile && has_athlete_profile),
+        "needs_runner_profile": !(has_identity_profile && has_athlete_profile),
     })))
 }
 

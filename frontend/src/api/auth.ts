@@ -24,8 +24,8 @@ export async function getMe() {
   return apiFetch<User>('/auth/me');
 }
 
-export async function getOnboardingStatus() {
-  return apiFetch<{ needs_onboarding: boolean }>('/auth/onboarding/status');
+export async function getRunnerProfileStatus() {
+  return apiFetch<{ needs_runner_profile: boolean }>('/auth/profile/status');
 }
 
 export async function getMAS() {

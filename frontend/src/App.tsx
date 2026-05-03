@@ -13,7 +13,7 @@ import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminCoachContextPage from './pages/AdminCoachContextPage';
 import HelpPage from './pages/HelpPage';
-import OnboardingPage from './pages/OnboardingPage';
+import RunnerProfilePage from './pages/RunnerProfilePage';
 import RunningCoachPage from './pages/RunningCoachPage';
 
 function App() {
@@ -41,10 +41,10 @@ function App() {
           />
           <Route path="/strava" element={<Navigate to="/profile" replace />} />
           <Route
-            path="/onboarding"
+            path="/runner-profile"
             element={
               <AuthGuard>
-                <OnboardingPage />
+                <RunnerProfilePage />
               </AuthGuard>
             }
           />
