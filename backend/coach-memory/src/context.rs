@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::store::CoachMemoryDataStore;
 
+// Keep this LLM-visible context aligned with ../../../doc/ai-coach-data-inputs.md.
 pub struct CoachContextBundle {
     pub content: String,
     pub latest_seen_activity_start_date: Option<chrono::DateTime<Utc>>,

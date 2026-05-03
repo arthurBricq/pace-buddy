@@ -16,6 +16,7 @@ use crate::helpers::activity_description::{build_activity_description, ActivityD
 use crate::helpers::formatting::format_pace_from_activity;
 use crate::state::AppState;
 
+// Keep these LLM-visible tool payloads aligned with ../../../../doc/ai-coach-data-inputs.md.
 pub struct AppCoachToolExecutor {
     state: web::Data<AppState>,
 }

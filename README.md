@@ -90,6 +90,8 @@ Core backend crates:
     - recent activities and quality sessions,
     - new activities since last exchange,
     - compact coach memory snapshot.
+- For the exact LLM-visible context and tool payload contract, see
+  [`doc/ai-coach-data-inputs.md`](doc/ai-coach-data-inputs.md).
 - Memory update pipeline:
     - classifier extracts meaningful items,
     - normalizer periodically compacts memory.

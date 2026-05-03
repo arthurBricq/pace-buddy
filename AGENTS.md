@@ -22,6 +22,9 @@ runner profile, optional goals, recent activities, quality sessions, and coach m
 The coach has tool access so it can query user data from the database when answering. Prefer improving this coach over
 adding separate LLM conversation surfaces.
 
+The AI-coach data input contract is documented in [`doc/ai-coach-data-inputs.md`](doc/ai-coach-data-inputs.md). Update
+that document when changing the automatic coach context, coach tool payloads, or detailed session description format.
+
 ## Interval Parsing Algorithm
 
 One of the core values of the project is the **interval parsing algorithm** in `backend/intervals/src/lib.rs`.

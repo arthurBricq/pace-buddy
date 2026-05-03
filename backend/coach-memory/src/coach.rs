@@ -47,6 +47,7 @@ Only use get_session_detail once an activity_id is unambiguous.";
 
 const MAX_TOOL_LOOP_STEPS: usize = 4;
 const MAX_RECENT_TOOL_RESULTS: usize = 6;
+const MAX_COACH_HISTORY_MESSAGES: i64 = 20;
 
 struct CoachReplyOutcome {
     content: String,
@@ -189,7 +190,7 @@ impl<S: CoachMemoryDataStore> CoachMemory<S> {
             llm_messages.push(ChatMessage::system(COACH_TOOL_PROMPT));
         }
 
-        let history = self.store.list_running_coach_messages(user_id, 24).await?;
+        let history = self.store.list_running_coach_messages(user_id, MAX_COACH_HISTORY_MESSAGES).await?;
         log::info!(
             "coach.send_message history_loaded user_id={} history_messages={}",
             user_id,
