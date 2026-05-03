@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub const DEFAULT_COACH_MODEL: &str = "google/gemini-2.5-flash";
+pub const DEFAULT_COACH_MODEL: &str = "openai/gpt-5.3-chat";
 pub const DEFAULT_COACH_PERSONALITY: &str =
     "Direct and practical running coach. Be concise, specific, and evidence-based.";
 pub const RUN_SPORT_TYPE: &str = "Run";
