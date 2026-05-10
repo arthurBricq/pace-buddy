@@ -5,8 +5,8 @@ use domain::{
     Activity, ActivityLap, ActivityStream, ActivityTag, AthleteProfile, DomainError,
     IdentityProfile, ModelCostCategory, ModelCostTier, QuotaRequest, QuotaRequestStatus,
     RunningCoachMemory, RunningCoachMemoryData, RunningCoachMessage, RunningCoachSettings,
-    RunningCoachState, RunningStats, SessionSource, SessionStatus, SessionType, StravaToken,
-    Training, TrainingInsight, TrainingSession, User,
+    RunningCoachState, RunningStats, SessionStatus, SessionType, StravaToken, Training,
+    TrainingInsight, TrainingSession, User,
 };
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow};
 use sqlx::{Error as SqlxError, Row};
@@ -241,14 +241,10 @@ impl SqliteStorage {
                 id TEXT PRIMARY KEY NOT NULL,
                 user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 training_id TEXT REFERENCES trainings(id) ON DELETE SET NULL,
-                source TEXT NOT NULL,
                 status TEXT NOT NULL,
                 title TEXT NOT NULL,
-                purpose TEXT,
                 session_type TEXT NOT NULL,
-                scheduled_for TEXT,
-                earliest_start TEXT,
-                latest_start TEXT,
+                expiry TEXT,
                 estimated_duration_s INTEGER,
                 estimated_distance_m REAL,
                 intensity_summary TEXT,
@@ -800,14 +796,10 @@ fn row_to_training_session(row: &SqliteRow) -> Result<TrainingSession, DomainErr
     let id: String = row.get("id");
     let user_id: String = row.get("user_id");
     let training_id: Option<String> = row.try_get("training_id").ok();
-    let source: String = row.get("source");
     let status: String = row.get("status");
     let title: String = row.get("title");
-    let purpose: Option<String> = row.try_get("purpose").ok();
     let session_type: String = row.get("session_type");
-    let scheduled_for: Option<String> = row.try_get("scheduled_for").ok();
-    let earliest_start: Option<String> = row.try_get("earliest_start").ok();
-    let latest_start: Option<String> = row.try_get("latest_start").ok();
+    let expiry: Option<String> = row.try_get("expiry").ok();
     let estimated_duration_s: Option<i64> = row.try_get("estimated_duration_s").ok();
     let estimated_distance_m: Option<f64> = row.try_get("estimated_distance_m").ok();
     let intensity_summary: Option<String> = row.try_get("intensity_summary").ok();
@@ -816,9 +808,6 @@ fn row_to_training_session(row: &SqliteRow) -> Result<TrainingSession, DomainErr
     let created_at: String = row.get("created_at");
     let updated_at: String = row.get("updated_at");
 
-    let source: SessionSource = source
-        .parse()
-        .map_err(|e| DomainError::Storage(format!("Invalid session source: {e}")))?;
     let status: SessionStatus = status
         .parse()
         .map_err(|e| DomainError::Storage(format!("Invalid session status: {e}")))?;
@@ -830,14 +819,10 @@ fn row_to_training_session(row: &SqliteRow) -> Result<TrainingSession, DomainErr
         id: parse_uuid(&id)?,
         user_id: parse_uuid(&user_id)?,
         training_id: training_id.as_deref().map(parse_uuid).transpose()?,
-        source,
         status,
         title,
-        purpose,
         session_type,
-        scheduled_for: scheduled_for.as_deref().map(parse_datetime).transpose()?,
-        earliest_start: earliest_start.as_deref().map(parse_datetime).transpose()?,
-        latest_start: latest_start.as_deref().map(parse_datetime).transpose()?,
+        expiry: expiry.as_deref().map(parse_datetime).transpose()?,
         estimated_duration_s,
         estimated_distance_m,
         intensity_summary,
@@ -1592,23 +1577,18 @@ impl Storage for SqliteStorage {
     async fn create_training_session(&self, session: &TrainingSession) -> Result<(), DomainError> {
         sqlx::query(
             "INSERT INTO training_sessions (
-                id, user_id, training_id, source, status, title, purpose, session_type,
-                scheduled_for, earliest_start, latest_start, estimated_duration_s,
-                estimated_distance_m, intensity_summary, prescription_json,
-                coach_message_id, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                id, user_id, training_id, status, title, session_type, expiry,
+                estimated_duration_s, estimated_distance_m, intensity_summary,
+                prescription_json, coach_message_id, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(session.id.to_string())
         .bind(session.user_id.to_string())
         .bind(session.training_id.map(|id| id.to_string()))
-        .bind(session.source.to_string())
         .bind(session.status.to_string())
         .bind(&session.title)
-        .bind(&session.purpose)
         .bind(session.session_type.to_string())
-        .bind(session.scheduled_for.map(|d| d.to_rfc3339()))
-        .bind(session.earliest_start.map(|d| d.to_rfc3339()))
-        .bind(session.latest_start.map(|d| d.to_rfc3339()))
+        .bind(session.expiry.map(|d| d.to_rfc3339()))
         .bind(session.estimated_duration_s)
         .bind(session.estimated_distance_m)
         .bind(&session.intensity_summary)
@@ -1628,10 +1608,9 @@ impl Storage for SqliteStorage {
         user_id: Uuid,
     ) -> Result<TrainingSession, DomainError> {
         let row = sqlx::query(
-            "SELECT id, user_id, training_id, source, status, title, purpose, session_type,
-                    scheduled_for, earliest_start, latest_start, estimated_duration_s,
-                    estimated_distance_m, intensity_summary, prescription_json,
-                    coach_message_id, created_at, updated_at
+            "SELECT id, user_id, training_id, status, title, session_type, expiry,
+                    estimated_duration_s, estimated_distance_m, intensity_summary,
+                    prescription_json, coach_message_id, created_at, updated_at
              FROM training_sessions
              WHERE id = ? AND user_id = ?",
         )
@@ -1652,13 +1631,12 @@ impl Storage for SqliteStorage {
     ) -> Result<Vec<TrainingSession>, DomainError> {
         let rows = if let Some(status) = status {
             sqlx::query(
-                "SELECT id, user_id, training_id, source, status, title, purpose, session_type,
-                        scheduled_for, earliest_start, latest_start, estimated_duration_s,
-                        estimated_distance_m, intensity_summary, prescription_json,
-                        coach_message_id, created_at, updated_at
+                "SELECT id, user_id, training_id, status, title, session_type, expiry,
+                        estimated_duration_s, estimated_distance_m, intensity_summary,
+                        prescription_json, coach_message_id, created_at, updated_at
                  FROM training_sessions
                  WHERE user_id = ? AND status = ?
-                 ORDER BY COALESCE(scheduled_for, created_at) DESC",
+                 ORDER BY created_at DESC",
             )
             .bind(user_id.to_string())
             .bind(status.to_string())
@@ -1666,13 +1644,12 @@ impl Storage for SqliteStorage {
             .await
         } else {
             sqlx::query(
-                "SELECT id, user_id, training_id, source, status, title, purpose, session_type,
-                        scheduled_for, earliest_start, latest_start, estimated_duration_s,
-                        estimated_distance_m, intensity_summary, prescription_json,
-                        coach_message_id, created_at, updated_at
+                "SELECT id, user_id, training_id, status, title, session_type, expiry,
+                        estimated_duration_s, estimated_distance_m, intensity_summary,
+                        prescription_json, coach_message_id, created_at, updated_at
                  FROM training_sessions
                  WHERE user_id = ?
-                 ORDER BY COALESCE(scheduled_for, created_at) DESC",
+                 ORDER BY created_at DESC",
             )
             .bind(user_id.to_string())
             .fetch_all(&self.pool)

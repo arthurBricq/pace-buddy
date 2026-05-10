@@ -32,7 +32,6 @@ pub use stream::{ActivityStream, StreamType};
 pub use training::Training;
 pub use training_insight::TrainingInsight;
 pub use training_session::{
-    MatchStatus, SessionSource, SessionStatus, SessionType, TrainingSession,
-    TrainingSessionActivityMatch,
+    MatchStatus, SessionStatus, SessionType, TrainingSession, TrainingSessionActivityMatch,
 };
 pub use user::User;

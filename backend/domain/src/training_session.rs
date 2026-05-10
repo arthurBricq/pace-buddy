@@ -4,34 +4,6 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum SessionSource {
-    Coach,
-    Manual,
-}
-
-impl std::fmt::Display for SessionSource {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SessionSource::Coach => write!(f, "coach"),
-            SessionSource::Manual => write!(f, "manual"),
-        }
-    }
-}
-
-impl std::str::FromStr for SessionSource {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "coach" => Ok(SessionSource::Coach),
-            "manual" => Ok(SessionSource::Manual),
-            other => Err(format!("Unknown session source: {other}")),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum SessionStatus {
     Suggested,
     Planned,
@@ -122,26 +94,24 @@ impl std::str::FromStr for SessionType {
 /// A planned quality session — the user-facing object that the coach proposes
 /// (status `suggested`) and the user accepts/rejects (status flips to
 /// `planned`/`rejected`). Stored top-level under the user; `training_id` is
-/// optional context for Phase 4.
+/// optional context for Phase 2.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrainingSession {
     pub id: Uuid,
     pub user_id: Uuid,
     pub training_id: Option<Uuid>,
-    pub source: SessionSource,
     pub status: SessionStatus,
     pub title: String,
-    pub purpose: Option<String>,
     pub session_type: SessionType,
-    pub scheduled_for: Option<DateTime<Utc>>,
-    pub earliest_start: Option<DateTime<Utc>>,
-    pub latest_start: Option<DateTime<Utc>>,
+    /// Optional deadline by which the user intends to do this session. After
+    /// this point the matching engine and UI may treat it as stale.
+    pub expiry: Option<DateTime<Utc>>,
     pub estimated_duration_s: Option<i64>,
     pub estimated_distance_m: Option<f64>,
     pub intensity_summary: Option<String>,
-    /// Free-form JSON blob describing the prescription. Stored as TEXT and
-    /// parsed on demand by callers (matches the convention used for
-    /// `interval_results.result_json`, `training_insights.response`, etc.).
+    /// Structured JSON describing the prescription (warmup / sets / cooldown /
+    /// targets). Stored as TEXT and parsed on demand by callers (matches the
+    /// convention used for `interval_results.result_json`, etc.).
     pub prescription_json: String,
     pub coach_message_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
@@ -239,15 +209,6 @@ mod tests {
             let displayed = t.to_string();
             let parsed: SessionType = displayed.parse().expect("parse");
             assert_eq!(parsed, t);
-        }
-    }
-
-    #[test]
-    fn session_source_round_trip() {
-        for s in [SessionSource::Coach, SessionSource::Manual] {
-            let displayed = s.to_string();
-            let parsed: SessionSource = displayed.parse().expect("parse");
-            assert_eq!(parsed, s);
         }
     }
 

@@ -431,101 +431,109 @@ doc comment recording the corpus medians (intervals 0.91 / runs 0.60 / races 0.4
 
 ### Phase 1: Domain and Storage Foundation [DONE]
 
-Goal: create durable planned-quality-session objects without involving the coach yet.
+Goal: durable `TrainingSession` objects in the DB so the coach (Phase 2) has somewhere to write to.
+
+What shipped:
+
+- Domain types in `backend/domain/src/training_session.rs`: `TrainingSession`, `TrainingSessionActivityMatch`,
+  and the four enums (`SessionSource`, `SessionStatus`, `SessionType`, `MatchStatus`) with serde / `Display` /
+  `FromStr`. Round-trip tests pass.
+- SQLite tables `training_sessions` (full schema) and `training_session_activity_matches` (schema only — no
+  callers in Phase 1), plus indexes.
+- `Storage` trait methods: `create_training_session`, `get_training_session`, `list_training_sessions(status?)`,
+  `update_training_session_status`. No methods for the match table.
+- Backend routes: `GET /api/training-sessions?status=`, `GET /api/training-sessions/{id}`,
+  `PATCH /api/training-sessions/{id}/status`. No POST, no DELETE — coach is the only writer.
+- Frontend: a placeholder page at `/training-sessions` rendering "Feature under development — coming soon",
+  plus a "Sessions" navbar entry. No list, no API client, no Training-detail integration.
+
+Intentionally **not** in Phase 1 (deferred to Phase 2 / Phase 3, or dropped):
+
+- Manual create flow — the feature is coach-suggested.
+- Any `Training` coupling — `training_id` is a nullable column kept for Phase 2; never populated yet.
+- Test seeding mechanism — the coach in Phase 2 will be the first writer; until then the page is blank.
+- Match-table reads/writes — Phase 3.
+
+### Phase 2: Coach Suggestions
+
+Goal: turn the coach from an advice surface into a writer of structured `TrainingSession` rows the user can
+accept or reject.
 
 Tasks:
 
-- Add domain types for planned quality sessions, suggestion status, session type, and match status.
-- Add SQLite tables for planned quality sessions and activity matches.
-- Add storage trait methods and SQLite implementation.
-- Add user-level backend routes for listing, creating, updating status, and linking activities.
-- Add training-scoped routes or query filters for sessions attached to a training.
-- Add frontend types and API wrappers.
-- Add a simple "Planned Quality Sessions" section to Training detail.
-- Add a simple standalone planned quality sessions surface outside Training detail.
+- **Define the `prescription_json` schema.** Pick a first-cut shape (warmup / sets / cooldown / targets per the
+  plan example) sufficient for display and matching. Document it once, in code; iterate later. The schema is
+  enforced at the `propose_sessions` tool boundary — invalid payloads from the LLM are dropped (or retried
+  with a hint), not stored.
+- **Coach context.** Add the user's current/next `TrainingSession` rows to the automatic context built in
+  `coach-memory/src/context.rs` — counts and titles only, not full prescriptions. Explicit "no upcoming
+  sessions" line when empty so the coach knows the absence is real.
+- **Coach tools.**
+    - `list_planned_sessions(status?)` — read-only, filters by status.
+    - `propose_sessions(payload)` — validates against the prescription schema; on success, persists rows with
+      `status = 'suggested'`, `source = 'coach'`, and `coach_message_id` set.
+    - `update_planned_session_status(id, status)` — coach-driven status transitions (e.g. mark `superseded` /
+      `rejected` on the user's behalf when the conversation makes it explicit).
+- **Frontend.** Replace the placeholder at `/training-sessions` with the real list page (status filter chips,
+  per-row actions: Accept, Reject, Skip, Mark done). In the Running Coach chat, render any sessions a reply
+  produced as inspectable cards inline below the message — Accept flips the row to `planned` via the existing
+  PATCH route, Reject flips it to `rejected`. No structured-prescription editor; "edit before accepting" is
+  out of scope.
+- **Prompt.** Tell the coach when to call `propose_sessions` (only when the user is asking for a quality
+  session) vs. when to answer in prose (easy run, long run, rest day). Default to **one** suggestion unless
+  the user explicitly asks for options. Update `doc/ai-coach-data-inputs.md` to reflect the new context and
+  tool surfaces.
 
-Done when: a user or developer can manually create a planned quality session with or without a training, see it in the
-appropriate surface, and mark it skipped/done.
+Done when: a user can ask the coach for a workout, see a structured suggestion card in the chat reply, accept
+it, and find the resulting `planned` session on `/training-sessions`. The coach can also list existing sessions
+to avoid double-proposing.
 
-### Phase 2: Planned vs Executed Comparison
+### Phase 3: Matching, Confirmation, and Comparison
 
-Goal: make a linked activity useful to the coach and runner.
+Goal: connect executed Strava activities back to the planned sessions they completed, and produce
+planned-vs-executed summaries the coach can reason about.
 
-Tasks:
-
-- Define a structured planned-quality-session prescription schema.
-- Implement comparison helpers for basic sessions and interval sessions.
-- Enable interval parsing on demand for linked/candidate activities regardless of tag.
-- Store or compute execution summaries.
-- Show comparison summary on planned quality session and activity detail pages.
-
-Done when: a linked interval activity can produce "planned 6 reps, executed 5 reps, average pace within target, recovery
-longer than planned" style summaries.
-
-### Phase 3: Coach Read Access
-
-Goal: let the coach reason about training plans and planned quality sessions.
-
-Tasks:
-
-- Add coach tools to list trainings and planned quality sessions.
-- Add active training, explicit no-active-training state, and upcoming planned quality sessions to automatic coach
-  context.
-- Update `doc/ai-coach-data-inputs.md`.
-- Adjust coach prompt/tool instructions so the coach checks existing plans before suggesting more.
-
-Done when: asking "what quality session should I do next?" accounts for accepted planned quality sessions whether or not
-``there is an active training block.
-
-### Phase 4: Coach Suggestions
-
-Goal: let the coach create structured suggestions that the user can accept.
+V1 scope is deliberately narrow: only mark a match as `auto_matched` when (a) the activity date falls inside
+the planned session's window, (b) interval-parse confidence is high, and (c) `session_type` is compatible.
+Everything else surfaces as a `candidate` requiring user confirmation. We can broaden the auto-match rule
+once we have real matched/unmatched data to calibrate against.
 
 Tasks:
 
-- Add `propose_sessions` tool with strict structured payload validation.
-- Persist suggestions linked to the coach message.
-- Return suggestion metadata to the frontend after a coach response.
-- Render suggestion cards inside the Running Coach.
-- Add accept/reject/edit actions.
-- Convert accepted suggestions into planned quality sessions.
+- **Matching engine.** Post-sync background task that walks newly-synced activities and proposes matches
+  against open `planned` sessions. Implement the narrow v1 rule above; store the score breakdown for later
+  tuning.
+- **Storage methods for the match table** — first real callers of `training_session_activity_matches`.
+- **Comparison helpers.** Given a matched `(TrainingSession, Activity, IntervalResult)`, produce execution
+  summaries like "planned 6 × 800 m at 3:25/km, executed 5 reps averaging 3:28, recovery longer than
+  planned." Lives in a small new helper crate or in `intervals/` next to the existing parser.
+- **Frontend.** "Needs confirmation" UI in Activity detail (when a candidate match exists) and on the session
+  list (badge on the session). Manual link/unlink fallback for cases the engine misses.
+- **Coach tools.** `list_session_matches`, `link_activity_to_planned_session`,
+  `unlink_activity_from_planned_session`, `explain_session_execution` — each is a thin wrapper over storage
+  + the comparison helpers.
+- **Coach context.** Include recently-completed sessions (with execution summaries) and pending confirmations
+  in the automatic context.
 
-Done when: the coach can propose multiple quality-session options and the user can accept one from the chat UI.
+Done when: a synced Strava activity that completes a planned interval session gets auto-matched (or surfaces
+as a candidate), the user can confirm/correct, and the coach can read "you ran 5 of 6 reps, second-rep pace
+4 s slow" via its tools.
 
-### Phase 5: Matching and Confirmation
-
-Goal: detect whether planned quality sessions happened after Strava sync.
-
-V1 scope is deliberately narrow: only mark a match as `auto_matched` when (a) the activity date falls inside the
-planned session's window, (b) interval-parse confidence is high, and (c) `session_type` is compatible. Everything
-else surfaces as a `candidate` requiring user confirmation. We can broaden the auto-match rule once we have real
-matched/unmatched data to calibrate against.
-
-Tasks:
-
-- Add a post-sync background task (the matching job needs to be async — sync is currently a single synchronous
-  handler, this phase introduces the first real background worker).
-- Implement the narrow v1 auto-match rule above; everything else is stored as `candidate`.
-- Store candidate matches with the score breakdown so we can iterate on tuning later.
-- Surface "needs confirmation" in Training detail and Activity detail.
-- Add confirm/dismiss/manual-link UI.
-- Add coach tools for link/unlink/mark status.
-
-Done when: after a new Strava activity appears, the app can suggest that it completed a planned quality session and let
-the user confirm or correct it.
-
-### Phase 6: Product Refinement
+### Phase 4: Product Refinement
 
 Goal: make the loop feel like coaching rather than bookkeeping.
 
 Tasks:
 
-- Add "next planned quality session" context to the coach page.
-- Let the coach reflect on execution after a confirmed match.
-- Add lightweight notifications or dashboard indicators for pending confirmation.
-- Add better suggestion templates for common goals: 5K, 10K, half marathon, trail.
+- "Next planned session" surfaced on the Running Coach page so the user sees what's queued without leaving
+  the chat.
+- Coach reflection on execution after a confirmed match — natural prose follow-up the next time the user
+  opens the coach.
+- Lightweight dashboard indicators for pending confirmations.
+- Better suggestion templates for common goals (5K, 10K, half marathon).
 
-Done when: the coach reliably uses planned and executed quality sessions to guide future workout decisions.
+Done when: the coach reliably uses planned and executed quality sessions to guide future workout decisions
+without the user having to remind it of state.
 
 ## Risks
 
