@@ -29,7 +29,7 @@ impl QuotaRequestStatus {
         }
     }
 
-    pub fn from_str(s: &str) -> Self {
+    pub fn from_storage_str(s: &str) -> Self {
         match s {
             "approved" => Self::Approved,
             "rejected" => Self::Rejected,

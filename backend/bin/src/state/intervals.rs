@@ -8,16 +8,11 @@ use intervals::{
 use storage::Storage;
 use strava_client::{strava_laps_to_domain, strava_streams_to_domain};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub enum IntervalAlgorithmSelection {
+    #[default]
     SpeedBased,
     ManualLaps,
-}
-
-impl Default for IntervalAlgorithmSelection {
-    fn default() -> Self {
-        Self::SpeedBased
-    }
 }
 
 impl IntervalAlgorithmSelection {

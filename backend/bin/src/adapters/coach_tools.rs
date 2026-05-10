@@ -533,7 +533,7 @@ fn build_last_session_matches(
         .iter()
         .filter(|activity| activity_matches_filters(settings, activity, sport_type, tag))
         .collect();
-    filtered.sort_by(|a, b| b.start_date.cmp(&a.start_date));
+    filtered.sort_by_key(|activity| std::cmp::Reverse(activity.start_date));
 
     filtered
         .into_iter()
@@ -567,7 +567,7 @@ fn build_time_range_matches(
         .filter(|activity| activity.start_date >= start_at && activity.start_date < end_exclusive)
         .filter(|activity| activity_matches_filters(settings, activity, sport_type, tag))
         .collect();
-    filtered.sort_by(|a, b| b.start_date.cmp(&a.start_date));
+    filtered.sort_by_key(|activity| std::cmp::Reverse(activity.start_date));
 
     filtered
         .into_iter()

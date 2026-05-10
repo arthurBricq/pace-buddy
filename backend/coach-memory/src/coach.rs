@@ -476,12 +476,16 @@ mod tests {
                 quota_balance_usd: 10.0,
             };
 
-            let mut settings = RunningCoachSettings::default();
-            settings.user_id = user_id;
-            settings.normalizer_every_n_messages = 50;
+            let settings = RunningCoachSettings {
+                user_id,
+                normalizer_every_n_messages: 50,
+                ..RunningCoachSettings::default()
+            };
 
-            let mut memory = RunningCoachMemory::default();
-            memory.user_id = user_id;
+            let memory = RunningCoachMemory {
+                user_id,
+                ..RunningCoachMemory::default()
+            };
 
             let state = RunningCoachState {
                 user_id,

@@ -5,7 +5,7 @@ use crate::types::{IntervalConfig, Rep, Segment, SegmentKind};
 /// Label warmup/cooldown and build reps from work segments.
 /// Recovery is computed as the time gap between consecutive work segments.
 pub fn build_reps(
-    segments: &mut Vec<Segment>,
+    segments: &mut [Segment],
     data: &PreprocessedData,
     config: &IntervalConfig,
     mas_speed: Option<f64>,
@@ -62,7 +62,7 @@ pub fn build_reps(
 ///
 /// "First work" means the first *substantial* work segment (meeting min duration/distance),
 /// not just any brief acceleration during warmup jogging.
-fn label_warmup_cooldown(segments: &mut Vec<Segment>, config: &IntervalConfig) {
+fn label_warmup_cooldown(segments: &mut [Segment], config: &IntervalConfig) {
     if segments.is_empty() {
         return;
     }
@@ -78,8 +78,8 @@ fn label_warmup_cooldown(segments: &mut Vec<Segment>, config: &IntervalConfig) {
             && s.distance_m >= substantial_dist
     };
 
-    let first_work = segments.iter().position(|s| is_substantial_work(s));
-    let last_work = segments.iter().rposition(|s| is_substantial_work(s));
+    let first_work = segments.iter().position(&is_substantial_work);
+    let last_work = segments.iter().rposition(is_substantial_work);
 
     if let Some(first) = first_work {
         // Everything before first substantial work
@@ -129,7 +129,7 @@ fn compute_steadiness(data: &PreprocessedData, work: &Segment) -> f64 {
         return 0.0;
     }
     let coefficient = stats::cv(&speeds);
-    (1.0 - coefficient).max(0.0).min(1.0)
+    (1.0 - coefficient).clamp(0.0, 1.0)
 }
 
 /// Fade: ratio of second-half avg speed to first-half avg speed. >1 = positive split, <1 = negative split.

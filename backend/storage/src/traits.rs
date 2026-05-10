@@ -92,6 +92,7 @@ pub trait Storage: Send + Sync {
     async fn create_training(&self, training: &Training) -> Result<(), DomainError>;
     async fn get_training(&self, id: Uuid, user_id: Uuid) -> Result<Training, DomainError>;
     async fn list_trainings(&self, user_id: Uuid) -> Result<Vec<Training>, DomainError>;
+    #[allow(clippy::too_many_arguments)]
     async fn update_training(
         &self,
         id: Uuid,

@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use chrono::{Datelike, NaiveDate, Utc};
@@ -17,6 +18,9 @@ const SYSTEM_PROMPT: &str =
     "You are an experienced running coach analyzing a runner's training plan. \
     Provide specific, actionable advice based on the data provided. \
     Use metric units (km, min/km pace). Be concise but remain precise.";
+
+type WeeklySportVolume = BTreeMap<String, (f64, i64, i64)>;
+type WeeklyVolume = BTreeMap<(i32, u32), WeeklySportVolume>;
 
 /// Everything needed to call the LLM for a training insight.
 pub struct InsightContext {
@@ -109,10 +113,7 @@ pub async fn build_insight_context(
             .await?;
 
         // (year, week) -> sport_type -> (distance, time, count)
-        let mut weeks: std::collections::BTreeMap<
-            (i32, u32),
-            std::collections::BTreeMap<String, (f64, i64, i64)>,
-        > = std::collections::BTreeMap::new();
+        let mut weeks: WeeklyVolume = BTreeMap::new();
         for a in &range_activities {
             let iso_week = a.start_date.iso_week();
             let key = (iso_week.year(), iso_week.week());

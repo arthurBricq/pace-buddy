@@ -102,7 +102,7 @@ async fn main() -> anyhow::Result<()> {
             if users.is_empty() {
                 println!("No users found.");
             } else {
-                println!("{:<38} {:<20} {}", "ID", "USERNAME", "DISPLAY NAME");
+                println!("{:<38} {:<20} DISPLAY NAME", "ID", "USERNAME");
                 for u in &users {
                     println!("{:<38} {:<20} {}", u.id, u.username, u.display_name);
                 }
@@ -377,7 +377,7 @@ fn run_calibrate(include_trails: bool) -> anyhow::Result<()> {
     let algorithm = intervals::AutoSpeedSegmentationAlgorithm;
 
     println!(
-        "{:<10} {:<5} {:<6} {:<6} {:<6} {:<6} {:<6} {:<6} {:<6} {:<6} {}",
+        "{:<10} {:<5} {:<6} {:<6} {:<6} {:<6} {:<6} {:<6} {:<6} {:<6} name",
         "category",
         "score",
         "lo_kmh",
@@ -387,8 +387,7 @@ fn run_calibrate(include_trails: bool) -> anyhow::Result<()> {
         "work%",
         "rec%",
         "ovr_cv",
-        "rec_dur",
-        "name"
+        "rec_dur"
     );
     println!("{}", "-".repeat(120));
 
@@ -646,7 +645,7 @@ fn run_calibrate(include_trails: bool) -> anyhow::Result<()> {
     };
 
     println!("\n=== v2 score per fixture ===");
-    println!("{:<10} {:<6} {:<8} {}", "category", "v2", "v1", "name");
+    println!("{:<10} {:<6} {:<8} name", "category", "v2", "v1");
     println!("{}", "-".repeat(80));
     let mut v2_rows: Vec<(FixtureCategory, f64, String)> = Vec::new();
     for f in &all {

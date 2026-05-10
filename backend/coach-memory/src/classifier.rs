@@ -14,6 +14,12 @@ pub struct MemoryClassifierOutput {
 
 pub struct MemoryClassifier;
 
+impl Default for MemoryClassifier {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MemoryClassifier {
     pub fn new() -> Self {
         Self

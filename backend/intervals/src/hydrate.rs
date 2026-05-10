@@ -25,6 +25,10 @@ impl HydratedStreams {
     pub fn len(&self) -> usize {
         self.time.len()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.time.is_empty()
+    }
 }
 
 /// Parse a JSON array of numbers into Vec<f64>.

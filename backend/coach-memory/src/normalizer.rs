@@ -15,6 +15,12 @@ pub struct MemoryNormalizerOutput {
 
 pub struct MemoryNormalizer;
 
+impl Default for MemoryNormalizer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MemoryNormalizer {
     pub fn new() -> Self {
         Self
@@ -110,8 +116,8 @@ mod tests {
 }
 ```"#;
 
-        let parsed =
-            parse_normalizer_output(raw, &["tool summary".to_string()]).expect("normalizer output should parse");
+        let parsed = parse_normalizer_output(raw, &["tool summary".to_string()])
+            .expect("normalizer output should parse");
         assert_eq!(parsed.pinned_facts, vec!["Race in 6 weeks".to_string()]);
         assert_eq!(
             parsed.active_coaching_plan,

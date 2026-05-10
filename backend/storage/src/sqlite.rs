@@ -576,7 +576,7 @@ fn row_to_quota_request(row: &SqliteRow) -> Result<QuotaRequest, DomainError> {
     Ok(QuotaRequest {
         id: parse_uuid(&id)?,
         user_id: parse_uuid(&user_id)?,
-        status: QuotaRequestStatus::from_str(&status),
+        status: QuotaRequestStatus::from_storage_str(&status),
         requested_at: parse_datetime(&requested_at)?,
         resolved_at: resolved_at.as_deref().map(parse_datetime).transpose()?,
         granted_amount_usd,
@@ -928,19 +928,21 @@ fn row_to_running_coach_message(row: &SqliteRow) -> Result<RunningCoachMessage, 
 
 fn default_running_coach_settings(user_id: Uuid) -> RunningCoachSettings {
     let now = Utc::now();
-    let mut settings = RunningCoachSettings::default();
-    settings.user_id = user_id;
-    settings.created_at = now;
-    settings.updated_at = now;
-    settings
+    RunningCoachSettings {
+        user_id,
+        created_at: now,
+        updated_at: now,
+        ..RunningCoachSettings::default()
+    }
 }
 
 fn default_running_coach_memory(user_id: Uuid) -> RunningCoachMemory {
     let now = Utc::now();
-    let mut memory = RunningCoachMemory::default();
-    memory.user_id = user_id;
-    memory.updated_at = now;
-    memory
+    RunningCoachMemory {
+        user_id,
+        updated_at: now,
+        ..RunningCoachMemory::default()
+    }
 }
 
 fn default_running_coach_state(user_id: Uuid) -> RunningCoachState {
@@ -2261,7 +2263,7 @@ impl Storage for SqliteStorage {
         user_id: Uuid,
         limit: i64,
     ) -> Result<Vec<RunningCoachMessage>, DomainError> {
-        let safe_limit = limit.max(1).min(500);
+        let safe_limit = limit.clamp(1, 500);
         let rows = sqlx::query(
             "SELECT id, user_id, role, content, prompt_tokens, completion_tokens, total_tokens, cost, created_at
              FROM running_coach_messages

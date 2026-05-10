@@ -83,8 +83,8 @@ fn apply_min_duration_filter(mask: &[bool], time: &[f64], min_duration_s: f64) -
                 0.0
             };
             if duration >= min_duration_s {
-                for j in start..end {
-                    result[j] = true;
+                for value in result.iter_mut().take(end).skip(start) {
+                    *value = true;
                 }
             }
         } else {

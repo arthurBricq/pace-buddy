@@ -380,7 +380,7 @@ pub async fn create_invite_code(
             created_by_user_id: Some(user.user_id),
             created_for: created_for.clone(),
             created_at: Utc::now(),
-            expires_at: expires_at.clone(),
+            expires_at,
             used_at: None,
             used_by_strava_athlete_id: None,
             revoked_at: None,

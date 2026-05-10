@@ -103,9 +103,9 @@ fn hysteresis_label(data: &PreprocessedData, boundary: f64, config: &IntervalCon
                 if below_exit >= exit_k {
                     // Confirmed exit: relabel the dip samples as Recovery
                     in_work = false;
-                    for j in (i + 1 - below_exit)..=i {
-                        if labels[j] != Label::Pause {
-                            labels[j] = Label::Recovery;
+                    for label in labels.iter_mut().take(i + 1).skip(i + 1 - below_exit) {
+                        if *label != Label::Pause {
+                            *label = Label::Recovery;
                         }
                     }
                     below_exit = 0;
@@ -123,9 +123,9 @@ fn hysteresis_label(data: &PreprocessedData, boundary: f64, config: &IntervalCon
                 if above_enter >= enter_k {
                     in_work = true;
                     // Relabel the confirmation samples as Work
-                    for j in (i + 1 - above_enter)..=i {
-                        if labels[j] != Label::Pause {
-                            labels[j] = Label::Work;
+                    for label in labels.iter_mut().take(i + 1).skip(i + 1 - above_enter) {
+                        if *label != Label::Pause {
+                            *label = Label::Work;
                         }
                     }
                     above_enter = 0;
@@ -152,10 +152,10 @@ fn labels_to_segments(labels: &[Label], data: &PreprocessedData) -> Vec<Segment>
     let mut current_label = labels[0];
     let mut start_idx = 0;
 
-    for i in 1..labels.len() {
-        if labels[i] != current_label {
+    for (i, label) in labels.iter().enumerate().skip(1) {
+        if *label != current_label {
             segments.push(build_segment(current_label, start_idx, i - 1, data));
-            current_label = labels[i];
+            current_label = *label;
             start_idx = i;
         }
     }
@@ -258,7 +258,7 @@ fn cleanup_segments(segments: &mut Vec<Segment>, config: &IntervalConfig) {
 
 /// Absorb short Recovery/Pause gaps between two Work segments into Work.
 /// This prevents long reps from being split by brief speed dips or GPS pauses.
-fn absorb_gaps_within_work(segments: &mut Vec<Segment>, config: &IntervalConfig) {
+fn absorb_gaps_within_work(segments: &mut [Segment], config: &IntervalConfig) {
     let n = segments.len();
     for i in 0..n {
         if segments[i].kind == SegmentKind::Work {
@@ -278,7 +278,7 @@ fn absorb_gaps_within_work(segments: &mut Vec<Segment>, config: &IntervalConfig)
 /// Convert short Pause segments to the kind of their longest neighbor.
 /// This collapses `Recovery, Pause(2s), Recovery, Pause(1s), Recovery` into
 /// one contiguous Recovery.
-fn absorb_short_pauses(segments: &mut Vec<Segment>, config: &IntervalConfig) {
+fn absorb_short_pauses(segments: &mut [Segment], config: &IntervalConfig) {
     let n = segments.len();
     for i in 0..n {
         if segments[i].kind != SegmentKind::Pause {
@@ -315,7 +315,7 @@ fn absorb_short_pauses(segments: &mut Vec<Segment>, config: &IntervalConfig) {
 }
 
 /// Convert short Recovery segments to the kind of their dominant neighbor.
-fn absorb_short_recoveries(segments: &mut Vec<Segment>, config: &IntervalConfig) {
+fn absorb_short_recoveries(segments: &mut [Segment], config: &IntervalConfig) {
     let n = segments.len();
     for i in 0..n {
         if segments[i].kind != SegmentKind::Recovery {
@@ -355,32 +355,32 @@ fn merge_consecutive(segments: &mut Vec<Segment>) {
     let mut merged: Vec<Segment> = Vec::with_capacity(segments.len());
     merged.push(segments[0].clone());
 
-    for i in 1..segments.len() {
+    for segment in segments.iter().skip(1) {
         let last = merged.last_mut().unwrap();
-        if last.kind == segments[i].kind {
+        if last.kind == segment.kind {
             // Merge: extend the last segment
-            last.end_t = segments[i].end_t;
+            last.end_t = segment.end_t;
             last.duration_s = last.end_t - last.start_t;
-            last.distance_m += segments[i].distance_m;
+            last.distance_m += segment.distance_m;
             // Recompute speed as weighted average by duration
             let total_dur = last.duration_s;
             if total_dur > 0.0 {
                 last.avg_speed_mps = last.distance_m / total_dur;
             }
-            if segments[i].max_speed_mps > last.max_speed_mps {
-                last.max_speed_mps = segments[i].max_speed_mps;
+            if segment.max_speed_mps > last.max_speed_mps {
+                last.max_speed_mps = segment.max_speed_mps;
             }
             // HR and cadence: simple average (imprecise but sufficient)
-            last.avg_hr = match (last.avg_hr, segments[i].avg_hr) {
+            last.avg_hr = match (last.avg_hr, segment.avg_hr) {
                 (Some(a), Some(b)) => Some((a + b) / 2.0),
                 (a, b) => a.or(b),
             };
-            last.avg_cadence = match (last.avg_cadence, segments[i].avg_cadence) {
+            last.avg_cadence = match (last.avg_cadence, segment.avg_cadence) {
                 (Some(a), Some(b)) => Some((a + b) / 2.0),
                 (a, b) => a.or(b),
             };
         } else {
-            merged.push(segments[i].clone());
+            merged.push(segment.clone());
         }
     }
 
@@ -462,8 +462,8 @@ mod tests {
             d
         };
         let mut pause_mask = vec![false; n];
-        for i in 10..20 {
-            pause_mask[i] = true;
+        for value in pause_mask.iter_mut().take(20).skip(10) {
+            *value = true;
         }
 
         let data = make_preprocessed(time, speed, distance, pause_mask);
@@ -494,8 +494,8 @@ mod tests {
             d
         };
         let mut pause_mask = vec![false; n];
-        for i in 5..8 {
-            pause_mask[i] = true;
+        for value in pause_mask.iter_mut().take(8).skip(5) {
+            *value = true;
         }
 
         let data = make_preprocessed(time, speed, distance, pause_mask);
