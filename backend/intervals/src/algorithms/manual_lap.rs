@@ -1,6 +1,6 @@
 use domain::{ActivityLap, ActivityStream};
 
-use crate::algorithms::compute_interval_score;
+use crate::algorithms::{compute_interval_score, INTERVAL_WORKOUT_THRESHOLD};
 use crate::error::IntervalError;
 use crate::types::{IntervalConfig, IntervalResult, Rep, Segment, SegmentKind};
 use crate::{intensity, stats, IntervalParsingAlgorithm};
@@ -116,8 +116,8 @@ impl IntervalParsingAlgorithm for ManualLapIntervalAlgorithm<'_> {
             cluster_high_mps,
             config,
         );
-        let is_interval_workout =
-            reps_list.len() >= config.min_work_segments && interval_score >= 0.55;
+        let is_interval_workout = reps_list.len() >= config.min_work_segments
+            && interval_score >= INTERVAL_WORKOUT_THRESHOLD;
 
         Ok(IntervalResult {
             segments,

@@ -1184,6 +1184,32 @@ impl Storage for SqliteStorage {
         row_to_activity(&row)
     }
 
+    async fn get_activity_by_strava_id(
+        &self,
+        strava_id: i64,
+        user_id: Uuid,
+    ) -> Result<Activity, DomainError> {
+        let row = sqlx::query(
+            "SELECT id, user_id, strava_id, name, sport_type, start_date,
+                    elapsed_time, moving_time, distance, total_elevation_gain,
+                    average_speed, max_speed, average_heartrate, max_heartrate,
+                    average_cadence, average_watts, calories, tag,
+                    summary_polyline, workout_type, streams_loaded, created_at
+             FROM activities
+             WHERE strava_id = ? AND user_id = ?",
+        )
+        .bind(strava_id)
+        .bind(user_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get activity by strava_id: {e}")))?
+        .ok_or_else(|| {
+            DomainError::NotFound(format!("Activity with strava_id {strava_id} not found"))
+        })?;
+
+        row_to_activity(&row)
+    }
+
     async fn get_latest_activity_start(
         &self,
         user_id: Uuid,

@@ -55,6 +55,11 @@ pub trait Storage: Send + Sync {
         offset: i64,
     ) -> Result<Vec<Activity>, DomainError>;
     async fn get_activity(&self, id: Uuid, user_id: Uuid) -> Result<Activity, DomainError>;
+    async fn get_activity_by_strava_id(
+        &self,
+        strava_id: i64,
+        user_id: Uuid,
+    ) -> Result<Activity, DomainError>;
     async fn get_latest_activity_start(
         &self,
         user_id: Uuid,

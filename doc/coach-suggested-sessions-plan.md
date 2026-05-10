@@ -388,9 +388,9 @@ justify the threshold.
 Optional: the AI-coach is given context. We could feed the output of the interval-parsing algorithm to the coach context
 to all of the activites for which the stored interval_score is above a const threshold.
 
-#### Phase 0 status notes (2026-05-10)
+#### Phase 0 status notes (2026-05-10) [DONE]
 
-**Score redesign (done).** The original `interval_score` weighted rep count, recovery-alternation, and per-rep
+**Score redesign (done).** The original `interval_score` weighted rep coun``t, recovery-alternation, and per-rep
 speed CV. On the labeled corpus (7 intervals, 5 races, 9 runs, 5 trails) it scored races *higher* than intervals
 (median 0.96 vs 0.74) — completely inverted. Replaced in `intervals/src/algorithms/mod.rs` with a v2 score that
 combines four signals normalized to `[0, 1]`:
@@ -408,20 +408,26 @@ with frequent slow stretches (traffic lights, walk breaks) that look bimodal on 
 manual lap structure or activity-name parsing, this ambiguity is irreducible. One borderline interval (a hybrid
 2k+5k tempo session) scores 0.52. Acceptable for v1; tune the threshold or add signals later.
 
-**Sync wiring (explored, not shipped).** `AppState::resolve_intervals` (in `bin/src/state/intervals.rs`) is
-already the right primitive — it lazy-fetches streams or laps, parses, and stores. To make every Run activity
-get an `IntervalResult` automatically, the simplest path is:
+**Sync wiring (shipped).** `sync_user_activities` now returns a `SyncOutcome { synced, strava_ids }`. Both call
+sites (the manual `POST /activities/sync` route and the post-link initial-sync background task) call
+`spawn_post_sync_interval_parsing(app, user_id, strava_ids)`. The spawned task looks each strava_id up via the
+new `Storage::get_activity_by_strava_id` (canonical UUIDs — needed because `upsert_activities` preserves
+existing UUIDs on conflict), filters to `sport_type == "Run"`, and calls `resolve_intervals` serially. Errors
+are isolated per-activity. No semaphore: serial calls stay comfortably under Strava's 100-req/15-min quota for
+realistic sync sizes.
 
-1. After `sync_user_activities` upserts new activities, walk the new ones and call `resolve_intervals` for each
-   `sport_type == "Run"` activity.
-2. To avoid blocking the sync handler on N Strava stream-fetch calls, spawn this as a `tokio::spawn` task
-   sequenced behind the sync; throttle with a small semaphore (e.g. 4 concurrent) to stay within Strava rate
-   limits.
-3. For backfill of historical activities, a CLI subcommand or admin endpoint that walks `Activity` rows lacking
-   `interval_results` and calls `resolve_intervals` is a one-liner on top of the same primitive.
+**Frontend display (shipped).** `ActivityDetailPage` fetches intervals when `sport_type === "Run"` (was
+`tag === 'intervals'`). The recap renders when `is_interval_workout` is true (which now means
+`score >= INTERVAL_WORKOUT_THRESHOLD`, i.e. 0.55). When the parser flags an activity the user hasn't tagged
+`intervals`, an italic "Auto-detected interval workout" label is shown above the rep table to clarify it's
+not user-curated. The algorithm-selector is gated on the same condition, not on the tag.
 
-The data flow already supports this; the missing piece is the post-sync hook plus rate limiting. Tracking as a
-follow-up; not blocking Phase 1.
+**Backfill (intentionally none).** Old activities get parsed lazily the first time the user opens their detail
+page, because the same `GET /api/activities/{id}/intervals` route now fires for any Run activity. No explicit
+backfill script needed; activities the user never views stay un-parsed, which is fine.
+
+**Threshold constant.** `INTERVAL_WORKOUT_THRESHOLD = 0.55` lives in `intervals/src/algorithms/mod.rs` with a
+doc comment recording the corpus medians (intervals 0.91 / runs 0.60 / races 0.41) and re-calibration steps.
 
 ### Phase 1: Domain and Storage Foundation
 
@@ -469,7 +475,7 @@ Tasks:
 - Adjust coach prompt/tool instructions so the coach checks existing plans before suggesting more.
 
 Done when: asking "what quality session should I do next?" accounts for accepted planned quality sessions whether or not
-there is an active training block.
+``there is an active training block.
 
 ### Phase 4: Coach Suggestions
 

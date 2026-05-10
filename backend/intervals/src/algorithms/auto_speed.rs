@@ -1,6 +1,6 @@
 use domain::ActivityStream;
 
-use crate::algorithms::compute_interval_score;
+use crate::algorithms::{compute_interval_score, INTERVAL_WORKOUT_THRESHOLD};
 use crate::error::IntervalError;
 use crate::types::{IntervalConfig, IntervalResult};
 use crate::{hydrate, intensity, preprocess, reps, segment, IntervalParsingAlgorithm};
@@ -44,9 +44,9 @@ impl IntervalParsingAlgorithm for AutoSpeedSegmentationAlgorithm {
             config,
         );
         // is_interval_workout is the high-confidence gate: it requires both
-        // structural minimum (rep count) and the v2 score above threshold.
-        let is_interval_workout =
-            reps_list.len() >= config.min_work_segments && interval_score >= 0.55;
+        // structural minimum (rep count) and the score above threshold.
+        let is_interval_workout = reps_list.len() >= config.min_work_segments
+            && interval_score >= INTERVAL_WORKOUT_THRESHOLD;
 
         Ok(IntervalResult {
             segments,

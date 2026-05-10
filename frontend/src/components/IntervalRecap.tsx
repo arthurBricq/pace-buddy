@@ -3,6 +3,7 @@ import type { IntervalResult } from '../types';
 interface Props {
   intervals: IntervalResult;
   masCurrent?: number | null; // Current MAS in km/h
+  autoDetected?: boolean;
 }
 
 function formatPace(paceSecondsPerKm: number): string {
@@ -35,11 +36,16 @@ function calculateMASPercent(avgSpeedMps: number, masKmh: number | null | undefi
   return (avgSpeedMps / masMps) * 100;
 }
 
-export default function IntervalRecap({ intervals, masCurrent }: Props) {
+export default function IntervalRecap({ intervals, masCurrent, autoDetected }: Props) {
   const { reps, interval_score } = intervals;
 
   return (
     <div className="bg-white rounded-lg shadow p-4 space-y-4">
+      {autoDetected && (
+        <div className="text-xs text-gray-500 italic">
+          Auto-detected interval workout — based on the session's speed pattern, not your tag.
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-800">
           {reps.length} rep{reps.length !== 1 ? 's' : ''} detected

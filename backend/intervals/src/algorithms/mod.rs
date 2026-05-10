@@ -6,13 +6,35 @@ pub use manual_lap::ManualLapIntervalAlgorithm;
 
 use crate::types::{IntervalConfig, Rep, Segment};
 
+/// Confidence threshold above which `is_interval_workout` is set to `true`.
+///
+/// Calibrated on the labeled fixture corpus (Phase 0; see
+/// `intervals::fixtures` and `cli calibrate`). Class medians on that corpus:
+///
+/// | category   | median score |
+/// |------------|--------------|
+/// | intervals  | 0.91         |
+/// | runs       | 0.60         |
+/// | races      | 0.41         |
+///
+/// At 0.55 we catch 6 of 7 labeled interval sessions and exclude all races
+/// except a borderline hilly half-marathon. The main false-positive source
+/// is easy runs with frequent slow stretches (traffic lights, walk breaks),
+/// which look bimodal on speed alone — irreducible without lap-structure or
+/// activity-name signals.
+///
+/// To recalibrate: rerun `cargo run -p cli -- calibrate`, look at the
+/// per-category medians, and pick a threshold that balances precision against
+/// recall on the corpus. Raise to 0.60 if the false-positive rate becomes a
+/// UX problem; lower to 0.50 if too many real intervals are missed.
+pub const INTERVAL_WORKOUT_THRESHOLD: f64 = 0.55;
+
 /// Compute interval-quality score in `[0, 1]`. The score is intended as a
 /// confidence that the activity is an interval workout: it should be high for
 /// real intervals and low for races, easy runs, and any other steady-state
 /// effort.
 ///
-/// Calibration on the labeled fixture corpus (see `intervals::fixtures` and
-/// the `cli calibrate` subcommand) shows that the dominant signals are:
+/// Dominant signals (calibrated on the fixture corpus):
 ///
 /// 1. Speed gap between the work and recovery clusters (interval workouts
 ///    have a large gap; races and easy runs have a small gap).
@@ -26,10 +48,6 @@ use crate::types::{IntervalConfig, Rep, Segment};
 /// races with intervals because races have very consistent rep speeds. The
 /// new score deliberately rewards activity-wide variance, not per-rep
 /// uniformity.
-///
-/// Threshold convention: `score >= 0.55` is the "looks like intervals" gate
-/// used elsewhere in the codebase. See `coach-suggested-sessions-plan.md`
-/// Phase 0.
 pub(crate) fn compute_interval_score(
     reps: &[Rep],
     segments: &[Segment],

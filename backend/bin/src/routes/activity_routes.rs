@@ -6,7 +6,9 @@ use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::helpers::activity_description::{build_activity_description, ActivityDescriptionMode};
-use crate::helpers::activity_sync_helper::sync_user_activities;
+use crate::helpers::activity_sync_helper::{
+    spawn_post_sync_interval_parsing, sync_user_activities,
+};
 use crate::helpers::strava_data_helper::{
     fetch_polyline, load_and_cache_laps, load_and_cache_streams,
 };
@@ -45,10 +47,10 @@ pub async fn sync_activities(
     }
 
     let result = sync_user_activities(&state, user.user_id, body.after, body.before).await;
-    let total = match result {
-        Ok(total) => {
+    let outcome = match result {
+        Ok(outcome) => {
             state.mark_activities_sync_finished(user.user_id).await;
-            total
+            outcome
         }
         Err(e) => {
             state
@@ -58,8 +60,10 @@ pub async fn sync_activities(
         }
     };
 
+    spawn_post_sync_interval_parsing(state.clone(), user.user_id, outcome.strava_ids);
+
     Ok(HttpResponse::Ok().json(serde_json::json!({
-        "synced": total,
+        "synced": outcome.synced,
     })))
 }
 

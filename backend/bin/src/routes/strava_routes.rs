@@ -7,7 +7,9 @@ use storage::Storage;
 use uuid::Uuid;
 
 use crate::errors::AppError;
-use crate::helpers::activity_sync_helper::sync_user_activities;
+use crate::helpers::activity_sync_helper::{
+    spawn_post_sync_interval_parsing, sync_user_activities,
+};
 use crate::helpers::invite_code_helper::{
     hash_invite_code, invite_code_is_valid_for_redemption, normalize_invite_code,
 };
@@ -406,13 +408,14 @@ fn start_background_initial_sync(app: web::Data<AppState>, user_id: Uuid) {
         let result = sync_user_activities(&app, user_id, None, None).await;
 
         match result {
-            Ok(total) => {
+            Ok(outcome) => {
                 app.mark_activities_sync_finished(user_id).await;
                 log::info!(
                     "Initial background Strava sync complete for user {}: {} activities",
                     user_id,
-                    total
+                    outcome.synced
                 );
+                spawn_post_sync_interval_parsing(app.clone(), user_id, outcome.strava_ids);
             }
             Err(e) => {
                 app.mark_activities_sync_failed(user_id, e.to_string())

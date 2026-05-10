@@ -66,8 +66,10 @@ export default function ActivityDetailPage() {
   useEffect(() => {
     if (!id || !detail) return;
 
-    // Only load interval parsing output if activity is tagged as intervals
-    if (detail.activity.tag === 'intervals') {
+    // Fetch interval parsing for any road-running activity. The backend gates
+    // on score (>= 0.55 via is_interval_workout) and short-circuits on cache,
+    // so this also lazily backfills historical activities the user opens.
+    if (detail.activity.sport_type === 'Run') {
       getIntervals(id)
         .then((result) => {
           setIntervals(result);
@@ -75,14 +77,13 @@ export default function ActivityDetailPage() {
         })
         .catch((e) => console.warn('Failed to load intervals:', e));
     } else {
-      // Clear intervals if activity is not tagged as intervals
       setIntervals(null);
       setIntervalAlgorithm(null);
     }
   }, [id, detail]);
 
   const handleAlgorithmChange = (algorithm: IntervalAlgorithm) => {
-    if (!id || detail?.activity.tag !== 'intervals' || intervalAlgorithm === algorithm) return;
+    if (!id || detail?.activity.sport_type !== 'Run' || intervalAlgorithm === algorithm) return;
 
     setIntervalAlgorithm(algorithm);
     getIntervals(id, algorithm)
@@ -185,10 +186,14 @@ export default function ActivityDetailPage() {
         )}
 
         {intervals?.is_interval_workout && (
-          <IntervalRecap intervals={intervals} masCurrent={user?.mas_current ?? null} />
+          <IntervalRecap
+            intervals={intervals}
+            masCurrent={user?.mas_current ?? null}
+            autoDetected={activity.tag !== 'intervals'}
+          />
         )}
 
-        {activity.tag === 'intervals' && (
+        {intervals?.is_interval_workout && (
           <div className="bg-white rounded-lg shadow p-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Interval Algorithm
