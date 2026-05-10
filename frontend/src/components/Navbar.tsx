@@ -62,6 +62,7 @@ export default function Navbar() {
             <NavLink to="/coach">Running Coach</NavLink>
             <NavLink to="/activities">Activities</NavLink>
             <NavLink to="/trainings">Trainings</NavLink>
+            <NavLink to="/training-sessions">Sessions</NavLink>
             <NavLink to="/races">Races</NavLink>
           </div>
         </div>
@@ -99,6 +100,9 @@ export default function Navbar() {
             </NavLink>
             <NavLink to="/trainings" mobile onClick={() => setMenuOpen(false)}>
               Trainings
+            </NavLink>
+            <NavLink to="/training-sessions" mobile onClick={() => setMenuOpen(false)}>
+              Sessions
             </NavLink>
             <NavLink to="/races" mobile onClick={() => setMenuOpen(false)}>
               Races

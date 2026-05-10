@@ -6,6 +6,7 @@ mod llm_routes;
 mod profile_routes;
 mod strava_routes;
 mod training_routes;
+mod training_session_routes;
 
 use actix_web::web;
 
@@ -102,6 +103,21 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route(
                         "/{id}/insights",
                         web::get().to(training_routes::list_training_insights),
+                    ),
+            )
+            .service(
+                web::scope("/training-sessions")
+                    .route(
+                        "",
+                        web::get().to(training_session_routes::list_training_sessions),
+                    )
+                    .route(
+                        "/{id}",
+                        web::get().to(training_session_routes::get_training_session),
+                    )
+                    .route(
+                        "/{id}/status",
+                        web::patch().to(training_session_routes::update_training_session_status),
                     ),
             )
             .service(

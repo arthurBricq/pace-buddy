@@ -4,8 +4,8 @@ use domain::invite_code::InviteCode;
 use domain::{
     Activity, ActivityLap, ActivityStream, ActivityTag, AthleteProfile, DomainError,
     IdentityProfile, ModelCostTier, QuotaRequest, QuotaRequestStatus, RunningCoachMemory,
-    RunningCoachMessage, RunningCoachSettings, RunningCoachState, RunningStats, StravaToken,
-    Training, TrainingInsight, User,
+    RunningCoachMessage, RunningCoachSettings, RunningCoachState, RunningStats, SessionStatus,
+    StravaToken, Training, TrainingInsight, TrainingSession, User,
 };
 use uuid::Uuid;
 
@@ -120,6 +120,25 @@ pub trait Storage: Send + Sync {
         from: DateTime<Utc>,
         to: DateTime<Utc>,
     ) -> Result<Vec<Activity>, DomainError>;
+
+    // Training sessions (Phase 1 — coach-suggested quality sessions)
+    async fn create_training_session(&self, session: &TrainingSession) -> Result<(), DomainError>;
+    async fn get_training_session(
+        &self,
+        id: Uuid,
+        user_id: Uuid,
+    ) -> Result<TrainingSession, DomainError>;
+    async fn list_training_sessions(
+        &self,
+        user_id: Uuid,
+        status: Option<SessionStatus>,
+    ) -> Result<Vec<TrainingSession>, DomainError>;
+    async fn update_training_session_status(
+        &self,
+        id: Uuid,
+        user_id: Uuid,
+        status: SessionStatus,
+    ) -> Result<(), DomainError>;
 
     // Training insights
     async fn store_training_insight(&self, insight: &TrainingInsight) -> Result<(), DomainError>;

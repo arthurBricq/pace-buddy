@@ -5,7 +5,8 @@ use domain::{
     Activity, ActivityLap, ActivityStream, ActivityTag, AthleteProfile, DomainError,
     IdentityProfile, ModelCostCategory, ModelCostTier, QuotaRequest, QuotaRequestStatus,
     RunningCoachMemory, RunningCoachMemoryData, RunningCoachMessage, RunningCoachSettings,
-    RunningCoachState, RunningStats, StravaToken, Training, TrainingInsight, User,
+    RunningCoachState, RunningStats, SessionSource, SessionStatus, SessionType, StravaToken,
+    Training, TrainingInsight, TrainingSession, User,
 };
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow};
 use sqlx::{Error as SqlxError, Row};
@@ -234,6 +235,91 @@ impl SqliteStorage {
         .execute(pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to create training_insights index: {e}")))?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS training_sessions (
+                id TEXT PRIMARY KEY NOT NULL,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                training_id TEXT REFERENCES trainings(id) ON DELETE SET NULL,
+                source TEXT NOT NULL,
+                status TEXT NOT NULL,
+                title TEXT NOT NULL,
+                purpose TEXT,
+                session_type TEXT NOT NULL,
+                scheduled_for TEXT,
+                earliest_start TEXT,
+                latest_start TEXT,
+                estimated_duration_s INTEGER,
+                estimated_distance_m REAL,
+                intensity_summary TEXT,
+                prescription_json TEXT NOT NULL DEFAULT '{}',
+                coach_message_id TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to create training_sessions table: {e}"))
+        })?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_training_sessions_user ON training_sessions(user_id)",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to create training_sessions user index: {e}"))
+        })?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_training_sessions_status ON training_sessions(user_id, status)",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to create training_sessions status index: {e}"))
+        })?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS training_session_activity_matches (
+                id TEXT PRIMARY KEY NOT NULL,
+                training_session_id TEXT NOT NULL REFERENCES training_sessions(id) ON DELETE CASCADE,
+                activity_id TEXT NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                match_status TEXT NOT NULL,
+                confidence REAL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(training_session_id, activity_id)
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!(
+                "Failed to create training_session_activity_matches table: {e}"
+            ))
+        })?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_match_session ON training_session_activity_matches(training_session_id)",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to create match_session index: {e}"))
+        })?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_match_activity ON training_session_activity_matches(activity_id)",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to create match_activity index: {e}"))
+        })?;
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS running_coach_settings (
@@ -707,6 +793,58 @@ fn row_to_training_insight(row: &SqliteRow) -> Result<TrainingInsight, DomainErr
         model,
         cost,
         created_at: parse_datetime(&created_at)?,
+    })
+}
+
+fn row_to_training_session(row: &SqliteRow) -> Result<TrainingSession, DomainError> {
+    let id: String = row.get("id");
+    let user_id: String = row.get("user_id");
+    let training_id: Option<String> = row.try_get("training_id").ok();
+    let source: String = row.get("source");
+    let status: String = row.get("status");
+    let title: String = row.get("title");
+    let purpose: Option<String> = row.try_get("purpose").ok();
+    let session_type: String = row.get("session_type");
+    let scheduled_for: Option<String> = row.try_get("scheduled_for").ok();
+    let earliest_start: Option<String> = row.try_get("earliest_start").ok();
+    let latest_start: Option<String> = row.try_get("latest_start").ok();
+    let estimated_duration_s: Option<i64> = row.try_get("estimated_duration_s").ok();
+    let estimated_distance_m: Option<f64> = row.try_get("estimated_distance_m").ok();
+    let intensity_summary: Option<String> = row.try_get("intensity_summary").ok();
+    let prescription_json: String = row.get("prescription_json");
+    let coach_message_id: Option<String> = row.try_get("coach_message_id").ok();
+    let created_at: String = row.get("created_at");
+    let updated_at: String = row.get("updated_at");
+
+    let source: SessionSource = source
+        .parse()
+        .map_err(|e| DomainError::Storage(format!("Invalid session source: {e}")))?;
+    let status: SessionStatus = status
+        .parse()
+        .map_err(|e| DomainError::Storage(format!("Invalid session status: {e}")))?;
+    let session_type: SessionType = session_type
+        .parse()
+        .map_err(|e| DomainError::Storage(format!("Invalid session type: {e}")))?;
+
+    Ok(TrainingSession {
+        id: parse_uuid(&id)?,
+        user_id: parse_uuid(&user_id)?,
+        training_id: training_id.as_deref().map(parse_uuid).transpose()?,
+        source,
+        status,
+        title,
+        purpose,
+        session_type,
+        scheduled_for: scheduled_for.as_deref().map(parse_datetime).transpose()?,
+        earliest_start: earliest_start.as_deref().map(parse_datetime).transpose()?,
+        latest_start: latest_start.as_deref().map(parse_datetime).transpose()?,
+        estimated_duration_s,
+        estimated_distance_m,
+        intensity_summary,
+        prescription_json,
+        coach_message_id: coach_message_id.as_deref().map(parse_uuid).transpose()?,
+        created_at: parse_datetime(&created_at)?,
+        updated_at: parse_datetime(&updated_at)?,
     })
 }
 
@@ -1446,6 +1584,133 @@ impl Storage for SqliteStorage {
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| DomainError::Storage(format!("Failed to get interval result: {e}")))
+    }
+
+    // -----------------------------------------------------------------------
+    // Training sessions (Phase 1)
+    // -----------------------------------------------------------------------
+    async fn create_training_session(&self, session: &TrainingSession) -> Result<(), DomainError> {
+        sqlx::query(
+            "INSERT INTO training_sessions (
+                id, user_id, training_id, source, status, title, purpose, session_type,
+                scheduled_for, earliest_start, latest_start, estimated_duration_s,
+                estimated_distance_m, intensity_summary, prescription_json,
+                coach_message_id, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(session.id.to_string())
+        .bind(session.user_id.to_string())
+        .bind(session.training_id.map(|id| id.to_string()))
+        .bind(session.source.to_string())
+        .bind(session.status.to_string())
+        .bind(&session.title)
+        .bind(&session.purpose)
+        .bind(session.session_type.to_string())
+        .bind(session.scheduled_for.map(|d| d.to_rfc3339()))
+        .bind(session.earliest_start.map(|d| d.to_rfc3339()))
+        .bind(session.latest_start.map(|d| d.to_rfc3339()))
+        .bind(session.estimated_duration_s)
+        .bind(session.estimated_distance_m)
+        .bind(&session.intensity_summary)
+        .bind(&session.prescription_json)
+        .bind(session.coach_message_id.map(|id| id.to_string()))
+        .bind(session.created_at.to_rfc3339())
+        .bind(session.updated_at.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to create training session: {e}")))?;
+        Ok(())
+    }
+
+    async fn get_training_session(
+        &self,
+        id: Uuid,
+        user_id: Uuid,
+    ) -> Result<TrainingSession, DomainError> {
+        let row = sqlx::query(
+            "SELECT id, user_id, training_id, source, status, title, purpose, session_type,
+                    scheduled_for, earliest_start, latest_start, estimated_duration_s,
+                    estimated_distance_m, intensity_summary, prescription_json,
+                    coach_message_id, created_at, updated_at
+             FROM training_sessions
+             WHERE id = ? AND user_id = ?",
+        )
+        .bind(id.to_string())
+        .bind(user_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| DomainError::Storage(format!("Failed to get training session: {e}")))?
+        .ok_or_else(|| DomainError::NotFound(format!("Training session {id} not found")))?;
+
+        row_to_training_session(&row)
+    }
+
+    async fn list_training_sessions(
+        &self,
+        user_id: Uuid,
+        status: Option<SessionStatus>,
+    ) -> Result<Vec<TrainingSession>, DomainError> {
+        let rows = if let Some(status) = status {
+            sqlx::query(
+                "SELECT id, user_id, training_id, source, status, title, purpose, session_type,
+                        scheduled_for, earliest_start, latest_start, estimated_duration_s,
+                        estimated_distance_m, intensity_summary, prescription_json,
+                        coach_message_id, created_at, updated_at
+                 FROM training_sessions
+                 WHERE user_id = ? AND status = ?
+                 ORDER BY COALESCE(scheduled_for, created_at) DESC",
+            )
+            .bind(user_id.to_string())
+            .bind(status.to_string())
+            .fetch_all(&self.pool)
+            .await
+        } else {
+            sqlx::query(
+                "SELECT id, user_id, training_id, source, status, title, purpose, session_type,
+                        scheduled_for, earliest_start, latest_start, estimated_duration_s,
+                        estimated_distance_m, intensity_summary, prescription_json,
+                        coach_message_id, created_at, updated_at
+                 FROM training_sessions
+                 WHERE user_id = ?
+                 ORDER BY COALESCE(scheduled_for, created_at) DESC",
+            )
+            .bind(user_id.to_string())
+            .fetch_all(&self.pool)
+            .await
+        }
+        .map_err(|e| DomainError::Storage(format!("Failed to list training sessions: {e}")))?;
+
+        rows.iter().map(row_to_training_session).collect()
+    }
+
+    async fn update_training_session_status(
+        &self,
+        id: Uuid,
+        user_id: Uuid,
+        status: SessionStatus,
+    ) -> Result<(), DomainError> {
+        let result = sqlx::query(
+            "UPDATE training_sessions
+             SET status = ?, updated_at = ?
+             WHERE id = ? AND user_id = ?",
+        )
+        .bind(status.to_string())
+        .bind(chrono::Utc::now().to_rfc3339())
+        .bind(id.to_string())
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!("Failed to update training session status: {e}"))
+        })?;
+
+        if result.rows_affected() == 0 {
+            return Err(DomainError::NotFound(format!(
+                "Training session {id} not found"
+            )));
+        }
+
+        Ok(())
     }
 
     // -----------------------------------------------------------------------

@@ -7,6 +7,7 @@ import ActivityListPage from './pages/ActivityListPage';
 import ActivityDetailPage from './pages/ActivityDetailPage';
 import TrainingsListPage from './pages/TrainingsListPage';
 import TrainingDetailPage from './pages/TrainingDetailPage';
+import TrainingSessionsPage from './pages/TrainingSessionsPage';
 import RacesPage from './pages/RacesPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
@@ -61,6 +62,14 @@ function App() {
             element={
               <AuthGuard>
                 <TrainingDetailPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/training-sessions"
+            element={
+              <AuthGuard>
+                <TrainingSessionsPage />
               </AuthGuard>
             }
           />

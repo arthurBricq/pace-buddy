@@ -429,7 +429,7 @@ backfill script needed; activities the user never views stay un-parsed, which is
 **Threshold constant.** `INTERVAL_WORKOUT_THRESHOLD = 0.55` lives in `intervals/src/algorithms/mod.rs` with a
 doc comment recording the corpus medians (intervals 0.91 / runs 0.60 / races 0.41) and re-calibration steps.
 
-### Phase 1: Domain and Storage Foundation
+### Phase 1: Domain and Storage Foundation [DONE]
 
 Goal: create durable planned-quality-session objects without involving the coach yet.
 
