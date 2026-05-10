@@ -388,6 +388,41 @@ justify the threshold.
 Optional: the AI-coach is given context. We could feed the output of the interval-parsing algorithm to the coach context
 to all of the activites for which the stored interval_score is above a const threshold.
 
+#### Phase 0 status notes (2026-05-10)
+
+**Score redesign (done).** The original `interval_score` weighted rep count, recovery-alternation, and per-rep
+speed CV. On the labeled corpus (7 intervals, 5 races, 9 runs, 5 trails) it scored races *higher* than intervals
+(median 0.96 vs 0.74) — completely inverted. Replaced in `intervals/src/algorithms/mod.rs` with a v2 score that
+combines four signals normalized to `[0, 1]`:
+
+- gap between cluster_high and cluster_low speeds (35%)
+- duration-weighted overall speed CV across all segments (30%)
+- recovery cluster slowness — low cluster ≤ 10 km/h ideal (20%)
+- rep count, saturating at 7 (15%)
+
+Class medians on the corpus moved to: intervals 0.91, runs 0.60, races 0.41. `is_interval_workout` now requires
+`score ≥ 0.55` in addition to `reps ≥ min_work_segments`.
+
+**Remaining failure modes.** The 0.55 threshold misclassifies ~3 of 9 easy runs as intervals — those are runs
+with frequent slow stretches (traffic lights, walk breaks) that look bimodal on the speed signal alone. Without
+manual lap structure or activity-name parsing, this ambiguity is irreducible. One borderline interval (a hybrid
+2k+5k tempo session) scores 0.52. Acceptable for v1; tune the threshold or add signals later.
+
+**Sync wiring (explored, not shipped).** `AppState::resolve_intervals` (in `bin/src/state/intervals.rs`) is
+already the right primitive — it lazy-fetches streams or laps, parses, and stores. To make every Run activity
+get an `IntervalResult` automatically, the simplest path is:
+
+1. After `sync_user_activities` upserts new activities, walk the new ones and call `resolve_intervals` for each
+   `sport_type == "Run"` activity.
+2. To avoid blocking the sync handler on N Strava stream-fetch calls, spawn this as a `tokio::spawn` task
+   sequenced behind the sync; throttle with a small semaphore (e.g. 4 concurrent) to stay within Strava rate
+   limits.
+3. For backfill of historical activities, a CLI subcommand or admin endpoint that walks `Activity` rows lacking
+   `interval_results` and calls `resolve_intervals` is a one-liner on top of the same primitive.
+
+The data flow already supports this; the missing piece is the post-sync hook plus rate limiting. Tracking as a
+follow-up; not blocking Phase 1.
+
 ### Phase 1: Domain and Storage Foundation
 
 Goal: create durable planned-quality-session objects without involving the coach yet.

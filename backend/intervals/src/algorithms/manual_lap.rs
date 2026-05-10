@@ -107,9 +107,17 @@ impl IntervalParsingAlgorithm for ManualLapIntervalAlgorithm<'_> {
         let mut reps_list = build_reps_from_work_segments(&segments);
         intensity::compute_intensity(&mut reps_list, mas_kmh);
 
-        let work_count = reps_list.len();
-        let is_interval_workout = work_count >= config.min_work_segments;
-        let interval_score = compute_interval_score(&reps_list, config);
+        // TODO: scoring logic could be factorized into the trait, since it is the same between both
+        // `IntervalParsingAlgorithm`
+        let interval_score = compute_interval_score(
+            &reps_list,
+            &segments,
+            cluster_low_mps,
+            cluster_high_mps,
+            config,
+        );
+        let is_interval_workout =
+            reps_list.len() >= config.min_work_segments && interval_score >= 0.55;
 
         Ok(IntervalResult {
             segments,

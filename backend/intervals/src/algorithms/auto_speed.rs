@@ -33,10 +33,20 @@ impl IntervalParsingAlgorithm for AutoSpeedSegmentationAlgorithm {
         // 5. Intensity: compute %MAS for each rep
         intensity::compute_intensity(&mut reps_list, mas_kmh);
 
+        // TODO: scoring logic could be factorized into the trait, since it is the same between both
+        // `IntervalParsingAlgorithm`
         // 6. Scoring
-        let work_count = reps_list.len();
-        let is_interval_workout = work_count >= config.min_work_segments;
-        let interval_score = compute_interval_score(&reps_list, config);
+        let interval_score = compute_interval_score(
+            &reps_list,
+            &segments,
+            segmentation.cluster_low_mps,
+            segmentation.cluster_high_mps,
+            config,
+        );
+        // is_interval_workout is the high-confidence gate: it requires both
+        // structural minimum (rep count) and the v2 score above threshold.
+        let is_interval_workout =
+            reps_list.len() >= config.min_work_segments && interval_score >= 0.55;
 
         Ok(IntervalResult {
             segments,

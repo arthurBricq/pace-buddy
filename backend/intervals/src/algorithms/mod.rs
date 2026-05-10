@@ -4,34 +4,78 @@ mod manual_lap;
 pub use auto_speed::AutoSpeedSegmentationAlgorithm;
 pub use manual_lap::ManualLapIntervalAlgorithm;
 
-use crate::stats;
-use crate::types::{IntervalConfig, Rep};
+use crate::types::{IntervalConfig, Rep, Segment};
 
-/// Compute a simple interval quality score in [0, 1].
-pub(crate) fn compute_interval_score(reps: &[Rep], config: &IntervalConfig) -> f64 {
+/// Compute interval-quality score in `[0, 1]`. The score is intended as a
+/// confidence that the activity is an interval workout: it should be high for
+/// real intervals and low for races, easy runs, and any other steady-state
+/// effort.
+///
+/// Calibration on the labeled fixture corpus (see `intervals::fixtures` and
+/// the `cli calibrate` subcommand) shows that the dominant signals are:
+///
+/// 1. Speed gap between the work and recovery clusters (interval workouts
+///    have a large gap; races and easy runs have a small gap).
+/// 2. Overall speed variability across the activity (intervals alternate
+///    fast/slow; races and easy runs are steady).
+/// 3. Rep count (must be at least `min_work_segments`).
+/// 4. Recovery slowness (real recovery is jog/walk pace; race "recoveries"
+///    are still close to race pace).
+///
+/// The earlier scoring (rep count + alternation + per-rep speed CV) confused
+/// races with intervals because races have very consistent rep speeds. The
+/// new score deliberately rewards activity-wide variance, not per-rep
+/// uniformity.
+///
+/// Threshold convention: `score >= 0.55` is the "looks like intervals" gate
+/// used elsewhere in the codebase. See `coach-suggested-sessions-plan.md`
+/// Phase 0.
+pub(crate) fn compute_interval_score(
+    reps: &[Rep],
+    segments: &[Segment],
+    cluster_low_mps: f64,
+    cluster_high_mps: f64,
+    config: &IntervalConfig,
+) -> f64 {
     if reps.len() < config.min_work_segments {
         return 0.0;
     }
 
-    let mut score = 0.0;
+    // 1. Cluster gap (saturate at 1.5 mps ≈ 5.4 km/h)
+    let gap_mps = (cluster_high_mps - cluster_low_mps).max(0.0);
+    let gap_term = (gap_mps / 1.5).clamp(0.0, 1.0);
 
-    // Factor 1: number of reps (more = more likely intervals)
-    let rep_score = (reps.len() as f64 / 10.0).min(1.0);
-    score += rep_score * 0.3;
+    // 2. Overall speed CV — duration-weighted across all segments.
+    let total_dur: f64 = segments.iter().map(|s| s.duration_s).sum();
+    let cv_term = if total_dur > 60.0 {
+        let weighted_mean: f64 = segments
+            .iter()
+            .map(|s| s.avg_speed_mps * s.duration_s)
+            .sum::<f64>()
+            / total_dur;
+        if weighted_mean > 0.01 {
+            let var: f64 = segments
+                .iter()
+                .map(|s| {
+                    let d = s.avg_speed_mps - weighted_mean;
+                    d * d * s.duration_s
+                })
+                .sum::<f64>()
+                / total_dur;
+            (var.sqrt() / weighted_mean / 0.4).clamp(0.0, 1.0)
+        } else {
+            0.0
+        }
+    } else {
+        0.0
+    };
 
-    // Factor 2: fraction of work segments followed by recovery
-    let with_recovery = reps
-        .iter()
-        .filter(|r| r.recovery_duration_s.is_some())
-        .count();
-    let alternation = with_recovery as f64 / reps.len() as f64;
-    score += alternation * 0.3;
+    // 3. Rep count: 3 reps -> 0.2, 7+ reps -> 1.0.
+    let rep_term = ((reps.len() as f64 - 2.0) / 5.0).clamp(0.0, 1.0);
 
-    // Factor 3: consistency of work speeds (low CV = better)
-    let work_speeds: Vec<f64> = reps.iter().map(|r| r.avg_speed_mps).collect();
-    let speed_cv = stats::cv(&work_speeds);
-    let consistency = (1.0 - speed_cv).max(0.0).min(1.0);
-    score += consistency * 0.4;
+    // 4. Recovery is genuinely slow: low cluster <= 10 km/h -> 1, >= 13 -> 0.
+    let low_kmh = cluster_low_mps * 3.6;
+    let recovery_term = ((13.0 - low_kmh) / 3.0).clamp(0.0, 1.0);
 
-    score.min(1.0)
+    0.35 * gap_term + 0.30 * cv_term + 0.15 * rep_term + 0.20 * recovery_term
 }
