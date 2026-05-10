@@ -299,3 +299,86 @@ export interface MASEstimate {
   distance_m: number;
   time_s: number;
 }
+
+// =================================================================
+// Training sessions (planned quality sessions)
+// =================================================================
+
+export type SessionStatus =
+  | 'suggested'
+  | 'planned'
+  | 'done'
+  | 'skipped'
+  | 'rejected';
+
+export type SessionType =
+  | 'intervals'
+  | 'tempo'
+  | 'threshold'
+  | 'hill'
+  | 'fartlek'
+  | 'progression'
+  | 'race_pace'
+  | 'time_trial'
+  | 'strides'
+  | 'other_quality';
+
+export interface TrainingSession {
+  id: string;
+  user_id: string;
+  training_id: string | null;
+  status: SessionStatus;
+  title: string;
+  session_type: SessionType;
+  expiry: string | null;
+  estimated_duration_s: number | null;
+  estimated_distance_m: number | null;
+  intensity_summary: string | null;
+  prescription_json: string;
+  coach_message_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// =================================================================
+// Prescription schema (mirrors backend/domain/src/prescription.rs)
+// =================================================================
+
+export type Target =
+  | { type: 'pace'; min_s_per_km: number; max_s_per_km: number }
+  | { type: 'speed'; min_mps: number; max_mps: number }
+  | { type: 'heart_rate'; min_bpm: number; max_bpm: number }
+  | { type: 'percent_mas'; min: number; max: number }
+  | { type: 'rpe'; min: number; max: number }
+  | { type: 'effort'; label: string };
+
+export interface OpenBlock {
+  duration_s?: number;
+  distance_m?: number;
+  notes?: string;
+}
+
+export interface WorkBlock {
+  duration_s?: number;
+  distance_m?: number;
+  target: Target;
+}
+
+export interface RecoveryBlock {
+  duration_s?: number;
+  distance_m?: number;
+  target?: Target;
+}
+
+export interface PrescriptionSet {
+  repeat: number;
+  work: WorkBlock;
+  recovery?: RecoveryBlock;
+}
+
+export interface Prescription {
+  warmup?: OpenBlock;
+  sets?: PrescriptionSet[];
+  cooldown?: OpenBlock;
+  notes?: string;
+}

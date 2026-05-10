@@ -24,10 +24,10 @@ backend/strava_client_secret
 backend/openrouter_key
 
 # Personal files
-TODO.md
 TASK.md
 commands.txt
 COMPLIANCE.md
+LOCAL_RUN.md
 
 # Intervals fixture dumps (manifest.json is committed, dumps are local)
 backend/intervals/fixtures/*.json

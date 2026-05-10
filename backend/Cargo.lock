@@ -583,6 +583,7 @@ name = "cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "domain",
  "intervals",
@@ -2924,6 +2925,7 @@ dependencies = [
  "domain",
  "serde_json",
  "sqlx",
+ "tokio",
  "uuid",
 ]
 

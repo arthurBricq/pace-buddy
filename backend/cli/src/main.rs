@@ -1,4 +1,6 @@
+use chrono::Utc;
 use clap::{Parser, Subcommand, ValueEnum};
+use domain::{Prescription, SessionStatus, SessionType, TrainingSession};
 use intervals::fixtures::{self, FixtureCategory};
 use intervals::types::IntervalConfig;
 use storage::Storage;
@@ -53,6 +55,25 @@ enum Command {
         /// Include trail-running fixtures (out of v1 scope by default)
         #[arg(long)]
         include_trails: bool,
+    },
+    /// Seed a TrainingSession row from a JSON prescription file. Dev/test only.
+    /// The JSON is validated via Prescription::parse before insertion.
+    SeedTrainingSession {
+        /// Owner of the new session (must be an existing user UUID)
+        #[arg(long)]
+        user: Uuid,
+        /// Display title for the session
+        #[arg(long)]
+        title: String,
+        /// Session type (e.g. intervals, tempo, threshold, hill, fartlek, ...)
+        #[arg(long = "session-type")]
+        session_type: String,
+        /// Path to a JSON file matching the Prescription schema
+        #[arg(long)]
+        prescription: String,
+        /// Initial status for the seeded session (default: suggested)
+        #[arg(long, default_value = "suggested")]
+        status: String,
     },
 }
 
@@ -276,6 +297,47 @@ async fn main() -> anyhow::Result<()> {
                     }
                 }
             }
+        }
+        Command::SeedTrainingSession {
+            user,
+            title,
+            session_type,
+            prescription,
+            status,
+        } => {
+            let raw = std::fs::read_to_string(&prescription)
+                .map_err(|e| anyhow::anyhow!("read {prescription}: {e}"))?;
+            // Validate the prescription up-front so we don't insert garbage.
+            Prescription::parse(&raw)
+                .map_err(|e| anyhow::anyhow!("invalid prescription JSON: {e}"))?;
+
+            let session_type: SessionType = session_type
+                .parse()
+                .map_err(|e| anyhow::anyhow!("invalid --session-type: {e}"))?;
+            let status: SessionStatus = status
+                .parse()
+                .map_err(|e| anyhow::anyhow!("invalid --status: {e}"))?;
+
+            let now = Utc::now();
+            let session = TrainingSession {
+                id: Uuid::new_v4(),
+                user_id: user,
+                training_id: None,
+                status,
+                title,
+                session_type,
+                expiry: None,
+                estimated_duration_s: None,
+                estimated_distance_m: None,
+                intensity_summary: None,
+                prescription_json: raw,
+                coach_message_id: None,
+                created_at: now,
+                updated_at: now,
+            };
+
+            db.create_training_session(&session).await?;
+            println!("Seeded training session {}", session.id);
         }
     }
 

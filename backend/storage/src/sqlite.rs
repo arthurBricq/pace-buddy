@@ -795,16 +795,16 @@ fn row_to_training_insight(row: &SqliteRow) -> Result<TrainingInsight, DomainErr
 fn row_to_training_session(row: &SqliteRow) -> Result<TrainingSession, DomainError> {
     let id: String = row.get("id");
     let user_id: String = row.get("user_id");
-    let training_id: Option<String> = row.try_get("training_id").ok();
+    let training_id: Option<String> = row.get("training_id");
     let status: String = row.get("status");
     let title: String = row.get("title");
     let session_type: String = row.get("session_type");
-    let expiry: Option<String> = row.try_get("expiry").ok();
-    let estimated_duration_s: Option<i64> = row.try_get("estimated_duration_s").ok();
-    let estimated_distance_m: Option<f64> = row.try_get("estimated_distance_m").ok();
-    let intensity_summary: Option<String> = row.try_get("intensity_summary").ok();
+    let expiry: Option<String> = row.get("expiry");
+    let estimated_duration_s: Option<i64> = row.get("estimated_duration_s");
+    let estimated_distance_m: Option<f64> = row.get("estimated_distance_m");
+    let intensity_summary: Option<String> = row.get("intensity_summary");
     let prescription_json: String = row.get("prescription_json");
-    let coach_message_id: Option<String> = row.try_get("coach_message_id").ok();
+    let coach_message_id: Option<String> = row.get("coach_message_id");
     let created_at: String = row.get("created_at");
     let updated_at: String = row.get("updated_at");
 
