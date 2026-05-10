@@ -1,0 +1,48 @@
+{
+  "warmup": {
+    "duration_s": 900,
+    "notes": "easy"
+  },
+  "sets": [
+    {
+      "repeat": 4,
+      "work": {
+        "duration_s": 60,
+        "target": {
+          "type": "rpe",
+          "min": 8,
+          "max": 9
+        }
+      },
+      "recovery": {
+        "duration_s": 60,
+        "target": {
+          "type": "effort",
+          "label": "easy"
+        }
+      }
+    },
+    {
+      "repeat": 6,
+      "work": {
+        "duration_s": 30,
+        "target": {
+          "type": "rpe",
+          "min": 9,
+          "max": 10
+        }
+      },
+      "recovery": {
+        "duration_s": 30,
+        "target": {
+          "type": "effort",
+          "label": "easy"
+        }
+      }
+    }
+  ],
+  "cooldown": {
+    "duration_s": 600
+  },
+  "notes": "Two-block fartlek: 4 × 60s/60s, then 6 × 30s/30s."
+}

@@ -1,0 +1,23 @@
+{
+  "warmup": {
+    "duration_s": 900,
+    "notes": "easy"
+  },
+  "sets": [
+    {
+      "repeat": 1,
+      "work": {
+        "distance_m": 5000,
+        "target": {
+          "type": "pace",
+          "min_s_per_km": 240,
+          "max_s_per_km": 250
+        }
+      }
+    }
+  ],
+  "cooldown": {
+    "duration_s": 600
+  },
+  "notes": "Steady, conversational at the upper end."
+}
