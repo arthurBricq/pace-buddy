@@ -9,6 +9,7 @@ use crate::helpers::invite_code_helper::{
     generate_invite_code, hash_invite_code, invite_code_is_valid_for_redemption,
     normalize_invite_code,
 };
+use crate::helpers::strava_data_helper::{load_and_cache_laps, load_and_cache_streams};
 use crate::middleware::AuthenticatedUser;
 use crate::state::AppState;
 
@@ -429,4 +430,60 @@ pub async fn revoke_invite_code(
     verify_admin(&state, &user).await?;
     state.storage.revoke_invite_code(path.into_inner()).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })))
+}
+
+#[derive(Serialize)]
+struct ActivityDumpIntervalResult {
+    algorithm: String,
+    result: serde_json::Value,
+}
+
+#[derive(Serialize)]
+struct ActivityDump {
+    activity: domain::Activity,
+    streams: Vec<domain::ActivityStream>,
+    laps: Vec<domain::ActivityLap>,
+    interval_result: Option<ActivityDumpIntervalResult>,
+}
+
+pub async fn dump_activity(
+    state: web::Data<AppState>,
+    user: AuthenticatedUser,
+    path: web::Path<Uuid>,
+) -> Result<HttpResponse, AppError> {
+    verify_admin(&state, &user).await?;
+    let activity_id = path.into_inner();
+
+    let activity = state.storage.get_activity(activity_id, user.user_id).await?;
+
+    let mut streams = state
+        .storage
+        .get_streams(activity_id)
+        .await
+        .unwrap_or_default();
+    if streams.is_empty() {
+        streams = load_and_cache_streams(&state, &activity).await?;
+    }
+
+    let mut laps = state.storage.get_laps(activity_id).await.unwrap_or_default();
+    if laps.is_empty() {
+        laps = load_and_cache_laps(&state, &activity).await?;
+    }
+
+    let interval_result = state
+        .storage
+        .get_interval_result(activity_id)
+        .await?
+        .map(|(algorithm, result_json)| {
+            let result = serde_json::from_str::<serde_json::Value>(&result_json)
+                .unwrap_or(serde_json::Value::String(result_json));
+            ActivityDumpIntervalResult { algorithm, result }
+        });
+
+    Ok(HttpResponse::Ok().json(ActivityDump {
+        activity,
+        streams,
+        laps,
+        interval_result,
+    }))
 }

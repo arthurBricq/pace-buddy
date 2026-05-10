@@ -143,6 +143,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route(
                         "/invite-codes/{id}/revoke",
                         web::post().to(admin_routes::revoke_invite_code),
+                    )
+                    .route(
+                        "/activities/{id}/dump",
+                        web::get().to(admin_routes::dump_activity),
                     ),
             )
             .service(

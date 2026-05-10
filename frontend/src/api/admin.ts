@@ -109,3 +109,22 @@ export function createInviteCode(
 export function revokeInviteCode(id: string): Promise<{ status: string }> {
   return apiFetch('/admin/invite-codes/' + id + '/revoke', { method: 'POST' });
 }
+
+export async function downloadActivityDump(activityId: string): Promise<void> {
+  const res = await fetch(`/api/admin/activities/${activityId}/dump`, {
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${activityId}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

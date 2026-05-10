@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getActivitiesSyncStatus, listActivities, updateActivityTag } from '../api/activities';
+import { downloadActivityDump, getAdminStats } from '../api/admin';
 import { getStravaStatus } from '../api/strava';
 import type { Activity, ActivityTag } from '../types';
 import TagBadge from '../components/TagBadge';
@@ -67,8 +68,22 @@ export default function ActivityListPage() {
   const [tagFilter, setTagFilter] = useState<ActivityTag | 'all'>('all');
   const [qualityOnly, setQualityOnly] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [dumpingId, setDumpingId] = useState<string | null>(null);
   const limit = 50;
   const editingActivity = editingTag ? activities.find((a) => a.id === editingTag) ?? null : null;
+
+  const handleDownloadDump = async (activityId: string) => {
+    if (dumpingId) return;
+    setDumpingId(activityId);
+    try {
+      await downloadActivityDump(activityId);
+    } catch (err: any) {
+      setError(err.message || 'Failed to download dump');
+    } finally {
+      setDumpingId(null);
+    }
+  };
 
   const load = async (off = 0) => {
     setLoading(true);
@@ -162,6 +177,20 @@ export default function ActivityListPage() {
     getStravaStatus()
       .then((status) => setStravaLinked(Boolean(status.linked)))
       .catch(() => setStravaLinked(false));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getAdminStats()
+      .then(() => {
+        if (!cancelled) setIsAdmin(true);
+      })
+      .catch(() => {
+        // not an admin; button stays hidden
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -375,7 +404,18 @@ export default function ActivityListPage() {
                         <p className="text-xs theme-muted">
                           {new Date(a.start_date).toLocaleDateString()}
                         </p>
-                        <div>
+                        <div className="flex items-center gap-2">
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadDump(a.id)}
+                              disabled={dumpingId === a.id}
+                              className="text-xs px-2 py-0.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                              title="Download fixture dump (admin)"
+                            >
+                              {dumpingId === a.id ? '…' : 'Dump'}
+                            </button>
+                          )}
                           <button
                             onClick={() => openTagEditor(a.id)}
                             className="tag-edit-trigger"
@@ -451,13 +491,26 @@ export default function ActivityListPage() {
                             {formatPace(a.average_speed)}
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <button
-                              onClick={() => openTagEditor(a.id)}
-                              className="tag-edit-trigger"
-                              title="Edit activity type"
-                            >
-                              <TagBadge tag={a.tag} />
-                            </button>
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => openTagEditor(a.id)}
+                                className="tag-edit-trigger"
+                                title="Edit activity type"
+                              >
+                                <TagBadge tag={a.tag} />
+                              </button>
+                              {isAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadDump(a.id)}
+                                  disabled={dumpingId === a.id}
+                                  className="text-xs px-2 py-0.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                                  title="Download fixture dump (admin)"
+                                >
+                                  {dumpingId === a.id ? '…' : 'Dump'}
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}

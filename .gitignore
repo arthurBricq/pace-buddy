@@ -28,3 +28,7 @@ TODO.md
 TASK.md
 commands.txt
 COMPLIANCE.md
+
+# Intervals fixture dumps (manifest.json is committed, dumps are local)
+backend/intervals/fixtures/*.json
+!backend/intervals/fixtures/manifest.json

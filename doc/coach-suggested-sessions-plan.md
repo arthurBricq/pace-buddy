@@ -352,10 +352,15 @@ The matching engine in Phase 5 is only as good as the interval parsing it consum
 score has never been calibrated against non-interval activities. Phase 0 fixes that before any planned-session work
 depends on it.
 
+Scope: **road running only** (`sport_type == "Run"`) for v1. Trail running (`sport_type == "TrailRun"`) is skipped
+end-to-end — the parser is not run on it, and the matching engine in Phase 5 will not treat trail activities as
+candidates for road-quality planned sessions. The fixture corpus contains a `trail` bucket so we have data on hand
+when we revisit this, but it is excluded from threshold calibration.
+
 Goals:
 
-- Run the interval parser on every activity at sync time, store the `IntervalResult` keyed by algorithm
-  version (we already key by algorithm — keep that).
+- Run the interval parser on every road-running activity at sync time, store the `IntervalResult` keyed by algorithm
+  version (we already key by algorithm — keep that). Skip non-`Run` sport types.
 - Define and document a normalized confidence in `[0, 1]` derived from `interval_score`. The current score is an
   unbounded float; pick a normalization and a display threshold by labeling a small set of real activities (clearly
   interval / clearly not / borderline) and choosing the cutoff that keeps false positives near zero.

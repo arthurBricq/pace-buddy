@@ -5,6 +5,7 @@ import {
   getIntervals,
   updateActivityTag,
 } from '../api/activities';
+import { downloadActivityDump, getAdminStats } from '../api/admin';
 import type { ActivityDetail, ActivityTag, IntervalAlgorithm, IntervalResponse } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import Navbar from '../components/Navbar';
@@ -24,6 +25,8 @@ export default function ActivityDetailPage() {
   const [editingTag, setEditingTag] = useState(false);
   const [intervals, setIntervals] = useState<IntervalResponse | null>(null);
   const [intervalAlgorithm, setIntervalAlgorithm] = useState<IntervalAlgorithm | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [dumping, setDumping] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -33,6 +36,32 @@ export default function ActivityDetailPage() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getAdminStats()
+      .then(() => {
+        if (!cancelled) setIsAdmin(true);
+      })
+      .catch(() => {
+        // not an admin, leave button hidden
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleDownloadDump = async () => {
+    if (!id || dumping) return;
+    setDumping(true);
+    try {
+      await downloadActivityDump(id);
+    } catch (err: any) {
+      setError(err.message || 'Failed to download dump');
+    } finally {
+      setDumping(false);
+    }
+  };
 
   useEffect(() => {
     if (!id || !detail) return;
@@ -127,7 +156,18 @@ export default function ActivityDetailPage() {
               &middot; {activity.sport_type}
             </p>
           </div>
-          <div>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={handleDownloadDump}
+                disabled={dumping}
+                className="text-sm px-3 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                title="Download activity + streams + laps + interval result as JSON for the fixture corpus"
+              >
+                {dumping ? 'Dumping…' : 'Download dump'}
+              </button>
+            )}
             {editingTag ? (
               <TagSelector current={activity.tag} onChange={handleTagChange} />
             ) : (

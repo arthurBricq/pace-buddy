@@ -1,5 +1,7 @@
 mod algorithms;
 pub mod error;
+#[cfg(test)]
+pub mod fixtures;
 pub mod hydrate;
 pub mod intensity;
 pub mod preprocess;
