@@ -431,7 +431,7 @@ doc comment recording the corpus medians (intervals 0.91 / runs 0.60 / races 0.4
 
 ### Phase 1: Domain and Storage Foundation [DONE]
 
-Goal: durable `TrainingSession` objects in the DB so the coach (Phase 2) has somewhere to write to.
+Goal: durable `TrainingSession` objects in the DB so the coach (Phase 3) has somewhere to write to.
 
 What shipped:
 
@@ -447,14 +447,61 @@ What shipped:
 - Frontend: a placeholder page at `/training-sessions` rendering "Feature under development — coming soon",
   plus a "Sessions" navbar entry. No list, no API client, no Training-detail integration.
 
-Intentionally **not** in Phase 1 (deferred to Phase 2 / Phase 3, or dropped):
+Intentionally **not** in Phase 1 (deferred or dropped):
 
 - Manual create flow — the feature is coach-suggested.
-- Any `Training` coupling — `training_id` is a nullable column kept for Phase 2; never populated yet.
-- Test seeding mechanism — the coach in Phase 2 will be the first writer; until then the page is blank.
-- Match-table reads/writes — Phase 3.
+- Any `Training` coupling — `training_id` is a nullable column kept for Phase 3; never populated yet.
+- Test seeding mechanism — Phase 2 hand-seeds rows via `sqlite3` to exercise the new display component.
+- Match-table reads/writes — Phase 4.
 
-### Phase 2: Coach Suggestions
+### Phase 2: Prescription Schema and Display
+
+Goal: pin down a typed Rust schema for `prescription_json` and ship a frontend component that renders it,
+before the coach starts producing JSON in Phase 3. 
+
+Tasks:
+
+- **Define the typed schema** in `backend/domain/src/prescription.rs`. Single struct `Prescription` with
+  optional warmup, a `Vec<Set>` body, optional cooldown, and free-text notes. The interesting Rust enum is
+  `Target`, with variants `Pace { min_s_per_km, max_s_per_km }`, `Speed { ... }`, `HeartRate { ... }`,
+  `PercentMas { ... }`, `Rpe { ... }`, `Effort { label }`. Use serde's internally-tagged representation
+  (`#[serde(tag = "type")]`) so JSON looks like `{"type": "pace", "min_s_per_km": 230, ...}`.
+- **Don't reuse the `intervals` crate types directly.** That crate models *executed* sessions: `Rep` has
+  measured `avg_pace_s_per_km`, `pace_std`, `pct_mas`. A planned `Set` has targets (ranges, distance-or-
+  duration choice). The semantics are different even when units overlap; define prescription types from
+  scratch and let Phase 4's comparison helpers map planned `Target` → executed `Rep` for diffing.
+- **Schema parsing helper.** A small `Prescription::parse(s: &str) -> Result<Prescription, ...>` so callers
+  get a proper error when storage hands them a malformed blob (forward-compatibility — old rows missing
+  newly-required fields shouldn't crash the renderer; fail-soft to "raw text" display).
+- **Round-trip tests.** A handful of representative JSON examples (track intervals, tempo, hill repeats,
+  fartlek) deserialized → serialized → deserialized again to lock the wire format. Commit the JSON examples
+  as fixtures under `backend/domain/src/prescription_fixtures/` or similar.
+- **Frontend type definitions** in `frontend/src/types.ts` mirroring the Rust shape. Hand-written for now;
+  generator (e.g. `ts-rs`) only if drift becomes a real problem.
+- **`PrescriptionDisplay` component** in `frontend/src/components/`. Renders the structured prescription as
+  human-readable workout shorthand:
+    > **Warmup** — 20 min easy + 4 × 100 m strides
+    > **6 × 800 m @ 3:20–3:30/km** with 2 min easy jog recovery
+    > **Cooldown** — 10 min
+    > _Stop at 5 reps if form breaks down._
+  Fail-soft when JSON is malformed: render the raw string in a `<pre>` block with a small "couldn't parse"
+  notice. Used later in Phase 3 by suggestion cards and on the real `/training-sessions` list.
+- **Local test page.** Replace the placeholder content of `TrainingSessionsPage.tsx` with the real list view:
+  fetch via `GET /api/training-sessions`, render each session's title + status + `<PrescriptionDisplay>`,
+  per-row status actions (Mark done, Skip). Calls the existing PATCH `/status` route shipped in Phase 1.
+- **Seeding for testing.** Document a 3-line `sqlite3` recipe in this doc (or a one-shot
+  `cli seed-training-session --json fixtures/example.json` subcommand) so we can exercise the page without
+  the coach. Lives in development workflow only; not a user-facing feature.
+
+Done when:
+
+- A handful of hand-crafted prescription JSON files round-trip cleanly through `Prescription::parse`.
+- A row inserted via `sqlite3` shows up on `/training-sessions` rendered as readable workout shorthand by
+  `PrescriptionDisplay`.
+- Status actions on the page flip the row through the existing PATCH route.
+- Phase 3 can pick up `Prescription` as a known-good type and focus on coach prompt + tool wiring.
+
+### Phase 3: Coach Suggestions
 
 Goal: turn the coach from an advice surface into a writer of structured `TrainingSession` rows the user can
 accept or reject.
@@ -488,7 +535,7 @@ Done when: a user can ask the coach for a workout, see a structured suggestion c
 it, and find the resulting `planned` session on `/training-sessions`. The coach can also list existing sessions
 to avoid double-proposing.
 
-### Phase 3: Matching, Confirmation, and Comparison
+### Phase 4: Matching, Confirmation, and Comparison
 
 Goal: connect executed Strava activities back to the planned sessions they completed, and produce
 planned-vs-executed summaries the coach can reason about.
@@ -519,7 +566,7 @@ Done when: a synced Strava activity that completes a planned interval session ge
 as a candidate), the user can confirm/correct, and the coach can read "you ran 5 of 6 reps, second-rep pace
 4 s slow" via its tools.
 
-### Phase 4: Product Refinement
+### Phase 5: Product Refinement
 
 Goal: make the loop feel like coaching rather than bookkeeping.
 
