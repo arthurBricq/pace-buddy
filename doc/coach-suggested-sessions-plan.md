@@ -519,40 +519,6 @@ Done when: a user can ask the coach for a workout, see a structured suggestion c
 it, and find the resulting `planned` session on `/training-sessions`. The coach can also list existing sessions
 to avoid double-proposing.
 
-### Phase 3: Coach Suggestions
-
-Goal: turn the coach from an advice surface into a writer of structured `TrainingSession` rows the user can
-accept or reject.
-
-Tasks:
-
-- **Define the `prescription_json` schema.** Pick a first-cut shape (warmup / sets / cooldown / targets per the
-  plan example) sufficient for display and matching. Document it once, in code; iterate later. The schema is
-  enforced at the `propose_sessions` tool boundary — invalid payloads from the LLM are dropped (or retried
-  with a hint), not stored.
-- **Coach context.** Add the user's current/next `TrainingSession` rows to the automatic context built in
-  `coach-memory/src/context.rs` — counts and titles only, not full prescriptions. Explicit "no upcoming
-  sessions" line when empty so the coach knows the absence is real.
-- **Coach tools.**
-    - `list_planned_sessions(status?)` — read-only, filters by status.
-    - `propose_sessions(payload)` — validates against the prescription schema; on success, persists rows with
-      `status = 'suggested'`, `source = 'coach'`, and `coach_message_id` set.
-    - `update_planned_session_status(id, status)` — coach-driven status transitions (e.g. mark `superseded` /
-      `rejected` on the user's behalf when the conversation makes it explicit).
-- **Frontend.** Replace the placeholder at `/training-sessions` with the real list page (status filter chips,
-  per-row actions: Accept, Reject, Skip, Mark done). In the Running Coach chat, render any sessions a reply
-  produced as inspectable cards inline below the message — Accept flips the row to `planned` via the existing
-  PATCH route, Reject flips it to `rejected`. No structured-prescription editor; "edit before accepting" is
-  out of scope.
-- **Prompt.** Tell the coach when to call `propose_sessions` (only when the user is asking for a quality
-  session) vs. when to answer in prose (easy run, long run, rest day). Default to **one** suggestion unless
-  the user explicitly asks for options. Update `doc/ai-coach-data-inputs.md` to reflect the new context and
-  tool surfaces.
-
-Done when: a user can ask the coach for a workout, see a structured suggestion card in the chat reply, accept
-it, and find the resulting `planned` session on `/training-sessions`. The coach can also list existing sessions
-to avoid double-proposing.
-
 ### Phase 4: Matching, Confirmation, and Comparison
 
 Goal: connect executed Strava activities back to the planned sessions they completed, and produce
