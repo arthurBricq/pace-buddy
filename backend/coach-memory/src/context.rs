@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use chrono::{Datelike, Duration, Utc};
 use domain::{
     coach_considers_sport_type_as_run, Activity, ActivityTag, DomainError, RunningCoachMemoryData,
-    RunningCoachSettings, RunningCoachState,
+    RunningCoachSettings, RunningCoachState, SessionStatus, TrainingSession,
 };
 use uuid::Uuid;
 
@@ -40,6 +40,7 @@ pub async fn build_coach_context(
     let to = Utc::now() + Duration::days(1);
     let activities_in_window = store.get_activities_in_range(user_id, from, to).await?;
     let activities_recent = store.get_activities(user_id, 500, 0).await?;
+    let training_sessions = store.list_training_sessions(user_id).await?;
 
     let workouts: Vec<&Activity> = activities_recent
         .iter()
@@ -176,6 +177,8 @@ pub async fn build_coach_context(
     }
     push_activity_lines(&mut content, &new_activities);
 
+    push_training_sessions(&mut content, &training_sessions);
+
     content.push_str("\n## Recent tool results\n");
     content
         .push_str("Compact summaries of recent session lookup tool usage from prior exchanges.\n");
@@ -263,6 +266,66 @@ fn push_activity_lines(content: &mut String, activities: &[&Activity]) {
     }
 }
 
+/// Render the user's pending suggestions and accepted-upcoming sessions as a
+/// compact section. Titles + counts only — full prescriptions are out of scope
+/// for this block and would bloat the prompt. Sessions in terminal states
+/// (`done`/`skipped`/`rejected`) are omitted; future phases may surface
+/// recently-completed sessions separately.
+fn push_training_sessions(content: &mut String, sessions: &[TrainingSession]) {
+    content.push_str("\n## Planned quality sessions\n");
+
+    let mut suggested: Vec<&TrainingSession> = sessions
+        .iter()
+        .filter(|s| s.status == SessionStatus::Suggested)
+        .collect();
+    let mut planned: Vec<&TrainingSession> = sessions
+        .iter()
+        .filter(|s| s.status == SessionStatus::Planned)
+        .collect();
+
+    // Soonest expiry first; sessions without an expiry land last.
+    suggested.sort_by_key(|s| s.expiry);
+    planned.sort_by_key(|s| s.expiry);
+
+    if suggested.is_empty() && planned.is_empty() {
+        content.push_str("- No upcoming sessions.\n");
+        return;
+    }
+
+    if !suggested.is_empty() {
+        content.push_str(&format!(
+            "- {} awaiting your decision (status=suggested):\n",
+            suggested.len()
+        ));
+        for s in &suggested {
+            content.push_str(&format!("  - {}\n", format_training_session_line(s)));
+        }
+    }
+    if !planned.is_empty() {
+        content.push_str(&format!(
+            "- {} accepted and upcoming (status=planned):\n",
+            planned.len()
+        ));
+        for s in &planned {
+            content.push_str(&format!("  - {}\n", format_training_session_line(s)));
+        }
+    }
+}
+
+fn format_training_session_line(session: &TrainingSession) -> String {
+    let title = &session.title;
+    let session_type = session.session_type.to_string();
+    match session.expiry {
+        Some(exp) => format!(
+            "\"{}\" ({}, by {})",
+            title,
+            session_type,
+            exp.format("%Y-%m-%d")
+        ),
+        None => format!("\"{}\" ({})", title, session_type),
+    }
+}
+
 fn format_activity_line(activity: &Activity) -> String {
     let distance_km = activity.distance / 1000.0;
     let pace = if activity.distance > 0.0 {
@@ -325,7 +388,7 @@ mod tests {
     };
     use uuid::Uuid;
 
-    use super::{build_coach_context, CoachMemoryDataStore};
+    use super::{build_coach_context, CoachMemoryDataStore, SessionStatus};
 
     struct FakeStore {
         user: User,
@@ -334,6 +397,7 @@ mod tests {
         activities_in_range: Vec<Activity>,
         activities_recent: Vec<Activity>,
         coach_messages: Vec<RunningCoachMessage>,
+        training_sessions: Vec<domain::TrainingSession>,
     }
 
     #[async_trait]
@@ -435,6 +499,13 @@ mod tests {
         ) -> Result<Vec<RunningCoachMessage>, domain::DomainError> {
             Ok(self.coach_messages.clone())
         }
+
+        async fn list_training_sessions(
+            &self,
+            _user_id: Uuid,
+        ) -> Result<Vec<domain::TrainingSession>, domain::DomainError> {
+            Ok(self.training_sessions.clone())
+        }
     }
 
     #[tokio::test]
@@ -488,6 +559,7 @@ mod tests {
             activities_in_range: recent_activities.clone(),
             activities_recent: recent_activities,
             coach_messages: Vec::new(),
+            training_sessions: Vec::new(),
         };
 
         let memory = RunningCoachMemoryData {
@@ -558,6 +630,7 @@ mod tests {
             activities_in_range: vec![trail_run.clone(), road_run.clone()],
             activities_recent: vec![trail_run, road_run],
             coach_messages: Vec::new(),
+            training_sessions: Vec::new(),
         };
 
         let memory = RunningCoachMemoryData::default();
@@ -571,6 +644,136 @@ mod tests {
         assert!(bundle.content.contains("## Last 1 long runs"));
         assert!(bundle.content.contains("Mountain Trail"));
         assert!(bundle.content.contains("- Runs: 2"));
+    }
+
+    #[tokio::test]
+    async fn training_sessions_section_shows_no_upcoming_when_empty() {
+        let user_id = Uuid::new_v4();
+        let now = chrono::Utc::now();
+        let settings = RunningCoachSettings {
+            user_id,
+            ..RunningCoachSettings::default()
+        };
+        let state = RunningCoachState {
+            user_id,
+            last_interaction_at: None,
+            last_seen_activity_start_date: None,
+            updated_at: now,
+        };
+        let store = FakeStore {
+            user: fake_user(user_id, now),
+            identity_profile: None,
+            athlete_profile: None,
+            activities_in_range: Vec::new(),
+            activities_recent: Vec::new(),
+            coach_messages: Vec::new(),
+            training_sessions: Vec::new(),
+        };
+        let memory = RunningCoachMemoryData::default();
+        let bundle = build_coach_context(&store, user_id, &settings, &state, &memory)
+            .await
+            .expect("context should build");
+        assert!(bundle.content.contains("## Planned quality sessions"));
+        assert!(bundle.content.contains("- No upcoming sessions."));
+    }
+
+    #[tokio::test]
+    async fn training_sessions_section_renders_suggested_and_planned() {
+        let user_id = Uuid::new_v4();
+        let now = chrono::Utc::now();
+        let settings = RunningCoachSettings {
+            user_id,
+            ..RunningCoachSettings::default()
+        };
+        let state = RunningCoachState {
+            user_id,
+            last_interaction_at: None,
+            last_seen_activity_start_date: None,
+            updated_at: now,
+        };
+        let store = FakeStore {
+            user: fake_user(user_id, now),
+            identity_profile: None,
+            athlete_profile: None,
+            activities_in_range: Vec::new(),
+            activities_recent: Vec::new(),
+            coach_messages: Vec::new(),
+            training_sessions: vec![
+                fake_training_session(
+                    user_id,
+                    "6 x 800m",
+                    domain::SessionType::Intervals,
+                    SessionStatus::Suggested,
+                    Some(now + Duration::days(2)),
+                ),
+                fake_training_session(
+                    user_id,
+                    "Tempo 5k",
+                    domain::SessionType::Tempo,
+                    SessionStatus::Planned,
+                    None,
+                ),
+                // Terminal states should be omitted from the upcoming block.
+                fake_training_session(
+                    user_id,
+                    "Old hill repeats",
+                    domain::SessionType::Hill,
+                    SessionStatus::Done,
+                    None,
+                ),
+            ],
+        };
+        let memory = RunningCoachMemoryData::default();
+        let bundle = build_coach_context(&store, user_id, &settings, &state, &memory)
+            .await
+            .expect("context should build");
+        assert!(bundle
+            .content
+            .contains("1 awaiting your decision (status=suggested)"));
+        assert!(bundle
+            .content
+            .contains("1 accepted and upcoming (status=planned)"));
+        assert!(bundle.content.contains("\"6 x 800m\" (intervals"));
+        assert!(bundle.content.contains("\"Tempo 5k\" (tempo)"));
+        assert!(!bundle.content.contains("Old hill repeats"));
+    }
+
+    fn fake_user(user_id: Uuid, now: chrono::DateTime<chrono::Utc>) -> User {
+        User {
+            id: user_id,
+            username: "runner".to_string(),
+            display_name: "Runner".to_string(),
+            email: None,
+            created_at: now,
+            mas_current: Some(17.4),
+            quota_balance_usd: 1.0,
+        }
+    }
+
+    fn fake_training_session(
+        user_id: Uuid,
+        title: &str,
+        session_type: domain::SessionType,
+        status: SessionStatus,
+        expiry: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> domain::TrainingSession {
+        let now = chrono::Utc::now();
+        domain::TrainingSession {
+            id: Uuid::new_v4(),
+            user_id,
+            training_id: None,
+            status,
+            title: title.to_string(),
+            session_type,
+            expiry,
+            estimated_duration_s: None,
+            estimated_distance_m: None,
+            intensity_summary: None,
+            prescription_json: "{}".to_string(),
+            coach_message_id: None,
+            created_at: now,
+            updated_at: now,
+        }
     }
 
     fn fake_activity(

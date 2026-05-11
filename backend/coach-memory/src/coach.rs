@@ -621,6 +621,13 @@ mod tests {
         ) -> Result<Vec<RunningCoachMessage>, DomainError> {
             Ok(self.messages.lock().await.clone())
         }
+
+        async fn list_training_sessions(
+            &self,
+            _user_id: Uuid,
+        ) -> Result<Vec<domain::TrainingSession>, DomainError> {
+            Ok(Vec::new())
+        }
     }
 
     struct FakeLlm {

@@ -130,6 +130,21 @@ Important details:
 When a newly synced race appears here, the coach receives the race summary line. It gets total elevation gain, but it
 does not get laps or stream-derived elevation profile data from the automatic context.
 
+### Planned Quality Sessions
+
+The context lists the user's `TrainingSession` rows in non-terminal states (`suggested` and `planned`),
+grouped by status. Each entry is title + session type + (if set) expiry date — never the full
+prescription, to keep the prompt compact.
+
+- Sessions in `done`, `skipped`, or `rejected` are omitted from this block (a future phase may surface
+  recently-completed sessions separately).
+- Empty case is rendered explicitly as `- No upcoming sessions.` so the coach knows the absence is real
+  and doesn't hallucinate sessions the user hasn't accepted.
+- Sessions are sorted by expiry ascending (soonest first); sessions without an expiry land last.
+- The full prescription is available via the `propose_sessions` round-trip on the coach side and the
+  `GET /api/training-sessions/{id}` route on the user-facing side; the context block intentionally hides
+  it to control prompt size.
+
 ### Recent Tool Results
 
 The context includes up to 6 compact summaries of recent tool usage from prior exchanges. These summaries identify

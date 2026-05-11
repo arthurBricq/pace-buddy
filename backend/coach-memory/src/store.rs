@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use domain::{
     Activity, AthleteProfile, DomainError, IdentityProfile, RunningCoachMemory,
-    RunningCoachMessage, RunningCoachSettings, RunningCoachState, User,
+    RunningCoachMessage, RunningCoachSettings, RunningCoachState, TrainingSession, User,
 };
 use uuid::Uuid;
 
@@ -58,4 +58,12 @@ pub trait CoachMemoryDataStore: Send + Sync {
         user_id: Uuid,
         limit: i64,
     ) -> Result<Vec<RunningCoachMessage>, DomainError>;
+    /// Return all `TrainingSession` rows for the user, any status. The coach
+    /// context filters down to suggested + planned in Rust; we don't push the
+    /// filter into storage because (a) the typical row count is small, and
+    /// (b) future context features may want skipped/done too.
+    async fn list_training_sessions(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<TrainingSession>, DomainError>;
 }

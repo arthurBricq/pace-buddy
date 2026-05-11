@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use coach_memory::CoachMemoryDataStore;
 use domain::{
     Activity, AthleteProfile, DomainError, IdentityProfile, RunningCoachMemory,
-    RunningCoachMessage, RunningCoachSettings, RunningCoachState, User,
+    RunningCoachMessage, RunningCoachSettings, RunningCoachState, TrainingSession, User,
 };
 use storage::{SqliteStorage, Storage};
 use uuid::Uuid;
@@ -116,5 +116,12 @@ impl CoachMemoryDataStore for CoachMemoryStorageAdapter {
         self.storage
             .list_running_coach_messages(user_id, limit)
             .await
+    }
+
+    async fn list_training_sessions(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<TrainingSession>, DomainError> {
+        self.storage.list_training_sessions(user_id, None).await
     }
 }
