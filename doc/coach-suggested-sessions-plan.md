@@ -454,52 +454,70 @@ Intentionally **not** in Phase 1 (deferred or dropped):
 - Test seeding mechanism — Phase 2 hand-seeds rows via `sqlite3` to exercise the new display component.
 - Match-table reads/writes — Phase 4.
 
-### Phase 2: Prescription Schema and Display
+### Phase 2: Prescription Schema and Display [DONE]
 
 Goal: pin down a typed Rust schema for `prescription_json` and ship a frontend component that renders it,
-before the coach starts producing JSON in Phase 3. 
+before the coach starts producing JSON in Phase 3.
+
+What shipped:
+
+- **Typed schema** in `backend/domain/src/prescription.rs`: `Prescription { warmup, sets, cooldown, notes }`
+  with nested `OpenBlock`, `Set`, `WorkBlock`, `RecoveryBlock`. The interesting Rust enum is `Target`,
+  serde-tagged (`#[serde(tag = "type")]`) with variants `Pace`, `Speed`, `HeartRate`, `PercentMas`, `Rpe`,
+  `Effort`. No `kind` discriminator on `Prescription` — `TrainingSession.session_type` plays that role.
+- **`Prescription::parse(s: &str) -> Result<Self, serde_json::Error>`** — thin wrapper over
+  `serde_json::from_str`. Empty `{}` round-trips cleanly so existing rows with the storage default don't
+  blow up.
+- **4 committed fixtures** under `backend/domain/src/prescription_fixtures/`: intervals, tempo, hill,
+  fartlek. 7 domain-crate tests cover round-trips, malformed input, empty-prescription forward-compat,
+  and target-tag serialization.
+- **CLI seed subcommand** `rt-cli seed-training-session --user <uuid> --title <s> --session-type <t>
+  --prescription <path>` for hand-seeding rows during dev (parses + validates the JSON before INSERT).
+- **Frontend types** in `frontend/src/types.ts` mirroring the Rust shape (`Prescription`, `Target` as a TS
+  discriminated union, `TrainingSession`, `SessionStatus`, `SessionType`).
+- **API client** `frontend/src/api/training-sessions.ts`: `listTrainingSessions`, `getTrainingSession`,
+  `updateTrainingSessionStatus`.
+- **`PrescriptionDisplay`** in `frontend/src/components/`: renders structured prescriptions as workout
+  shorthand (bold for set lines, italic for notes, distance preferred over duration when both present).
+  Fail-soft: `JSON.parse` errors fall back to a raw-JSON `<pre>` block with a "couldn't parse" notice.
+- **Real list page** at `/training-sessions` replaces the Phase 1 placeholder. Status filter chips at top,
+  per-row cards with title / session_type / expiry / status badge / `PrescriptionDisplay` / status-aware
+  action buttons (Accept+Reject for `suggested`, Mark done+Skip for `planned`, none for terminal states).
+- **Storage integration test** at `backend/storage/tests/training_session.rs` exercising the full
+  insert → list → get → update-status → filtered-list path. Caught and locked-in a fix for a NULL-handling
+  bug in `row_to_training_session` (`.try_get(...).ok()` was collapsing `None` to `Some("")` on
+  nullable UUID columns; switched to plain `.get(col)` per the rest of the codebase).
+
+### Phase 3: Coach Suggestions
+
+Goal: turn the coach from an advice surface into a writer of structured `TrainingSession` rows the user can
+accept or reject.
 
 Tasks:
 
-- **Define the typed schema** in `backend/domain/src/prescription.rs`. Single struct `Prescription` with
-  optional warmup, a `Vec<Set>` body, optional cooldown, and free-text notes. The interesting Rust enum is
-  `Target`, with variants `Pace { min_s_per_km, max_s_per_km }`, `Speed { ... }`, `HeartRate { ... }`,
-  `PercentMas { ... }`, `Rpe { ... }`, `Effort { label }`. Use serde's internally-tagged representation
-  (`#[serde(tag = "type")]`) so JSON looks like `{"type": "pace", "min_s_per_km": 230, ...}`.
-- **Don't reuse the `intervals` crate types directly.** That crate models *executed* sessions: `Rep` has
-  measured `avg_pace_s_per_km`, `pace_std`, `pct_mas`. A planned `Set` has targets (ranges, distance-or-
-  duration choice). The semantics are different even when units overlap; define prescription types from
-  scratch and let Phase 4's comparison helpers map planned `Target` → executed `Rep` for diffing.
-- **Schema parsing helper.** A small `Prescription::parse(s: &str) -> Result<Prescription, ...>` so callers
-  get a proper error when storage hands them a malformed blob (forward-compatibility — old rows missing
-  newly-required fields shouldn't crash the renderer; fail-soft to "raw text" display).
-- **Round-trip tests.** A handful of representative JSON examples (track intervals, tempo, hill repeats,
-  fartlek) deserialized → serialized → deserialized again to lock the wire format. Commit the JSON examples
-  as fixtures under `backend/domain/src/prescription_fixtures/` or similar.
-- **Frontend type definitions** in `frontend/src/types.ts` mirroring the Rust shape. Hand-written for now;
-  generator (e.g. `ts-rs`) only if drift becomes a real problem.
-- **`PrescriptionDisplay` component** in `frontend/src/components/`. Renders the structured prescription as
-  human-readable workout shorthand:
-    > **Warmup** — 20 min easy + 4 × 100 m strides
-    > **6 × 800 m @ 3:20–3:30/km** with 2 min easy jog recovery
-    > **Cooldown** — 10 min
-    > _Stop at 5 reps if form breaks down._
-  Fail-soft when JSON is malformed: render the raw string in a `<pre>` block with a small "couldn't parse"
-  notice. Used later in Phase 3 by suggestion cards and on the real `/training-sessions` list.
-- **Local test page.** Replace the placeholder content of `TrainingSessionsPage.tsx` with the real list view:
-  fetch via `GET /api/training-sessions`, render each session's title + status + `<PrescriptionDisplay>`,
-  per-row status actions (Mark done, Skip). Calls the existing PATCH `/status` route shipped in Phase 1.
-- **Seeding for testing.** Document a 3-line `sqlite3` recipe in this doc (or a one-shot
-  `cli seed-training-session --json fixtures/example.json` subcommand) so we can exercise the page without
-  the coach. Lives in development workflow only; not a user-facing feature.
+- **Coach context.** Add the user's current/next `TrainingSession` rows to the automatic context built in
+  `coach-memory/src/context.rs` — counts and titles only, not full prescriptions. Explicit "no upcoming
+  sessions" line when empty so the coach knows the absence is real.
+- **Coach tools.**
+    - `list_planned_sessions(status?)` — read-only, filters by status.
+    - `propose_sessions(payload)` — validates the payload against `Prescription` (the Phase 2 schema is the
+      tool boundary); on success, persists rows with `status = 'suggested'`, `source = 'coach'`, and
+      `coach_message_id` set. Invalid payloads from the LLM are dropped (or retried with a hint), not
+      stored.
+    - `update_planned_session_status(id, status)` — coach-driven status transitions (e.g. mark
+      `superseded` / `rejected` on the user's behalf when the conversation makes it explicit).
+- **Frontend suggestion cards in the chat.** In the Running Coach reply, render any sessions a message
+  produced as inspectable cards inline below the message body — reusing `PrescriptionDisplay` from Phase 2.
+  Accept flips the row to `planned` via the existing PATCH route, Reject flips it to `rejected`. The
+  `/training-sessions` list page already shipped in Phase 2; no further work there.
+- **Prompt.** Tell the coach when to call `propose_sessions` (only when the user is asking for a quality
+  session) vs. when to answer in prose (easy run, long run, rest day). Default to **one** suggestion unless
+  the user explicitly asks for options. Update `doc/ai-coach-data-inputs.md` to reflect the new context and
+  tool surfaces.
 
-Done when:
-
-- A handful of hand-crafted prescription JSON files round-trip cleanly through `Prescription::parse`.
-- A row inserted via `sqlite3` shows up on `/training-sessions` rendered as readable workout shorthand by
-  `PrescriptionDisplay`.
-- Status actions on the page flip the row through the existing PATCH route.
-- Phase 3 can pick up `Prescription` as a known-good type and focus on coach prompt + tool wiring.
+Done when: a user can ask the coach for a workout, see a structured suggestion card in the chat reply, accept
+it, and find the resulting `planned` session on `/training-sessions`. The coach can also list existing sessions
+to avoid double-proposing.
 
 ### Phase 3: Coach Suggestions
 
