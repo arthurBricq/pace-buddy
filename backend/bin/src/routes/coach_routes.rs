@@ -160,6 +160,21 @@ pub async fn send_coach_message(
         .send_message_with_tools(llm_arc.as_ref(), user.user_id, content, &tool_executor)
         .await?;
 
+    for sid in tool_executor.take_created_session_ids().await {
+        if let Err(err) = state
+            .storage
+            .set_training_session_coach_message_id(sid, user.user_id, assistant_message.id)
+            .await
+        {
+            log::warn!(
+                "Failed to stamp coach_message_id={} on training_session={}: {}",
+                assistant_message.id,
+                sid,
+                err
+            );
+        }
+    }
+
     let billed_cost = state.cost_to_user_quota(assistant_message.cost);
     if billed_cost > 0.0 {
         if let Err(err) = state.storage.deduct_quota(user.user_id, billed_cost).await {

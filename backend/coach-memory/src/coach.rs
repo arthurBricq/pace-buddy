@@ -43,7 +43,11 @@ Use search_sessions for fuzzy name/tag/text matching.
 Respect the coach context note describing whether TrailRun is treated as a run.
 Never invent an activity_id.
 If multiple plausible matches are returned, ask the user to choose one session before using get_session_detail.
-Only use get_session_detail once an activity_id is unambiguous.";
+Only use get_session_detail once an activity_id is unambiguous.
+
+You can also propose structured training sessions with propose_sessions. Use it ONLY when the user is asking for a quality session: intervals, tempo, threshold, hill, fartlek, progression, race-pace, time-trial, or strides. Do NOT call propose_sessions for easy runs, long runs, recovery, rest days, or general volume questions — answer those in prose. Default to ONE session; propose two or three only when the user explicitly asks for options.
+Before proposing, call list_planned_sessions if an upcoming session might already cover the request, to avoid double-proposing.
+Use update_planned_session_status only when the user explicitly skips, rejects, accepts, or marks-done a prior suggestion in conversation. Acceptance is normally a UI action — do not call this tool unless chat makes intent unambiguous.";
 
 const MAX_TOOL_LOOP_STEPS: usize = 4;
 const MAX_RECENT_TOOL_RESULTS: usize = 6;

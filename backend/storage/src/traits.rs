@@ -140,6 +140,12 @@ pub trait Storage: Send + Sync {
         user_id: Uuid,
         status: SessionStatus,
     ) -> Result<(), DomainError>;
+    async fn set_training_session_coach_message_id(
+        &self,
+        id: Uuid,
+        user_id: Uuid,
+        coach_message_id: Uuid,
+    ) -> Result<(), DomainError>;
 
     // Training insights
     async fn store_training_insight(&self, insight: &TrainingInsight) -> Result<(), DomainError>;

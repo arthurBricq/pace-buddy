@@ -1692,6 +1692,38 @@ impl Storage for SqliteStorage {
         Ok(())
     }
 
+    async fn set_training_session_coach_message_id(
+        &self,
+        id: Uuid,
+        user_id: Uuid,
+        coach_message_id: Uuid,
+    ) -> Result<(), DomainError> {
+        let result = sqlx::query(
+            "UPDATE training_sessions
+             SET coach_message_id = ?, updated_at = ?
+             WHERE id = ? AND user_id = ?",
+        )
+        .bind(coach_message_id.to_string())
+        .bind(chrono::Utc::now().to_rfc3339())
+        .bind(id.to_string())
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            DomainError::Storage(format!(
+                "Failed to set training session coach_message_id: {e}"
+            ))
+        })?;
+
+        if result.rows_affected() == 0 {
+            return Err(DomainError::NotFound(format!(
+                "Training session {id} not found"
+            )));
+        }
+
+        Ok(())
+    }
+
     // -----------------------------------------------------------------------
     // Trainings
     // -----------------------------------------------------------------------

@@ -84,6 +84,23 @@ async fn round_trip_with_null_optional_fields() {
         .expect("list suggested");
     assert!(suggested.is_empty());
 
+    // Stamp the coach_message_id post-loop and read it back.
+    let msg_id = Uuid::new_v4();
+    db.set_training_session_coach_message_id(session_id, user.id, msg_id)
+        .await
+        .expect("stamp coach_message_id");
+    let stamped = db
+        .get_training_session(session_id, user.id)
+        .await
+        .expect("re-get after stamp");
+    assert_eq!(stamped.coach_message_id, Some(msg_id));
+
+    // Stamping a non-existent row returns NotFound.
+    let missing = db
+        .set_training_session_coach_message_id(Uuid::new_v4(), user.id, msg_id)
+        .await;
+    assert!(matches!(missing, Err(domain::DomainError::NotFound(_))));
+
     let _ = std::fs::remove_file(&path);
     let _ = std::fs::remove_file(format!("{path}-wal"));
     let _ = std::fs::remove_file(format!("{path}-shm"));

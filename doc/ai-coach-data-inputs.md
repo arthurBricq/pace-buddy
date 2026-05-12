@@ -291,6 +291,84 @@ indirectly, but only the rendered summary is sent to the LLM. It also receives t
 Although altitude streams may be fetched and cached, the current description does not render the altitude stream or an
 elevation profile.
 
+### `list_planned_sessions`
+
+Input:
+
+- Optional `status`: `suggested`, `planned`, `done`, `skipped`, or `rejected`. Omit to return all statuses.
+
+Behavior:
+
+- Returns the user's `training_sessions` rows, newest first (ordered by `created_at DESC` in storage).
+- Caps the response at 20 rows.
+
+Output:
+
+- `sessions`: array of `{ id, title, session_type, status, expiry, prescription_json }`.
+
+Unlike the read-only match tools, this one returns the full `prescription_json` so the LLM can decide whether
+to re-propose vs. tweak an existing session.
+
+### `propose_sessions`
+
+Input:
+
+- `sessions`: array of items, each with:
+    - `title` (required).
+    - `session_type` (required): `intervals`, `tempo`, `threshold`, `hill`, `fartlek`, `progression`, `race_pace`,
+      `time_trial`, `strides`, or `other_quality`.
+    - `prescription` (required): structured object matching the Phase 2 `Prescription` schema —
+      `{ warmup?, sets?[{ repeat, work{duration_s|distance_m, target}, recovery? }], cooldown?, notes? }`.
+      `target.type` ∈ `pace | speed | heart_rate | percent_mas | rpe | effort`.
+    - Optional `expiry` (RFC3339 timestamp), `estimated_duration_s`, `estimated_distance_m`, `intensity_summary`.
+
+Behavior:
+
+- Validates each item by `serde_json::from_value::<ProposedSessionPayload>`. The nested `prescription` deserializes
+  into `domain::Prescription`, which gives a structural check for free (e.g. unknown `target.type` fails parsing).
+- Partial success: malformed items are logged as warnings and skipped; valid siblings are still inserted. Failures
+  are surfaced back to the LLM in an `errors` array so the next tool-loop step can retry.
+- Each valid item is inserted as a `TrainingSession` row with `status = 'suggested'`, `coach_message_id = NULL`,
+  `training_id = NULL`.
+- The route handler then stamps `coach_message_id` on each newly-created row after the tool loop returns, linking
+  the row to the assistant message that proposed it (for inline-card rendering in the coach chat).
+
+Output:
+
+- `created`: array of `{ id, title }` for each successfully inserted row.
+- `errors` (only present when at least one item failed): array of `{ index, title, reason }`. The LLM should retry
+  failed items in the next tool-loop step with valid payloads.
+- `retry_hint` (only present when `errors` is): a one-line shape reminder.
+
+When to call:
+
+- ONLY for quality sessions (the `session_type` enum above). For easy runs, long runs, recovery, or rest days,
+  answer in prose — do not call this tool.
+- Default to ONE session unless the user explicitly asks for options.
+- Call `list_planned_sessions` first if an upcoming session may already cover the request, to avoid double-proposing.
+
+### `update_planned_session_status`
+
+Input:
+
+- `id` (required): canonical `training_session` UUID.
+- `status` (required): `suggested`, `planned`, `done`, `skipped`, or `rejected`.
+
+Behavior:
+
+- Transitions the row's status if it exists for this user; updates `updated_at`.
+- On not-found, returns `{ "error": "..." }` (not a thrown error) so the LLM can recover.
+
+Output:
+
+- On success: `{ id, new_status }`.
+- On not-found: `{ error: "..." }`.
+
+When to call:
+
+- Only when the user has explicitly skipped, rejected, accepted, or marked-done a prior suggestion in chat.
+- Acceptance is normally a UI action — do not call this tool unless conversation makes the intent unambiguous.
+
 ## Direct Answers
 
 ### What data is fed to the AI coach?

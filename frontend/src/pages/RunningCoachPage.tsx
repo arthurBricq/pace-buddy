@@ -1,14 +1,27 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import Navbar from '../components/Navbar';
 import CoachSettingsModal from '../components/CoachSettingsModal';
+import SessionCard from '../components/SessionCard';
 import { getCoach, resetCoach, sendCoachMessage, updateCoachSettings } from '../api/coach';
-import type { RunningCoachMessage, RunningCoachResponse, RunningCoachSettings } from '../types';
+import {
+  listTrainingSessions,
+  updateTrainingSessionStatus,
+} from '../api/training-sessions';
+import type {
+  RunningCoachMessage,
+  RunningCoachResponse,
+  RunningCoachSettings,
+  SessionStatus,
+  TrainingSession,
+} from '../types';
 
 export default function RunningCoachPage() {
   const [coach, setCoach] = useState<RunningCoachResponse | null>(null);
   const [messages, setMessages] = useState<RunningCoachMessage[]>([]);
+  const [sessions, setSessions] = useState<TrainingSession[]>([]);
+  const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -19,9 +32,13 @@ export default function RunningCoachPage() {
   const loadCoach = async () => {
     setLoading(true);
     try {
-      const data = await getCoach();
+      const [data, sess] = await Promise.all([
+        getCoach(),
+        listTrainingSessions(),
+      ]);
       setCoach(data);
       setMessages(data.messages);
+      setSessions(sess);
     } catch (err: any) {
       setError(err.message || 'Failed to load coach');
     } finally {
@@ -60,9 +77,13 @@ export default function RunningCoachPage() {
     try {
       const assistant = await sendCoachMessage(content);
       setMessages((prev) => [...prev.filter((m) => m.id !== 'pending-user'), assistant]);
-      const refreshed = await getCoach();
+      const [refreshed, sess] = await Promise.all([
+        getCoach(),
+        listTrainingSessions(),
+      ]);
       setCoach(refreshed);
       setMessages(refreshed.messages);
+      setSessions(sess);
     } catch (err: any) {
       setMessages((prev) => prev.filter((m) => m.id !== 'pending-user'));
       setError(err.message || 'Failed to send message');
@@ -70,6 +91,29 @@ export default function RunningCoachPage() {
       setSending(false);
     }
   };
+
+  const handleSessionStatus = async (id: string, status: SessionStatus) => {
+    setPendingSessionId(id);
+    try {
+      const updated = await updateTrainingSessionStatus(id, status);
+      setSessions((prev) => prev.map((s) => (s.id === id ? updated : s)));
+    } catch (err: any) {
+      setError(err.message || 'Failed to update session status');
+    } finally {
+      setPendingSessionId(null);
+    }
+  };
+
+  const sessionsByMessageId = useMemo(() => {
+    const map = new Map<string, TrainingSession[]>();
+    for (const s of sessions) {
+      if (!s.coach_message_id) continue;
+      const list = map.get(s.coach_message_id) ?? [];
+      list.push(s);
+      map.set(s.coach_message_id, list);
+    }
+    return map;
+  }, [sessions]);
 
   const handleSaveSettings = async (next: RunningCoachSettings) => {
     const updated = await updateCoachSettings({
@@ -161,33 +205,53 @@ export default function RunningCoachPage() {
                 </div>
               )}
 
-              {visibleMessages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
+              {visibleMessages.map((msg) => {
+                const attached =
+                  msg.role === 'assistant'
+                    ? sessionsByMessageId.get(msg.id) ?? []
+                    : [];
+                return (
                   <div
-                    className={`rounded-lg px-4 py-3 max-w-[85%] ${
-                      msg.role === 'user'
-                        ? 'bg-purple-100 text-purple-900'
-                        : 'bg-gray-100 text-gray-900'
+                    key={msg.id}
+                    className={`flex flex-col ${
+                      msg.role === 'user' ? 'items-end' : 'items-start'
                     }`}
                   >
-                    {msg.role === 'assistant' ? (
-                      <div className="prose prose-sm max-w-none">
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
-                      </div>
-                    ) : (
-                      <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
-                    )}
-                    {msg.role === 'assistant' && msg.cost > 0 && (
-                      <div className="mt-2 text-xs text-gray-400">
-                        {msg.total_tokens} tokens &middot; {formatCost(msg.cost)}
+                    <div
+                      className={`rounded-lg px-4 py-3 max-w-[85%] ${
+                        msg.role === 'user'
+                          ? 'bg-purple-100 text-purple-900'
+                          : 'bg-gray-100 text-gray-900'
+                      }`}
+                    >
+                      {msg.role === 'assistant' ? (
+                        <div className="prose prose-sm max-w-none">
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
+                      )}
+                      {msg.role === 'assistant' && msg.cost > 0 && (
+                        <div className="mt-2 text-xs text-gray-400">
+                          {msg.total_tokens} tokens &middot; {formatCost(msg.cost)}
+                        </div>
+                      )}
+                    </div>
+                    {attached.length > 0 && (
+                      <div className="mt-2 w-full max-w-[85%] space-y-2">
+                        {attached.map((s) => (
+                          <SessionCard
+                            key={s.id}
+                            session={s}
+                            pending={pendingSessionId === s.id}
+                            onStatus={(status) => handleSessionStatus(s.id, status)}
+                          />
+                        ))}
                       </div>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               {sending && (
                 <div className="flex justify-start">

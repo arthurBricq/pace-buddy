@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import Navbar from '../components/Navbar';
-import PrescriptionDisplay from '../components/PrescriptionDisplay';
+import SessionCard from '../components/SessionCard';
 import {
   listTrainingSessions,
   updateTrainingSessionStatus,
 } from '../api/training-sessions';
-import type { SessionStatus, SessionType, TrainingSession } from '../types';
+import type { SessionStatus, TrainingSession } from '../types';
 
 const STATUS_OPTIONS: { label: string; value: SessionStatus | 'all' }[] = [
   { label: 'All', value: 'all' },
@@ -15,66 +15,6 @@ const STATUS_OPTIONS: { label: string; value: SessionStatus | 'all' }[] = [
   { label: 'Skipped', value: 'skipped' },
   { label: 'Rejected', value: 'rejected' },
 ];
-
-function statusBadgeClass(status: SessionStatus): string {
-  switch (status) {
-    case 'suggested':
-      return 'bg-blue-100 text-blue-800';
-    case 'planned':
-      return 'bg-amber-100 text-amber-800';
-    case 'done':
-      return 'bg-green-100 text-green-800';
-    case 'skipped':
-      return 'bg-gray-100 text-gray-700';
-    case 'rejected':
-      return 'bg-red-100 text-red-700';
-  }
-}
-
-function formatSessionType(t: SessionType): string {
-  return t.replace('_', ' ');
-}
-
-function formatExpiry(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
-interface ActionButtonsProps {
-  session: TrainingSession;
-  onStatus: (status: SessionStatus) => void;
-  pending: boolean;
-}
-
-function ActionButtons({ session, onStatus, pending }: ActionButtonsProps) {
-  const buttons: { label: string; status: SessionStatus }[] = [];
-  if (session.status === 'suggested') {
-    buttons.push({ label: 'Accept', status: 'planned' });
-    buttons.push({ label: 'Reject', status: 'rejected' });
-  } else if (session.status === 'planned') {
-    buttons.push({ label: 'Mark done', status: 'done' });
-    buttons.push({ label: 'Skip', status: 'skipped' });
-  }
-  if (buttons.length === 0) return null;
-  return (
-    <div className="flex gap-2 flex-wrap">
-      {buttons.map((b) => (
-        <button
-          key={b.status}
-          type="button"
-          onClick={() => onStatus(b.status)}
-          disabled={pending}
-          className="text-xs px-3 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-        >
-          {b.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 export default function TrainingSessionsPage() {
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
@@ -168,42 +108,12 @@ export default function TrainingSessionsPage() {
         ) : (
           <div className="space-y-3">
             {sessions.map((s) => (
-              <article
+              <SessionCard
                 key={s.id}
-                className="bg-white rounded-lg shadow p-4 space-y-3"
-              >
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-800">
-                      {s.title}
-                    </h2>
-                    <div className="text-xs text-gray-500 mt-1 flex gap-2 items-center">
-                      <span className="capitalize">
-                        {formatSessionType(s.session_type)}
-                      </span>
-                      {s.expiry && (
-                        <>
-                          <span>·</span>
-                          <span>by {formatExpiry(s.expiry)}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full ${statusBadgeClass(s.status)}`}
-                  >
-                    {s.status}
-                  </span>
-                </div>
-
-                <PrescriptionDisplay prescriptionJson={s.prescription_json} />
-
-                <ActionButtons
-                  session={s}
-                  onStatus={(status) => handleStatus(s.id, status)}
-                  pending={pendingId === s.id}
-                />
-              </article>
+                session={s}
+                onStatus={(status) => handleStatus(s.id, status)}
+                pending={pendingId === s.id}
+              />
             ))}
           </div>
         )}
