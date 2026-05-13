@@ -50,7 +50,9 @@ async fn openrouter_live_tool_call_contract() {
         .chat_completion_with_tools(
             "openai/gpt-5-mini",
             vec![
-                ChatMessage::system("You are running an integration test. Call the provided tool exactly once."),
+                ChatMessage::system(
+                    "You are running an integration test. Call the provided tool exactly once.",
+                ),
                 ChatMessage::user("Call the integration tool now."),
             ],
             vec![tool],
@@ -79,8 +81,7 @@ async fn openrouter_live_tool_call_contract() {
         result.tool_calls[0].arguments_parse_error
     );
     assert_eq!(
-        result.tool_calls[0].arguments["probe"],
-        "openrouter-live",
+        result.tool_calls[0].arguments["probe"], "openrouter-live",
         "Expected tool argument contract field 'probe=openrouter-live'"
     );
     assert_eq!(

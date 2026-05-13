@@ -266,7 +266,9 @@ impl SqliteStorage {
         .execute(pool)
         .await
         .map_err(|e| {
-            DomainError::Storage(format!("Failed to create training_sessions user index: {e}"))
+            DomainError::Storage(format!(
+                "Failed to create training_sessions user index: {e}"
+            ))
         })?;
 
         sqlx::query(

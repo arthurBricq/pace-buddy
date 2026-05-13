@@ -164,6 +164,9 @@ Memory is updated after each exchange by a classifier LLM call. It is periodical
 
 ## Coach Tools
 
+Tool parameter schemas are generated from typed Rust DTOs with `schemars` in
+`backend/bin/src/adapters/coach_tools.rs`, with shared enums and prescription types coming from `backend/domain`.
+
 ### `search_sessions`
 
 Input:
@@ -318,7 +321,9 @@ Input:
     - `session_type` (required): `intervals`, `tempo`, `threshold`, `hill`, `fartlek`, `progression`, `race_pace`,
       `time_trial`, `strides`, or `other_quality`.
     - `prescription` (required): structured object matching the Phase 2 `Prescription` schema —
-      `{ warmup?, sets?[{ repeat, work{duration_s|distance_m, target}, recovery? }], cooldown?, notes? }`.
+      `{ warmup?, sets[{ repeat, work{duration_s|distance_m, target}, recovery? }], cooldown?, notes? }`.
+      `sets` is required and must contain at least one set; `{}` and `sets: []` are rejected for coach-created
+      sessions.
       `target.type` ∈ `pace | speed | heart_rate | percent_mas | rpe | effort`.
     - Optional `expiry` (RFC3339 timestamp), `estimated_duration_s`, `estimated_distance_m`, `intensity_summary`.
 
@@ -326,6 +331,8 @@ Behavior:
 
 - Validates each item by `serde_json::from_value::<ProposedSessionPayload>`. The nested `prescription` deserializes
   into `domain::Prescription`, which gives a structural check for free (e.g. unknown `target.type` fails parsing).
+- Rejects missing `sessions`, empty `sessions`, missing `prescription`, empty `{}` prescriptions, and empty
+  `prescription.sets` without inserting rows.
 - Partial success: malformed items are logged as warnings and skipped; valid siblings are still inserted. Failures
   are surfaced back to the LLM in an `errors` array so the next tool-loop step can retry.
 - Each valid item is inserted as a `TrainingSession` row with `status = 'suggested'`, `coach_message_id = NULL`,

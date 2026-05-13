@@ -21,4 +21,3 @@
 ## Refactoring
 
 - Generate OpenAPI types from Rust (with utoipa) and use those in the frontend !
-

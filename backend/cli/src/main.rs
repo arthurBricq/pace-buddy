@@ -407,12 +407,8 @@ fn run_calibrate(include_trails: bool) -> anyhow::Result<()> {
     let mut rows: Vec<Row> = Vec::new();
 
     for f in &all {
-        let result = intervals::parse_intervals_with_algorithm(
-            &algorithm,
-            &f.dump.streams,
-            &config,
-            None,
-        );
+        let result =
+            intervals::parse_intervals_with_algorithm(&algorithm, &f.dump.streams, &config, None);
         let r = match result {
             Ok(r) => r,
             Err(e) => {
@@ -456,7 +452,11 @@ fn run_calibrate(include_trails: bool) -> anyhow::Result<()> {
 
         // Overall speed CV across all segments, weighted by duration.
         let weighted_mean: f64 = if total_dur > 0.0 {
-            r.segments.iter().map(|s| s.avg_speed_mps * s.duration_s).sum::<f64>() / total_dur
+            r.segments
+                .iter()
+                .map(|s| s.avg_speed_mps * s.duration_s)
+                .sum::<f64>()
+                / total_dur
         } else {
             0.0
         };
@@ -651,8 +651,7 @@ fn run_calibrate(include_trails: bool) -> anyhow::Result<()> {
     for f in &all {
         // Recompute via fixture (needs to share logic with rows above)
         if let Some(row) = rows.iter().find(|r| {
-            r.category == f.category
-                && (r.score - 0.0).abs() < 100.0 // dummy match — use index instead
+            r.category == f.category && (r.score - 0.0).abs() < 100.0 // dummy match — use index instead
         }) {
             let _ = row;
         }

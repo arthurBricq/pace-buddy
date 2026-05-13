@@ -47,10 +47,7 @@ pub async fn get_training_session(
     path: web::Path<Uuid>,
 ) -> Result<HttpResponse, AppError> {
     let session_id = path.into_inner();
-    log::debug!(
-        "GET /training-sessions/{session_id} user={}",
-        user.user_id
-    );
+    log::debug!("GET /training-sessions/{session_id} user={}", user.user_id);
 
     let session = state
         .storage

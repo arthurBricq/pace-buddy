@@ -1,7 +1,7 @@
 use actix_web::{web, HttpResponse};
 use serde::{Deserialize, Serialize};
-use storage::Storage;
 use std::str::FromStr;
+use storage::Storage;
 use uuid::Uuid;
 
 use crate::errors::AppError;

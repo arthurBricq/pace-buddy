@@ -27,12 +27,7 @@ pub enum FixtureCategory {
 }
 
 impl FixtureCategory {
-    pub const ALL: &'static [Self] = &[
-        Self::Intervals,
-        Self::Races,
-        Self::Runs,
-        Self::Trails,
-    ];
+    pub const ALL: &'static [Self] = &[Self::Intervals, Self::Races, Self::Runs, Self::Trails];
 
     pub fn dir_name(self) -> &'static str {
         match self {

@@ -194,7 +194,10 @@ impl<S: CoachMemoryDataStore> CoachMemory<S> {
             llm_messages.push(ChatMessage::system(COACH_TOOL_PROMPT));
         }
 
-        let history = self.store.list_running_coach_messages(user_id, MAX_COACH_HISTORY_MESSAGES).await?;
+        let history = self
+            .store
+            .list_running_coach_messages(user_id, MAX_COACH_HISTORY_MESSAGES)
+            .await?;
         log::info!(
             "coach.send_message history_loaded user_id={} history_messages={}",
             user_id,

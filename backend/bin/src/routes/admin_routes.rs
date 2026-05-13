@@ -454,7 +454,10 @@ pub async fn dump_activity(
     verify_admin(&state, &user).await?;
     let activity_id = path.into_inner();
 
-    let activity = state.storage.get_activity(activity_id, user.user_id).await?;
+    let activity = state
+        .storage
+        .get_activity(activity_id, user.user_id)
+        .await?;
 
     let mut streams = state
         .storage
@@ -465,20 +468,25 @@ pub async fn dump_activity(
         streams = load_and_cache_streams(&state, &activity).await?;
     }
 
-    let mut laps = state.storage.get_laps(activity_id).await.unwrap_or_default();
+    let mut laps = state
+        .storage
+        .get_laps(activity_id)
+        .await
+        .unwrap_or_default();
     if laps.is_empty() {
         laps = load_and_cache_laps(&state, &activity).await?;
     }
 
-    let interval_result = state
-        .storage
-        .get_interval_result(activity_id)
-        .await?
-        .map(|(algorithm, result_json)| {
-            let result = serde_json::from_str::<serde_json::Value>(&result_json)
-                .unwrap_or(serde_json::Value::String(result_json));
-            ActivityDumpIntervalResult { algorithm, result }
-        });
+    let interval_result =
+        state
+            .storage
+            .get_interval_result(activity_id)
+            .await?
+            .map(|(algorithm, result_json)| {
+                let result = serde_json::from_str::<serde_json::Value>(&result_json)
+                    .unwrap_or(serde_json::Value::String(result_json));
+                ActivityDumpIntervalResult { algorithm, result }
+            });
 
     Ok(HttpResponse::Ok().json(ActivityDump {
         activity,

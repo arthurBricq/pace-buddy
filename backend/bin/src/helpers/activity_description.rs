@@ -5,7 +5,9 @@ use storage::Storage;
 use strava_client::{strava_laps_to_domain, strava_streams_to_domain};
 use uuid::Uuid;
 
-use crate::helpers::formatting::{format_duration_hms, format_pace_from_activity, format_pace_from_seconds};
+use crate::helpers::formatting::{
+    format_duration_hms, format_pace_from_activity, format_pace_from_seconds,
+};
 use crate::helpers::strava_token_helper::get_valid_access_token;
 use crate::state::AppState;
 
@@ -76,9 +78,16 @@ pub async fn build_activity_description(
 
     let mas_kmh = state.storage.get_user_by_id(user_id).await?.mas_current;
 
-    let mode_analysis =
-        build_mode_analysis(state, &activity, selected_mode, mas_kmh, &laps, &streams, &mut notes)
-            .await;
+    let mode_analysis = build_mode_analysis(
+        state,
+        &activity,
+        selected_mode,
+        mas_kmh,
+        &laps,
+        &streams,
+        &mut notes,
+    )
+    .await;
 
     Ok(render_description(
         &activity,
@@ -88,7 +97,10 @@ pub async fn build_activity_description(
     ))
 }
 
-fn resolve_mode(activity: &Activity, requested_mode: ActivityDescriptionMode) -> ActivityDescriptionMode {
+fn resolve_mode(
+    activity: &Activity,
+    requested_mode: ActivityDescriptionMode,
+) -> ActivityDescriptionMode {
     if requested_mode != ActivityDescriptionMode::Auto {
         return requested_mode;
     }
@@ -106,13 +118,21 @@ fn resolve_mode(activity: &Activity, requested_mode: ActivityDescriptionMode) ->
     }
 }
 
-async fn ensure_streams(state: &AppState, activity: &Activity) -> Result<Vec<ActivityStream>, DomainError> {
-    let mut streams = state.storage.get_streams(activity.id).await.unwrap_or_default();
+async fn ensure_streams(
+    state: &AppState,
+    activity: &Activity,
+) -> Result<Vec<ActivityStream>, DomainError> {
+    let mut streams = state
+        .storage
+        .get_streams(activity.id)
+        .await
+        .unwrap_or_default();
     if !streams.is_empty() {
         return Ok(streams);
     }
 
-    let access_token = get_valid_access_token(&state.storage, &state.strava_client, activity.user_id).await?;
+    let access_token =
+        get_valid_access_token(&state.storage, &state.strava_client, activity.user_id).await?;
     let strava_streams = state
         .strava_client
         .get_activity_streams(&access_token, activity.strava_id)
@@ -126,13 +146,21 @@ async fn ensure_streams(state: &AppState, activity: &Activity) -> Result<Vec<Act
     Ok(streams)
 }
 
-async fn ensure_laps(state: &AppState, activity: &Activity) -> Result<Vec<ActivityLap>, DomainError> {
-    let mut laps = state.storage.get_laps(activity.id).await.unwrap_or_default();
+async fn ensure_laps(
+    state: &AppState,
+    activity: &Activity,
+) -> Result<Vec<ActivityLap>, DomainError> {
+    let mut laps = state
+        .storage
+        .get_laps(activity.id)
+        .await
+        .unwrap_or_default();
     if !laps.is_empty() {
         return Ok(laps);
     }
 
-    let access_token = get_valid_access_token(&state.storage, &state.strava_client, activity.user_id).await?;
+    let access_token =
+        get_valid_access_token(&state.storage, &state.strava_client, activity.user_id).await?;
     let strava_laps = state
         .strava_client
         .get_activity_laps(&access_token, activity.strava_id)
@@ -210,7 +238,9 @@ async fn build_mode_analysis(
                     split.trend
                 ));
             } else {
-                out.push_str("- Half-split estimation unavailable (missing time/distance streams)\n");
+                out.push_str(
+                    "- Half-split estimation unavailable (missing time/distance streams)\n",
+                );
             }
 
             if let Some(lap_summary) = summarize_lap_pacing(laps) {
@@ -308,9 +338,18 @@ fn render_description(
     out.push_str(&format!("- Selected mode: {}\n\n", selected_mode.as_str()));
 
     out.push_str("## Core Metrics\n");
-    out.push_str(&format!("- Distance: {:.2} km\n", activity.distance / 1000.0));
-    out.push_str(&format!("- Moving time: {}\n", format_duration_hms(activity.moving_time)));
-    out.push_str(&format!("- Elapsed time: {}\n", format_duration_hms(activity.elapsed_time)));
+    out.push_str(&format!(
+        "- Distance: {:.2} km\n",
+        activity.distance / 1000.0
+    ));
+    out.push_str(&format!(
+        "- Moving time: {}\n",
+        format_duration_hms(activity.moving_time)
+    ));
+    out.push_str(&format!(
+        "- Elapsed time: {}\n",
+        format_duration_hms(activity.elapsed_time)
+    ));
     out.push_str(&format!(
         "- Average pace: {}\n",
         format_pace_from_activity(activity.distance, activity.moving_time)
@@ -319,7 +358,10 @@ fn render_description(
         "- Average speed: {:.2} km/h\n",
         activity.average_speed * 3.6
     ));
-    out.push_str(&format!("- Max speed: {:.2} km/h\n", activity.max_speed * 3.6));
+    out.push_str(&format!(
+        "- Max speed: {:.2} km/h\n",
+        activity.max_speed * 3.6
+    ));
     out.push_str(&format!(
         "- Elevation gain: {:.0} m\n",
         activity.total_elevation_gain

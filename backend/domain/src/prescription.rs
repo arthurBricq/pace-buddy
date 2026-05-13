@@ -11,12 +11,14 @@
 //! distance-or-duration choice). Phase 4's comparison helpers map planned
 //! `Target` → executed `Rep` for diffing.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct Prescription {
     pub warmup: Option<OpenBlock>,
-    #[serde(default)]
+    #[schemars(length(min = 1))]
     pub sets: Vec<Set>,
     pub cooldown: Option<OpenBlock>,
     pub notes: Option<String>,
@@ -32,35 +34,47 @@ impl Prescription {
 }
 
 /// Warmup or cooldown block — no formal target; the intent is "easy".
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct OpenBlock {
+    #[schemars(range(min = 1))]
     pub duration_s: Option<u32>,
+    #[schemars(range(min = 1))]
     pub distance_m: Option<u32>,
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct Set {
+    #[schemars(range(min = 1))]
     pub repeat: u32,
     pub work: WorkBlock,
     pub recovery: Option<RecoveryBlock>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct WorkBlock {
+    #[schemars(range(min = 1))]
     pub duration_s: Option<u32>,
+    #[schemars(range(min = 1))]
     pub distance_m: Option<u32>,
     pub target: Target,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RecoveryBlock {
+    #[schemars(range(min = 1))]
     pub duration_s: Option<u32>,
+    #[schemars(range(min = 1))]
     pub distance_m: Option<u32>,
     pub target: Option<Target>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Target {
     Pace {
@@ -151,19 +165,17 @@ mod tests {
     #[test]
     fn malformed_yields_error() {
         assert!(Prescription::parse("nonsense").is_err());
-        assert!(Prescription::parse("{}").is_ok()); // empty is valid (no sets, all optional)
+        assert!(Prescription::parse("{}").is_err());
     }
 
     #[test]
-    fn empty_prescription_is_valid() {
-        // Forward-compatibility: a row with `prescription_json = '{}'`
-        // (the storage default) should parse cleanly to an empty
-        // Prescription. The renderer will fall back to "no details" UI.
-        let p = Prescription::parse("{}").expect("parse empty");
-        assert!(p.warmup.is_none());
-        assert!(p.sets.is_empty());
-        assert!(p.cooldown.is_none());
-        assert!(p.notes.is_none());
+    fn prescription_requires_sets() {
+        let err = Prescription::parse(r#"{"warmup":{"duration_s":600}}"#)
+            .expect_err("missing sets should fail");
+        assert!(
+            err.to_string().contains("sets"),
+            "expected missing sets error, got: {err}"
+        );
     }
 
     #[test]
