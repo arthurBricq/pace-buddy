@@ -1,0 +1,6 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@import "./styles/theme.css";
+@import "./styles/layout.css";
+@import "./styles/landing.css";

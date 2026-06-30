@@ -1,0 +1,79 @@
+:root {
+  color-scheme: light;
+
+  /* Primary brand tones */
+  --color-plum-900: #220713;
+  --color-plum-700: #4c102a;
+  --color-berry-600: #761941;
+
+  /* Light neutrals / accents */
+  --color-cream-100: #fff7e2;
+  --color-white: #ffffff;
+  --color-butter-200: #ffe9af;
+
+  /* Semantic aliases */
+  --color-primary: var(--color-plum-700);
+  --color-primary-dark: var(--color-plum-900);
+  --color-secondary: var(--color-berry-600);
+  --color-background: var(--color-white);
+  --color-surface: var(--color-cream-100);
+  --color-accent: var(--color-butter-200);
+  --color-text: var(--color-plum-900);
+  --color-muted: #715363;
+  --color-border: #e8d9c7;
+
+  --font-heading: 'Space Grotesk', 'Avenir Next', 'Helvetica Neue', sans-serif;
+  --font-body: 'Source Sans 3', 'Avenir Next', 'Helvetica Neue', sans-serif;
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+
+  --shadow-soft: 0 12px 40px rgba(34, 7, 19, 0.08);
+  --shadow-card: 0 24px 55px rgba(34, 7, 19, 0.12);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-body);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  font-family: var(--font-heading);
+  letter-spacing: -0.02em;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+  }
+}

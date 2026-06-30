@@ -1,0 +1,64 @@
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { getStravaStatus, getStravaLink } from '../api/strava';
+import { errorMessage } from '../api/client';
+import type { StravaStatus } from '../types';
+import Navbar from '../components/Navbar';
+
+export default function LinkStravaPage() {
+  const [searchParams] = useSearchParams();
+  const [status, setStatus] = useState<StravaStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(searchParams.get('error') || '');
+
+  useEffect(() => {
+    getStravaStatus()
+      .then(setStatus)
+      .catch((err: unknown) => setError(errorMessage(err, 'Failed to load Strava status')))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleLink = async () => {
+    try {
+      const { url } = await getStravaLink();
+      window.location.href = url;
+    } catch (err: unknown) {
+      setError(errorMessage(err, 'Failed to start Strava linking'));
+    }
+  };
+
+  return (
+    <div className="app-shell">
+      <Navbar />
+      <div className="page-container-compact mt-6 sm:mt-12">
+        <div className="card">
+        <h1 className="text-xl font-bold mb-4">Strava Connection</h1>
+
+        {loading && <p className="text-gray-500">Checking status...</p>}
+        {error && <p className="text-red-600 text-sm">{error}</p>}
+
+        {status && status.linked ? (
+          <div className="space-y-2">
+            <p className="text-green-600 font-medium">Strava connected</p>
+            <p className="text-sm text-gray-500">
+              Athlete ID: {status.athlete_id}
+            </p>
+          </div>
+        ) : status && !status.linked ? (
+          <div className="space-y-4">
+            <p className="text-gray-600">
+              Connect your Strava account to sync activities.
+            </p>
+            <button
+              onClick={handleLink}
+              className="bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600"
+            >
+              Connect Strava
+            </button>
+          </div>
+        ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}

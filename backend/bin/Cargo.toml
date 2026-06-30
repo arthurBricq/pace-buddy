@@ -1,0 +1,30 @@
+[package]
+name = "bin"
+version = "0.1.0"
+edition = "2021"
+default-run = "bin"
+
+[dependencies]
+actix-web = "4"
+actix-files = "0.6"
+actix-cors = "0.7"
+async-trait = "0.1"
+clap = { version = "4", features = ["derive"] }
+urlencoding = "2"
+auth = { path = "../auth" }
+chrono = { version = "0.4", features = ["serde"] }
+coach-tool-macros = { path = "../coach-tool-macros" }
+domain = { path = "../domain" }
+env_logger = "0.11"
+log = { workspace = true }
+schemars = { version = "0.8", features = ["chrono"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+storage = { path = "../storage" }
+strava-client = { path = "../strava-client" }
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4"] }
+intervals = { path = "../intervals" }
+llm = { path = "../llm" }
+coach-memory = { path = "../coach-memory" }

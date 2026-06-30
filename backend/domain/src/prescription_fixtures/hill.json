@@ -1,0 +1,28 @@
+{
+  "warmup": {
+    "duration_s": 1200,
+    "notes": "easy on flat"
+  },
+  "sets": [
+    {
+      "repeat": 8,
+      "work": {
+        "duration_s": 60,
+        "target": {
+          "type": "effort",
+          "label": "hard uphill"
+        }
+      },
+      "recovery": {
+        "duration_s": 90,
+        "target": {
+          "type": "effort",
+          "label": "walk or jog down"
+        }
+      }
+    }
+  ],
+  "cooldown": {
+    "duration_s": 600
+  }
+}

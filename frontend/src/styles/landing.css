@@ -1,0 +1,516 @@
+@layer components {
+  .brand-page {
+    min-height: 100vh;
+    background:
+      radial-gradient(1200px 420px at 90% -5%, rgba(255, 233, 175, 0.45), transparent 62%),
+      radial-gradient(900px 300px at 10% 22%, rgba(255, 247, 226, 0.8), transparent 65%),
+      var(--color-background);
+  }
+
+  .brand-container {
+    width: min(100% - 2rem, 68.75rem);
+    margin-inline: auto;
+  }
+
+  .brand-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(232, 217, 199, 0.65);
+  }
+
+  .brand-header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.95rem 0;
+  }
+
+  .brand-logo-lockup {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+    color: var(--color-text);
+  }
+
+  .brand-logo-img {
+    height: 2.7rem;
+    width: auto;
+  }
+
+  .brand-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+  }
+
+  .brand-invite-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6b4958;
+  }
+
+  .brand-invite-field input {
+    width: 17rem;
+    border: 1px solid #e0cebe;
+    border-radius: 999px;
+    padding: 0.52rem 0.8rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #3f2633;
+    background: #fffdf9;
+  }
+
+  .brand-invite-field input:focus-visible {
+    outline: 2px solid var(--color-secondary);
+    outline-offset: 1px;
+  }
+
+  .brand-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-weight: 600;
+    line-height: 1;
+    transition: transform 0.16s ease, background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+  }
+
+  .brand-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .brand-btn:focus-visible {
+    outline: 2px solid var(--color-secondary);
+    outline-offset: 2px;
+  }
+
+  .brand-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  .brand-btn-link {
+    border-color: transparent;
+    background: transparent;
+    color: var(--color-primary-dark);
+    padding: 0.45rem 0.45rem;
+    font-size: 0.92rem;
+  }
+
+  .brand-btn-link:hover:not(:disabled) {
+    color: var(--color-secondary);
+  }
+
+  .brand-btn-primary {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: var(--color-white);
+    padding: 0.73rem 1.15rem;
+    font-size: 0.94rem;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .brand-btn-primary:hover:not(:disabled) {
+    border-color: var(--color-primary-dark);
+    background: var(--color-primary-dark);
+  }
+
+  .brand-strava-btn {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .strava-connect-img {
+    display: block;
+    height: 2.75rem;
+    width: auto;
+  }
+
+  .brand-main {
+    padding: 2.9rem 0 4.2rem;
+  }
+
+  .brand-section {
+    padding: 2.9rem 0;
+  }
+
+  .brand-section-compact {
+    padding: 1.55rem 0;
+  }
+
+  .hero-title {
+    max-width: 10ch;
+    font-size: clamp(2.05rem, 6vw, 4rem);
+    line-height: 1.12;
+    color: var(--color-primary-dark);
+  }
+
+  .hero-kicker {
+    margin-bottom: 1rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-secondary);
+  }
+
+  .hero-body {
+    margin-top: 1.15rem;
+    max-width: 66ch;
+    font-size: clamp(1.02rem, 2vw, 1.23rem);
+    line-height: 1.45;
+    color: #4f3744;
+  }
+
+  .hero-meta {
+    margin-top: 1.4rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+  }
+
+  .hero-chip {
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background: var(--color-white);
+    padding: 0.38rem 0.72rem;
+    font-size: 0.83rem;
+    font-weight: 600;
+    color: #5d3f4d;
+  }
+
+  .hero-links {
+    margin-top: 1.2rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    color: #5d3f4d;
+    font-size: 0.95rem;
+  }
+
+  .hero-links a {
+    color: var(--color-secondary);
+    font-weight: 600;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+  }
+
+  .hero-links a:hover {
+    color: var(--color-primary-dark);
+  }
+
+  .brand-error {
+    margin-top: 1rem;
+    display: inline-flex;
+    align-items: center;
+    border-radius: var(--radius-sm);
+    border: 1px solid #f1c2c6;
+    background: #fff4f5;
+    padding: 0.6rem 0.75rem;
+    color: #8d1a2a;
+    font-size: 0.9rem;
+  }
+
+  .brand-panel {
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+    background: var(--color-white);
+    box-shadow: var(--shadow-soft);
+    padding: clamp(1.2rem, 2.4vw, 2rem);
+  }
+
+  .panel-title {
+    font-size: clamp(1.45rem, 2.1vw, 1.95rem);
+    color: var(--color-primary-dark);
+  }
+
+  .panel-description {
+    margin-top: 0.7rem;
+    max-width: 67ch;
+    color: #58404d;
+    line-height: 1.45;
+    font-size: 1.01rem;
+  }
+
+  .coach-preview {
+    margin-top: 1.5rem;
+    display: grid;
+    gap: 0.9rem;
+  }
+
+  .coach-item {
+    border-radius: var(--radius-md);
+    border: 1px solid #ebdfd3;
+    background: linear-gradient(180deg, #ffffff 0%, #fffdfa 100%);
+    padding: 0.9rem 1rem;
+  }
+
+  .coach-item-prompt {
+    font-size: 0.97rem;
+    font-weight: 600;
+    color: #3d2734;
+    line-height: 1.35;
+  }
+
+  .brand-control-panel {
+    background:
+      radial-gradient(540px 280px at 110% 0%, rgba(255, 233, 175, 0.4), transparent 68%),
+      var(--color-white);
+  }
+
+  .control-grid {
+    margin-top: 1.4rem;
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 0.95rem;
+  }
+
+  .control-card {
+    border-radius: var(--radius-md);
+    border: 1px solid #eadfce;
+    background: #fffdfa;
+    padding: 0.95rem;
+  }
+
+  .control-title {
+    font-size: 1.06rem;
+    color: #2f1320;
+  }
+
+  .control-description {
+    margin-top: 0.4rem;
+    color: #5c4651;
+    line-height: 1.42;
+  }
+
+  .model-groups {
+    margin-top: 0.8rem;
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .model-group {
+    border-top: 1px solid #efdfcd;
+    padding-top: 0.65rem;
+  }
+
+  .model-group:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .model-provider {
+    font-size: 0.84rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #673448;
+  }
+
+  .model-chip-row {
+    margin-top: 0.45rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.42rem;
+  }
+
+  .model-chip {
+    border-radius: 999px;
+    border: 1px solid #e1d0be;
+    background: #ffffff;
+    padding: 0.3rem 0.62rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+    font-size: 0.74rem;
+    color: #4a2f3a;
+  }
+
+  .coach-style-row {
+    margin-top: 0.75rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .coach-style-chip {
+    border-radius: 999px;
+    border: 1px solid #dfc7b7;
+    background: #fff7e2;
+    padding: 0.32rem 0.66rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #51323f;
+  }
+
+  .coming-soon-badge {
+    margin-top: 0.85rem;
+    display: inline-flex;
+    border-radius: 999px;
+    border: 1px solid #e2cbb9;
+    background: #fff2d6;
+    padding: 0.32rem 0.7rem;
+    color: #5b3547;
+    font-size: 0.79rem;
+    font-weight: 700;
+  }
+
+  .features-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  .feature-card {
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+    background: var(--color-white);
+    box-shadow: var(--shadow-soft);
+    padding: 1.3rem 1.2rem;
+  }
+
+  .feature-icon {
+    margin-bottom: 0.9rem;
+    height: 2.1rem;
+    width: 2.1rem;
+    border-radius: 50%;
+    border: 1px solid #dfcaba;
+    background: linear-gradient(180deg, #fff8e5 0%, #fff3cc 100%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .feature-icon svg {
+    height: 1.1rem;
+    width: 1.1rem;
+    stroke: var(--color-secondary);
+    stroke-width: 1.7;
+    fill: none;
+  }
+
+  .feature-title {
+    font-size: 1.15rem;
+    color: var(--color-primary-dark);
+  }
+
+  .feature-description {
+    margin-top: 0.45rem;
+    color: #5b4350;
+    line-height: 1.44;
+  }
+
+  .feature-points {
+    margin-top: 0.75rem;
+    padding-left: 1rem;
+    color: #4f3744;
+    line-height: 1.38;
+  }
+
+  .feature-points li + li {
+    margin-top: 0.26rem;
+  }
+
+  .trust-strip {
+    margin-top: 0.2rem;
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 0.8rem;
+  }
+
+  .trust-item {
+    border-radius: var(--radius-md);
+    border: 1px solid #e6d5c4;
+    background: var(--color-surface);
+    padding: 0.75rem 0.9rem;
+    color: #4d3642;
+    font-weight: 600;
+    font-size: 0.92rem;
+  }
+
+  .brand-footer {
+    padding: 1rem 0 2.2rem;
+  }
+
+  .brand-footer-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .strava-powered {
+    display: inline-block;
+    height: 1.55rem;
+    width: auto;
+  }
+
+  @media (min-width: 768px) {
+    .brand-main {
+      padding: 4.1rem 0 5rem;
+    }
+
+    .brand-section {
+      padding: 3.4rem 0;
+    }
+
+    .brand-section-compact {
+      padding: 1.95rem 0;
+    }
+
+    .coach-preview {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .features-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .trust-strip {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .control-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 480px) {
+    .brand-actions {
+      gap: 0.45rem;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+
+    .brand-invite-field {
+      width: 100%;
+      justify-content: flex-end;
+    }
+
+    .brand-invite-field input {
+      width: min(100%, 13rem);
+    }
+
+    .brand-btn-primary {
+      padding: 0.7rem 0.88rem;
+      font-size: 0.85rem;
+    }
+
+    .strava-connect-img {
+      height: 2.5rem;
+    }
+  }
+}

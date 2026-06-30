@@ -1,0 +1,30 @@
+{
+  "warmup": {
+    "duration_s": 1200,
+    "notes": "easy + 4 × 100m strides"
+  },
+  "sets": [
+    {
+      "repeat": 6,
+      "work": {
+        "distance_m": 800,
+        "target": {
+          "type": "pace",
+          "min_s_per_km": 200,
+          "max_s_per_km": 210
+        }
+      },
+      "recovery": {
+        "duration_s": 120,
+        "target": {
+          "type": "effort",
+          "label": "easy jog"
+        }
+      }
+    }
+  ],
+  "cooldown": {
+    "duration_s": 600
+  },
+  "notes": "Stop at 5 reps if form breaks down."
+}

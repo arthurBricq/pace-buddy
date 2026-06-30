@@ -1,0 +1,40 @@
+# IDE
+.idea/
+
+# Rust
+backend/target/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+*.pem
+
+# SQLite
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Secrets
+backend/strava_client_id
+backend/strava_client_secret
+backend/openrouter_key
+
+# Local private notes and scratch files
+TASK.md
+commands.txt
+LOCAL_RUN.md
+/fix.sh
+/cleanup_*.sql
+
+# Intervals fixture dumps (manifest.json is committed, dumps are local)
+backend/intervals/fixtures/*.json
+!backend/intervals/fixtures/manifest.json
+
+# macos
+*.DS_STORE

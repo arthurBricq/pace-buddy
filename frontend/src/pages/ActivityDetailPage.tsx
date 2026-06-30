@@ -1,0 +1,237 @@
+import { useEffect, useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import {
+  getActivity,
+  getIntervals,
+  updateActivityTag,
+} from '../api/activities';
+import { downloadActivityDump, getAdminStats } from '../api/admin';
+import { errorMessage } from '../api/client';
+import type { ActivityDetail, ActivityTag, IntervalAlgorithm, IntervalResponse } from '../types';
+import { useAuth } from '../hooks/useAuth';
+import Navbar from '../components/Navbar';
+import ActivityStats from '../components/ActivityStats';
+import ActivityMap from '../components/ActivityMap';
+import StreamChart from '../components/StreamChart';
+import TagSelector from '../components/TagSelector';
+import TagBadge from '../components/TagBadge';
+import IntervalRecap from '../components/IntervalRecap';
+
+export default function ActivityDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const [detail, setDetail] = useState<ActivityDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [editingTag, setEditingTag] = useState(false);
+  const [intervals, setIntervals] = useState<IntervalResponse | null>(null);
+  const [intervalAlgorithm, setIntervalAlgorithm] = useState<IntervalAlgorithm | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [dumping, setDumping] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+    setLoading(true);
+    getActivity(id)
+      .then(setDetail)
+      .catch((err: unknown) => setError(errorMessage(err, 'Failed to load activity')))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getAdminStats()
+      .then(() => {
+        if (!cancelled) setIsAdmin(true);
+      })
+      .catch(() => {
+        // not an admin, leave button hidden
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleDownloadDump = async () => {
+    if (!id || dumping) return;
+    setDumping(true);
+    try {
+      await downloadActivityDump(id);
+    } catch (err: unknown) {
+      setError(errorMessage(err, 'Failed to download dump'));
+    } finally {
+      setDumping(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!id || !detail) return;
+
+    // Fetch interval parsing for any road-running activity. The backend gates
+    // on score (>= 0.55 via is_interval_workout) and short-circuits on cache,
+    // so this also lazily backfills historical activities the user opens.
+    if (detail.activity.sport_type === 'Run') {
+      getIntervals(id)
+        .then((result) => {
+          setIntervals(result);
+          setIntervalAlgorithm(result.algorithm);
+        })
+        .catch((e) => console.warn('Failed to load intervals:', e));
+    } else {
+      setIntervals(null);
+      setIntervalAlgorithm(null);
+    }
+  }, [id, detail]);
+
+  const handleAlgorithmChange = (algorithm: IntervalAlgorithm) => {
+    if (!id || detail?.activity.sport_type !== 'Run' || intervalAlgorithm === algorithm) return;
+
+    setIntervalAlgorithm(algorithm);
+    getIntervals(id, algorithm)
+      .then((result) => {
+        setIntervals(result);
+        setIntervalAlgorithm(result.algorithm);
+      })
+      .catch((e) => console.warn('Failed to switch interval algorithm:', e));
+  };
+
+  const handleTagChange = async (tag: ActivityTag) => {
+    if (!id || !detail) return;
+    try {
+      await updateActivityTag(id, tag);
+      setDetail({
+        ...detail,
+        activity: { ...detail.activity, tag },
+      });
+      setEditingTag(false);
+    } catch (err: unknown) {
+      setError(errorMessage(err, 'Failed to update activity tag'));
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="app-shell">
+        <Navbar />
+        <div className="page-container-narrow">
+          <p className="text-gray-500">Loading activity...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !detail) {
+    return (
+      <div className="app-shell">
+        <Navbar />
+        <div className="page-container-narrow">
+          <p className="text-red-600">{error || 'Activity not found'}</p>
+          <Link to="/activities" className="text-blue-600 hover:underline text-sm mt-2 inline-block">
+            Back to activities
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const { activity, streams, laps } = detail;
+  const distanceStream = streams.find((s) => s.stream_type === 'distance');
+  const timeStream = streams.find((s) => s.stream_type === 'time');
+
+  return (
+    <div className="app-shell">
+      <Navbar />
+      <div className="page-container-narrow section-stack">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <Link to="/activities" className="text-sm text-gray-500 hover:text-gray-700">
+              &larr; Back
+            </Link>
+            <h1 className="text-2xl font-bold mt-1">{activity.name}</h1>
+            <p className="text-sm text-gray-500">
+              {new Date(activity.start_date).toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}{' '}
+              &middot; {activity.sport_type}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={handleDownloadDump}
+                disabled={dumping}
+                className="text-sm px-3 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                title="Download activity + streams + laps + interval result as JSON for the fixture corpus"
+              >
+                {dumping ? 'Dumping…' : 'Download dump'}
+              </button>
+            )}
+            {editingTag ? (
+              <TagSelector current={activity.tag} onChange={handleTagChange} />
+            ) : (
+              <button onClick={() => setEditingTag(true)}>
+                <TagBadge tag={activity.tag} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <ActivityStats activity={activity} />
+
+        {activity.summary_polyline && (
+          <ActivityMap polyline={activity.summary_polyline} />
+        )}
+
+        {intervals?.is_interval_workout && (
+          <IntervalRecap
+            intervals={intervals}
+            masCurrent={user?.mas_current ?? null}
+            autoDetected={activity.tag !== 'intervals'}
+          />
+        )}
+
+        {intervals?.is_interval_workout && (
+          <div className="bg-white rounded-lg shadow p-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Interval Algorithm
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-md">
+              <button
+                type="button"
+                onClick={() => handleAlgorithmChange('speed_based')}
+                className={`theme-toggle-btn ${
+                  intervalAlgorithm === 'speed_based' ? 'theme-toggle-btn-active' : ''
+                }`}
+              >
+                Speed based
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAlgorithmChange('manual_laps')}
+                className={`theme-toggle-btn ${
+                  intervalAlgorithm === 'manual_laps' ? 'theme-toggle-btn-active' : ''
+                }`}
+              >
+                Manual laps
+              </button>
+            </div>
+          </div>
+        )}
+
+        {(streams.length > 0 || laps.length > 0) && (
+          <StreamChart
+            streams={streams}
+            distanceStream={distanceStream}
+            timeStream={timeStream}
+            segments={intervals?.segments}
+            laps={laps}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
